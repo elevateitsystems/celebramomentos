@@ -1,6 +1,8 @@
 "use client";
 
-import { ChangeEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from "react";
+import { EmojiControls } from "@/components/emoji-controls";
+import { defaultEmojiPosition, emojiToneFilters, type EmojiPosition, type EmojiTone } from "@/lib/emojis";
 
 type Language = "es" | "pt";
 type Template = { id: string; name: string; eyebrow: string; description: string; image: string; tone: string; price: string };
@@ -166,6 +168,9 @@ export default function Home() {
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [message, setMessage] = useState("Feliz vuelta al sol, Ana ✨");
   const [emoji, setEmoji] = useState("✨");
+  const [emojiTone, setEmojiTone] = useState<EmojiTone>("natural");
+  const [emojiSize, setEmojiSize] = useState(28);
+  const [emojiPosition, setEmojiPosition] = useState<EmojiPosition>(defaultEmojiPosition);
   const [size, setSize] = useState<"A4" | "A3">("A4");
   const [photo, setPhoto] = useState<string | null>(null);
   const [sticker, setSticker] = useState(0);
@@ -174,12 +179,13 @@ export default function Home() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [cookieOpen, setCookieOpen] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
+  const emojiDesignRef = useRef<HTMLDivElement>(null);
   const t = copy[language];
   const total = useMemo(() => 8.9 + (sticker ? sticker === 1 ? 1.5 : sticker === 2 ? 2.7 : 3 : 0) + chocolate * 5.9, [sticker, chocolate]);
 
   const chooseTemplate = (template: Template) => {
     setSelectedTemplate(template);
-    document.getElementById("customizer")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.location.assign("/customize");
   };
 
   const handlePhoto = (event: ChangeEvent<HTMLInputElement>) => {
@@ -190,7 +196,14 @@ export default function Home() {
     reader.readAsDataURL(file);
   };
 
-  const reset = () => { setMessage("Feliz vuelta al sol, Ana ✨"); setEmoji("✨"); setPhoto(null); setSize("A4"); };
+  const moveEmoji = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (!emojiDesignRef.current) return;
+    const bounds = emojiDesignRef.current.getBoundingClientRect();
+    const clamp = (value: number) => Math.min(94, Math.max(6, value));
+    setEmojiPosition({ x: clamp(((event.clientX - bounds.left) / bounds.width) * 100), y: clamp(((event.clientY - bounds.top) / bounds.height) * 100) });
+  };
+
+  const reset = () => { setMessage("Feliz vuelta al sol, Ana ✨"); setEmoji("✨"); setEmojiTone("natural"); setEmojiSize(28); setEmojiPosition(defaultEmojiPosition); setPhoto(null); setSize("A4"); };
 
   return (
     <main>
@@ -231,8 +244,50 @@ export default function Home() {
       <section className="bg-white py-16 md:py-20"><div className="container"><div className="flex flex-col justify-between gap-6 md:flex-row md:items-end"><div><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.benefitsKicker}</p><h2 className="serif mt-3 max-w-[570px] text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.benefitsTitle}</h2></div><span className="hidden text-5xl text-[#f8c75e] md:block">✦</span></div><div className="mt-11 grid gap-4 md:grid-cols-3">{t.benefits.map(([number, title, body], index) => <article key={number} className="rounded-[22px] border border-[#eadbd3] bg-[#fffaf5] p-6 transition hover:-translate-y-1 hover:shadow-lg"><span className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-black ${index === 1 ? "bg-[#f8c75e] text-[#182443]" : "bg-[#fff0e8] text-[#ee5264]"}`}>{number}</span><h3 className="mt-5 text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-[#737b90]">{body}</p></article>)}</div></div></section><section id="templates" className="border-y border-[#ebdfd6] bg-[#fff7f1] py-20 md:py-24"><div className="container"><div className="flex flex-col justify-between gap-6 md:flex-row md:items-end"><div><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.templatesKicker}</p><h2 className="serif mt-3 text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.templatesTitle}</h2></div><p className="max-w-[300px] text-sm leading-6 text-[#737b90]">{t.templatesBody}</p></div><div className="mt-12 grid gap-5 md:grid-cols-3">{templates.map((template) => <article key={template.id} className="group rounded-[22px] border border-[#eadbd3] bg-white p-3 transition duration-300 hover:-translate-y-1 hover:border-[#e9aaa0] hover:shadow-xl hover:shadow-[#8a564c]/10"><div className="relative aspect-[1.12/1] overflow-hidden rounded-[16px]" style={{ backgroundColor: template.tone }}><img src={template.image} alt={template.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-[9px] font-black tracking-[.14em] text-[#182443]">{template.eyebrow}</div><button onClick={() => chooseTemplate(template)} className="focus-ring absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#ee5264] text-white opacity-0 shadow-lg transition group-hover:opacity-100" aria-label={`${t.customize}: ${template.name}`}><Icon name="arrow" size={17} /></button></div><div className="px-2 pb-2 pt-5"><div className="flex items-start justify-between gap-2"><h3 className="text-[17px] font-black">{template.name}</h3><span className="whitespace-nowrap text-xs font-bold text-[#ee5264]">{template.price}</span></div><p className="mt-2 min-h-[48px] text-sm leading-6 text-[#737b90]">{language === "es" ? template.description : template.id === "confetti" ? "Para celebrar em grande, mesmo com um pequeno gesto." : template.id === "floral" ? "Um cantinho bonito para dizer tudo o que às vezes custa." : "Uma fotografia, algumas palavras e uma recordação que dura."}</p><button onClick={() => chooseTemplate(template)} className="focus-ring mt-4 flex items-center gap-2 text-sm font-black text-[#182443] transition group-hover:text-[#ee5264]">{t.customize}<Icon name="arrow" size={15} /></button></div></article>)}</div></div></section>
 
       <section id="customizer" className="bg-white py-20 md:py-28"><div className="container"><div className="mb-12 max-w-[600px]"><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.editorKicker}</p><h2 className="serif mt-3 text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.editorTitle}</h2><p className="mt-4 text-sm leading-6 text-[#737b90]">{t.editorBody}</p></div><div className="grid gap-8 lg:grid-cols-[.78fr_1.22fr] lg:items-start">
-          <div className="order-2 rounded-[24px] border border-[#eadfd8] bg-[#fffaf5] p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{selectedTemplate.eyebrow}</p><h3 className="mt-1 font-black">{selectedTemplate.name}</h3></div><button onClick={reset} className="text-xs font-bold text-[#7c8191] underline underline-offset-4 hover:text-[#ee5264]">{t.reset}</button></div><label className="mt-6 block text-sm font-black">{t.message}<textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} className="focus-ring mt-2 w-full resize-none rounded-2xl border border-[#dfd3cc] bg-white p-3 text-sm leading-6 text-[#182443] placeholder:text-[#adb1bd]" /></label><div className="mt-5"><p className="text-sm font-black">{t.emoji}</p><div className="mt-2 flex gap-2">{["✨", "❤️", "🎉", "🌷", "😊"].map((item) => <button key={item} onClick={() => { setEmoji(item); setMessage((value) => value.replace(/[✨❤️🎉🌷😊]$/, "") + item); }} className={`focus-ring flex h-10 w-10 items-center justify-center rounded-xl border text-lg transition ${emoji === item ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"}`}>{item}</button>)}</div></div><div className="mt-6"><p className="text-sm font-black">{t.photo}</p><button onClick={() => fileRef.current?.click()} className="focus-ring mt-2 flex w-full items-center gap-3 rounded-2xl border border-dashed border-[#e7a59c] bg-white p-3 text-left transition hover:bg-[#fff0e8]"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff0e8] text-[#ee5264]"><Icon name="plus" size={18} /></span><span><span className="block text-sm font-black">{t.upload}</span><span className="mt-0.5 block text-xs text-[#7c8191]">{t.uploadHint}</span></span></button><input ref={fileRef} onChange={handlePhoto} type="file" accept="image/png,image/jpeg" className="hidden" /></div><div className="mt-6"><p className="text-sm font-black">{t.size}</p><div className="mt-2 grid grid-cols-2 gap-2">{(["A4", "A3"] as const).map((option) => <button key={option} onClick={() => setSize(option)} className={`focus-ring rounded-2xl border p-3 text-left transition ${size === option ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"}`}><span className="block text-sm font-black">{option}</span><span className="mt-1 block text-[11px] text-[#7c8191]">{option === "A4" ? t.a4 : t.a3}</span></button>)}</div></div></div>
-          <div className="order-1 rounded-[26px] bg-[#f8efe8] p-5 sm:p-10 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-[.18em] text-[#7b7180]">{t.preview}</span><span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-[#182443]">{size} · {selectedTemplate.eyebrow}</span></div><div className="mx-auto max-w-[640px] rounded-[18px] bg-white p-3 shadow-xl shadow-[#8a564c]/10 sm:p-5"><div className={`relative overflow-hidden rounded-[10px] bg-[#fff0e8] ${size === "A3" ? "aspect-[.78/1]" : "aspect-[.82/1]"}`}><img src={photo || selectedTemplate.image} alt="Vista previa de tu tarjeta" className={`absolute inset-0 h-full w-full ${photo ? "object-cover" : "object-cover"} opacity-60`} /><div className="absolute inset-0 bg-white/50" /><div className="absolute inset-[8%] flex flex-col justify-between rounded-[8px] border border-white/90 bg-white/60 p-[7%] backdrop-blur-[1px]"><div className="flex justify-between"><span className="rounded-full bg-[#182443] px-3 py-1.5 text-[9px] font-black tracking-[.12em] text-white">PARA ALGUIEN ESPECIAL</span><span className="text-xl">{emoji}</span></div><div><p className="serif max-w-[460px] whitespace-pre-line break-words text-[clamp(28px,5vw,58px)] font-bold leading-[.98] tracking-[-.05em] text-[#182443]">{message || "Tu mensaje aquí"}</p><div className="mt-5 h-1 w-16 rounded-full bg-[#ee5264]" /></div><div className="flex items-end justify-between"><span className="serif text-[clamp(13px,2vw,18px)] italic text-[#ee5264]">Con todo mi cariño</span><Icon name="heart" size={28} /></div></div></div></div><button onClick={() => setCartOpen(true)} className="focus-ring mt-6 flex w-full items-center justify-center gap-3 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{t.continue}<Icon name="arrow" size={17} /></button></div>
+          <div className="order-2 rounded-[24px] border border-[#eadfd8] bg-[#fffaf5] p-5 sm:p-7 lg:order-1">
+            <div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{selectedTemplate.eyebrow}</p><h3 className="mt-1 font-black">{selectedTemplate.name}</h3></div><button onClick={reset} className="text-xs font-bold text-[#7c8191] underline underline-offset-4 hover:text-[#ee5264]">{t.reset}</button></div>
+            <label className="mt-6 block text-sm font-black">{t.message}<textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} className="focus-ring mt-2 w-full resize-none rounded-2xl border border-[#dfd3cc] bg-white p-3 text-sm leading-6 text-[#182443] placeholder:text-[#adb1bd]" /></label>
+            <EmojiControls language={language} emoji={emoji} tone={emojiTone} size={emojiSize} onSelect={(item) => { setEmoji(item.emoji); setEmojiTone(item.tone || "natural"); }} onSizeChange={setEmojiSize} />
+            <div className="mt-6"><p className="text-sm font-black">{t.photo}</p><button onClick={() => fileRef.current?.click()} className="focus-ring mt-2 flex w-full items-center gap-3 rounded-2xl border border-dashed border-[#e7a59c] bg-white p-3 text-left transition hover:bg-[#fff0e8]"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff0e8] text-[#ee5264]"><Icon name="plus" size={18} /></span><span><span className="block text-sm font-black">{t.upload}</span><span className="mt-0.5 block text-xs text-[#7c8191]">{t.uploadHint}</span></span></button><input ref={fileRef} onChange={handlePhoto} type="file" accept="image/png,image/jpeg" className="hidden" /></div>
+            <div className="mt-6"><p className="text-sm font-black">{t.size}</p><div className="mt-2 grid grid-cols-2 gap-2">{(["A4", "A3"] as const).map((option) => <button key={option} onClick={() => setSize(option)} className={`focus-ring rounded-2xl border p-3 text-left transition ${size === option ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"}`}><span className="block text-sm font-black">{option}</span><span className="mt-1 block text-[11px] text-[#7c8191]">{option === "A4" ? t.a4 : t.a3}</span></button>)}</div></div>
+          </div>
+          <div className="order-1 rounded-[26px] bg-[#f8efe8] p-5 sm:p-10 lg:order-2">
+            <div className="mb-5 flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-[.18em] text-[#7b7180]">{t.preview}</span><span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-[#182443]">{size} · {selectedTemplate.eyebrow}</span></div>
+            <div className="mx-auto max-w-[640px] rounded-[18px] bg-white p-3 shadow-xl shadow-[#8a564c]/10 sm:p-5">
+              <div className={`relative overflow-hidden rounded-[10px] bg-[#fff0e8] ${size === "A3" ? "aspect-[.78/1]" : "aspect-[.82/1]"}`}>
+                <img src={photo || selectedTemplate.image} alt="Vista previa de tu tarjeta" className="absolute inset-0 h-full w-full object-cover opacity-60" />
+                <div className="absolute inset-0 bg-white/50" />
+                <div ref={emojiDesignRef} className="absolute inset-[8%] flex flex-col justify-between rounded-[8px] border border-white/90 bg-white/60 p-[7%] backdrop-blur-[1px]">
+                  <div><span className="rounded-full bg-[#182443] px-3 py-1.5 text-[9px] font-black tracking-[.12em] text-white">PARA ALGUIEN ESPECIAL</span></div>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label={language === "es" ? "Mover emoji. Arrastra para colocarlo" : "Mover emoji. Arrasta para o posicionar"}
+                    title={language === "es" ? "Arrastra para mover el emoji" : "Arrasta para mover o emoji"}
+                    onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); moveEmoji(event); }}
+                    onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) moveEmoji(event); }}
+                    onKeyDown={(event) => {
+                      const movement = event.shiftKey ? 5 : 2;
+                      let { x, y } = emojiPosition;
+                      if (event.key === "ArrowLeft") x -= movement;
+                      else if (event.key === "ArrowRight") x += movement;
+                      else if (event.key === "ArrowUp") y -= movement;
+                      else if (event.key === "ArrowDown") y += movement;
+                      else return;
+                      event.preventDefault();
+                      setEmojiPosition({ x: Math.min(94, Math.max(6, x)), y: Math.min(94, Math.max(6, y)) });
+                    }}
+                    className="absolute z-10 cursor-grab touch-none select-none rounded-lg leading-none outline-none focus:ring-2 focus:ring-[#ee5264] focus:ring-offset-2 active:cursor-grabbing"
+                    style={{ left: `${emojiPosition.x}%`, top: `${emojiPosition.y}%`, fontSize: `${emojiSize}px`, filter: emojiToneFilters[emojiTone], transform: "translate(-50%, -50%)" }}
+                  >{emoji}</span>
+                  <div><p className="serif max-w-[460px] whitespace-pre-line break-words text-[clamp(28px,5vw,58px)] font-bold leading-[.98] tracking-[-.05em] text-[#182443]">{message || "Tu mensaje aquí"}</p><div className="mt-5 h-1 w-16 rounded-full bg-[#ee5264]" /></div>
+                  <div className="flex items-end justify-between"><span className="serif text-[clamp(13px,2vw,18px)] italic text-[#ee5264]">Con todo mi cariño</span><Icon name="heart" size={28} /></div>
+                </div>
+              </div>
+            </div>
+            <p className="mt-3 text-center text-xs text-[#7b7180]">{language === "es" ? "Arrastra el emoji para colocarlo donde quieras." : "Arrasta o emoji para o colocares onde quiseres."}</p>
+            <button onClick={() => setCartOpen(true)} className="focus-ring mt-6 flex w-full items-center justify-center gap-3 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{t.continue}<Icon name="arrow" size={17} /></button>
+          </div>
         </div></div></section>
 
       <section id="extras" className="border-y border-[#ebdfd6] bg-[#fff7f1] py-20 md:py-24"><div className="container"><div className="mx-auto max-w-[620px] text-center"><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.extrasKicker}</p><h2 className="serif mt-3 text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.extrasTitle}</h2><p className="mt-4 text-sm leading-6 text-[#737b90]">{t.extrasBody}</p></div><div className="mt-12 grid gap-5 md:grid-cols-2"><div className="group grid overflow-hidden rounded-[24px] border border-[#eadbd3] bg-white sm:grid-cols-[.92fr_1.08fr]"><div className="relative min-h-[230px] overflow-hidden bg-[#f5ede3]"><img src="/images/sticker-dog.jpg" alt="Sticker personalizado con fotografía" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><span className="absolute left-4 top-4 rounded-full bg-white px-3 py-1.5 text-[10px] font-black tracking-[.12em] text-[#182443]">7,62 cm · CÍRCULO</span></div><div className="flex flex-col justify-center p-6 sm:p-8"><span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">01 · EXTRA</span><h3 className="mt-2 text-xl font-black">{t.sticker}</h3><p className="mt-3 text-sm leading-6 text-[#737b90]">{t.stickerBody}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm font-black">desde 1,50 €</span><button onClick={() => { setSticker(sticker ? 0 : 1); setCartOpen(true); }} className="focus-ring rounded-full bg-[#182443] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#ee5264]">{sticker ? "Añadido ✓" : t.add}</button></div></div></div><div className="group grid overflow-hidden rounded-[24px] border border-[#eadbd3] bg-white sm:grid-cols-[.92fr_1.08fr]"><div className="relative min-h-[230px] overflow-hidden bg-[#fbefda]"><img src="/images/chocolate-small.jpg" alt="Caja de chocolates artesanos" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><span className="absolute left-4 top-4 rounded-full bg-white px-3 py-1.5 text-[10px] font-black tracking-[.12em] text-[#182443]">AÑADE UN CAPRICHO</span></div><div className="flex flex-col justify-center p-6 sm:p-8"><span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">02 · EXTRA</span><h3 className="mt-2 text-xl font-black">{t.chocolate}</h3><p className="mt-3 text-sm leading-6 text-[#737b90]">{t.chocolateBody}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm font-black">desde 5,90 €</span><button onClick={() => { setChocolate(chocolate ? 0 : 1); setCartOpen(true); }} className="focus-ring rounded-full bg-[#182443] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#ee5264]">{chocolate ? "Añadido ✓" : t.add}</button></div></div></div></div></div></section>

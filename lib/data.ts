@@ -12,6 +12,14 @@ export type Template = {
   descriptionPt?: string;
   image: string;
   price: number;
+  magazineStyle?: boolean;
+};
+
+export type Frame = {
+  id: string;
+  name: string;
+  namePt?: string;
+  image: string;
 };
 
 export type AddOn = {
@@ -26,9 +34,16 @@ export type AddOn = {
 };
 
 export const templates: Template[] = [
-  { id: "floral", name: "Flores para ti", namePt: "Flores para ti", eyebrow: "GRACIAS", description: "Un rincón bonito para decir todo eso que a veces cuesta.", descriptionPt: "Um cantinho bonito para dizer tudo o que às vezes custa.", image: "/images/floral.jpg", price: 8.9 },
-  { id: "frame", name: "Siempre contigo", namePt: "Sempre contigo", eyebrow: "MOMENTOS", description: "Una foto, unas palabras y un recuerdo que dura mucho más.", descriptionPt: "Uma fotografia, algumas palavras e uma recordação que dura.", image: "/images/frame.jpg", price: 8.9 },
-  { id: "romantic-red", name: "Un corazón para ti", namePt: "Um coração para ti", eyebrow: "AMOR", description: "Un marco rojo lleno de cariño para escribir algo inolvidable.", descriptionPt: "Uma moldura vermelha cheia de carinho para escrever algo inesquecível.", image: "/images/romantic-red.jpg", price: 8.9 },
+  { id: "template-1", name: "Plantilla 1", namePt: "Modelo 1", eyebrow: "FOTO Y MENSAJE", description: "Una composición clásica con una foto protagonista y tu mensaje.", descriptionPt: "Uma composição clássica com uma fotografia em destaque e a tua mensagem.", image: "/images/short-template.png", price: 8.9 },
+  { id: "template-2", name: "Plantilla 2", namePt: "Modelo 2", eyebrow: "VARIAS FOTOS", description: "Más espacio para combinar imágenes, palabras y recuerdos.", descriptionPt: "Mais espaço para combinar fotografias, palavras e memórias.", image: "/images/customizable-template.png", price: 8.9 },
+  { id: "template-3", name: "Plantilla 3", namePt: "Modelo 3", eyebrow: "ESTILO REVISTA", description: "Una portada de revista personalizada, sin marco adicional.", descriptionPt: "Uma capa de revista personalizada, sem moldura adicional.", image: "/images/news-template.png", price: 8.9, magazineStyle: true },
+];
+
+export const frames: Frame[] = [
+  { id: "floral", name: "Flores para ti", namePt: "Flores para ti", image: "/images/floral.jpg" },
+  { id: "classic", name: "Siempre contigo", namePt: "Sempre contigo", image: "/images/frame.jpg" },
+  { id: "romantic-red", name: "Corazón rojo", namePt: "Coração vermelho", image: "/images/romantic-red.jpg" },
+  { id: "balloon-frame", name: "Marco de globos", namePt: "Moldura de balões", image: "/images/balloon-frame.png" },
 ];
 
 export const addOns: AddOn[] = [
