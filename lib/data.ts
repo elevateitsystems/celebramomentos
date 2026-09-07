@@ -2,6 +2,16 @@ export type Language = "es" | "pt";
 export type CardSize = "A4" | "A3";
 export type DeliveryMethod = "standard" | "express";
 export type RecipientMode = "recipient" | "customer";
+export type DesignCategoryId = "especial" | "gracias" | "momentos" | "cumpleanos" | "confeti" | "enhorabuena";
+
+export type DesignCategory = {
+  id: DesignCategoryId;
+  name: string;
+  namePt: string;
+  description: string;
+  descriptionPt: string;
+  symbol: string;
+};
 
 export type Template = {
   id: string;
@@ -12,6 +22,9 @@ export type Template = {
   descriptionPt?: string;
   image: string;
   price: number;
+  imageCount: number;
+  requiresFrame: boolean;
+  longText?: boolean;
   magazineStyle?: boolean;
 };
 
@@ -34,24 +47,37 @@ export type AddOn = {
 };
 
 export const templates: Template[] = [
-  { id: "template-1", name: "Plantilla 1", namePt: "Modelo 1", eyebrow: "FOTO Y MENSAJE", description: "Una composición clásica con una foto protagonista y tu mensaje.", descriptionPt: "Uma composição clássica com uma fotografia em destaque e a tua mensagem.", image: "/images/short-template.png", price: 8.9 },
-  { id: "template-2", name: "Plantilla 2", namePt: "Modelo 2", eyebrow: "VARIAS FOTOS", description: "Más espacio para combinar imágenes, palabras y recuerdos.", descriptionPt: "Mais espaço para combinar fotografias, palavras e memórias.", image: "/images/customizable-template.png", price: 8.9 },
-  { id: "template-3", name: "Plantilla 3", namePt: "Modelo 3", eyebrow: "ESTILO REVISTA", description: "Una portada de revista personalizada, sin marco adicional.", descriptionPt: "Uma capa de revista personalizada, sem moldura adicional.", image: "/images/news-template.png", price: 8.9, magazineStyle: true },
+  { id: "template-1", name: "Plantilla 1", namePt: "Modelo 1", eyebrow: "REVISTA · 4 FOTOS", description: "Una revista personalizada con una foto protagonista y tres fotos interiores. No necesita marco.", descriptionPt: "Uma revista personalizada com uma fotografia principal e três fotografias interiores. Não precisa de moldura.", image: "/images/news-template.png", price: 8.9, imageCount: 4, requiresFrame: false, magazineStyle: true },
+  { id: "template-2", name: "Plantilla 2", namePt: "Modelo 2", eyebrow: "COLLAGE · 5 FOTOS", description: "Una composición visual para combinar cinco fotografías con el marco que elijas.", descriptionPt: "Uma composição visual para combinar cinco fotografias com a moldura escolhida.", image: "/images/customizable-template.png", price: 8.9, imageCount: 5, requiresFrame: true },
+  { id: "template-3", name: "Plantilla 3", namePt: "Modelo 3", eyebrow: "2 FOTOS · TEXTO LARGO", description: "Dos fotografías y un espacio amplio para contar una historia, con marco a elegir.", descriptionPt: "Duas fotografias e um espaço amplo para contar uma história, com moldura à escolha.", image: "/images/short-template.png", price: 8.9, imageCount: 2, requiresFrame: true, longText: true },
+];
+
+export const designCategories: DesignCategory[] = [
+  { id: "especial", name: "Especial", namePt: "Especial", description: "Para alguien que merece una tarjeta solo suya.", descriptionPt: "Para alguém que merece um cartão só seu.", symbol: "✦" },
+  { id: "gracias", name: "Gracias", namePt: "Obrigado", description: "Una forma bonita de agradecer de corazón.", descriptionPt: "Uma forma bonita de agradecer de coração.", symbol: "♡" },
+  { id: "momentos", name: "Momentos", namePt: "Momentos", description: "Recuerdos cotidianos que vale la pena guardar.", descriptionPt: "Recordações do dia a dia que vale a pena guardar.", symbol: "◉" },
+  { id: "cumpleanos", name: "Cumpleaños", namePt: "Aniversário", description: "Para celebrar una nueva vuelta al sol.", descriptionPt: "Para celebrar mais uma volta ao sol.", symbol: "★" },
+  { id: "confeti", name: "Confeti de alegría", namePt: "Confetes de alegria", description: "Color y energía para las grandes celebraciones.", descriptionPt: "Cor e energia para as grandes celebrações.", symbol: "✺" },
+  { id: "enhorabuena", name: "Cumpleaños, enhorabuena", namePt: "Aniversário, parabéns", description: "Cumpleaños, logros y noticias que merecen un aplauso.", descriptionPt: "Aniversários, conquistas e notícias que merecem aplausos.", symbol: "☀" },
 ];
 
 export const frames: Frame[] = [
   { id: "floral", name: "Flores para ti", namePt: "Flores para ti", image: "/images/floral.jpg" },
   { id: "classic", name: "Siempre contigo", namePt: "Sempre contigo", image: "/images/frame.jpg" },
-  { id: "romantic-red", name: "Corazón rojo", namePt: "Coração vermelho", image: "/images/romantic-red.jpg" },
+  { id: "romantic-red", name: "Un corazón para ti", namePt: "Um coração para ti", image: "/images/romantic-red.jpg" },
   { id: "balloon-frame", name: "Marco de globos", namePt: "Moldura de balões", image: "/images/balloon-frame.png" },
+  { id: "confetti", name: "Confeti de alegría", namePt: "Confetes de alegria", image: "/images/confetti.jpg" },
 ];
 
 export const addOns: AddOn[] = [
-  { id: "sticker", name: "Sticker personalizado", namePt: "Sticker personalizado", description: "Círculo de 7,62 cm con tu fotografía favorita.", descriptionPt: "Círculo de 7,62 cm com a tua fotografia favorita.", price: 1.5, image: "/images/sticker-dog.jpg", kind: "sticker" },
-  { id: "small-chocolate", name: "Bombones surtidos Artesanía de Trapa · 72 g", namePt: "Bombons sortidos Artesanía de Trapa · 72 g", description: "Una selección de bombones surtidos Artesanía de Trapa de 72 g para acompañar tu mensaje.", descriptionPt: "Uma seleção de bombons sortidos Artesanía de Trapa de 72 g para acompanhar a tua mensagem.", price: 5.9, image: "/images/chocolate-small.jpg", kind: "chocolate" },
-  { id: "heart-chocolate", name: "Bombones de corazón Celebra Momentos", namePt: "Bombons em forma de coração Celebra Momentos", description: "Cuatro bombones de chocolate con forma de corazón, presentados con nuestro toque especial.", descriptionPt: "Quatro bombons de chocolate em forma de coração, apresentados com o nosso toque especial.", price: 7, image: "/images/chocolate-hearts.jpg", kind: "chocolate" },
-  { id: "big-chocolate", name: "Caja grande de bombones artesanos", namePt: "Caixa grande de bombons artesanais", description: "Una caja grande de chocolates artesanos para compartir y celebrar sin prisa.", descriptionPt: "Uma caixa grande de chocolates artesanais para partilhar e celebrar sem pressa.", price: 7.5, image: "/images/chocolate-small.jpg", kind: "chocolate" },
+  { id: "sticker", name: "Sticker personalizado", namePt: "Sticker personalizado", description: "Círculo de 7,62 cm (3 pulgadas) con tu fotografía favorita.", descriptionPt: "Círculo de 7,62 cm (3 polegadas) com a tua fotografia favorita.", price: 1.5, image: "/images/sticker-dog.jpg", kind: "sticker" },
+  { id: "small-chocolate", name: "Bombones surtidos Artesanía de Trapa – 8 Unidades", namePt: "Bombons sortidos Artesanía de Trapa – 8 Unidades", description: "Caja de bombones surtidos con deliciosos rellenos artesanos: Caramelo, Praliné y Avellana.", descriptionPt: "Caixa de bombons sortidos com deliciosos recheios artesanais: Caramelo, Praliné e Avelã.", price: 5.9, image: "/images/chocolate-small.jpg", kind: "chocolate" },
+  { id: "big-chocolate", name: "Bombones Cortados Artesanía de Trapa – 12 unidades", namePt: "Bombons Cortados Artesanía de Trapa – 12 unidades", description: "Caja de 12 bombones cortados artesanos con una cuidada combinación de sabores: Avellana, Café, Naranja y Limón.", descriptionPt: "Caixa de 12 bombons cortados artesanais com sabores: Avelã, Café, Laranja e Limão.", price: 7.5, image: "/images/chocolate-small.jpg", kind: "chocolate" },
+  { id: "heart-chocolate", name: "Bolsita con 4 irresistibles corazones de chocolate con leche", namePt: "Saquinho com 4 irresistíveis corações de chocolate de leite", description: "Bolsita con 4 irresistibles corazones de chocolate con leche con una textura suave y fundente.", descriptionPt: "Saquinho com 4 irresistíveis corações de chocolate de leite com textura suave.", price: 7, image: "/images/chocolate-hearts.jpg", kind: "chocolate" },
 ];
+
+export const STICKER_PRICES = [0, 1.5, 2.5, 3.5] as const;
+export const ENVELOPE_TEXT_PRICE = 1;
 
 export const stickerGallery = [
   { id: "family", image: "/images/sticker-family.jpg", label: "Familia" },

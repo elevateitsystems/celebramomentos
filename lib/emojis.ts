@@ -12,6 +12,14 @@ export type EmojiOption = {
   tone?: EmojiTone;
 };
 
+export type EmojiElement = {
+  id: string;
+  emoji: string;
+  tone: EmojiTone;
+  size: number;
+  position: EmojiPosition;
+};
+
 export const emojiOptions: EmojiOption[] = [
   { id: "sparkles", emoji: "✨", label: "Destellos" },
   { id: "heart-red", emoji: "❤️", label: "Corazón rojo" },
@@ -34,8 +42,15 @@ export const emojiOptions: EmojiOption[] = [
   { id: "balloon-pink", emoji: "🎈", label: "Globo rosa", tone: "pink" },
   { id: "balloon-blue", emoji: "🎈", label: "Globo azul", tone: "blue" },
   { id: "balloon-gold", emoji: "🎈", label: "Globo dorado", tone: "gold" },
+  { id: "party", emoji: "🎉", label: "Celebración / Confeti" },
+  { id: "partying-face", emoji: "🥳", label: "Cara de fiesta" },
+  { id: "glowing-star", emoji: "🌟", label: "Estrella brillante" },
+  { id: "champagne", emoji: "🥂", label: "Brindis con copas" },
+  { id: "gift", emoji: "🎁", label: "Caja de regalo" },
+  { id: "bouquet", emoji: "💐", label: "Ramo de flores" },
+  { id: "cupcake", emoji: "🧁", label: "Cupcake de fiesta" },
+  { id: "crown", emoji: "👑", label: "Corona" },
   { id: "kiss", emoji: "💋", label: "Beso" },
-  { id: "party", emoji: "🎉", label: "Celebración" },
   { id: "flower", emoji: "🌷", label: "Tulipán" },
   { id: "smile", emoji: "😊", label: "Sonrisa" },
 ];

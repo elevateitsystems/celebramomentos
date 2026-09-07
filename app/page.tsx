@@ -1,7 +1,10 @@
 "use client";
 
 import { ChangeEvent, PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { EmojiControls } from "@/components/emoji-controls";
+import { MagazineCardShowcase } from "@/components/magazine-card";
+import { designCategories, type DesignCategoryId } from "@/lib/data";
 import { defaultEmojiPosition, emojiToneFilters, type EmojiPosition, type EmojiTone } from "@/lib/emojis";
 
 type Language = "es" | "pt";
@@ -135,7 +138,7 @@ const copy = {
 } as const;
 
 const templates: Template[] = [
-  { id: "confetti", name: "Confeti de alegría", eyebrow: "CUMPLEAÑOS", description: "Para celebrar a lo grande, aunque sea con un pequeño detalle.", image: "/images/romantic-red.jpg", tone: "#fff3ee", price: "desde 8,90 €" },
+  { id: "confetti", name: "Confeti de alegría", eyebrow: "CUMPLEAÑOS", description: "Para celebrar a lo grande, aunque sea con un pequeño detalle.", image: "/images/balloon-frame.png", tone: "#fff3ee", price: "desde 8,90 €" },
   { id: "floral", name: "Flores para ti", eyebrow: "GRACIAS", description: "Un rincón bonito para decir todo eso que a veces cuesta.", image: "/images/floral.jpg", tone: "#f7f4ed", price: "desde 8,90 €" },
   { id: "frame", name: "Siempre contigo", eyebrow: "MOMENTOS", description: "Una foto, unas palabras y un recuerdo que dura mucho más.", image: "/images/frame.jpg", tone: "#f8f1e7", price: "desde 8,90 €" },
 ];
@@ -165,9 +168,10 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>("es");
+  const [selectedCategory, setSelectedCategory] = useState<DesignCategoryId>("especial");
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
-  const [message, setMessage] = useState("Feliz vuelta al sol, Ana ✨");
-  const [emoji, setEmoji] = useState("✨");
+  const [message, setMessage] = useState("Feliz Cumpleaños, Ana 🎂");
+  const [emoji, setEmoji] = useState("🎂");
   const [emojiTone, setEmojiTone] = useState<EmojiTone>("natural");
   const [emojiSize, setEmojiSize] = useState(28);
   const [emojiPosition, setEmojiPosition] = useState<EmojiPosition>(defaultEmojiPosition);
@@ -181,7 +185,7 @@ export default function Home() {
   const fileRef = useRef<HTMLInputElement>(null);
   const emojiDesignRef = useRef<HTMLDivElement>(null);
   const t = copy[language];
-  const total = useMemo(() => 8.9 + (sticker ? sticker === 1 ? 1.5 : sticker === 2 ? 2.7 : 3 : 0) + chocolate * 5.9, [sticker, chocolate]);
+  const total = useMemo(() => 8.9 + (sticker ? sticker === 1 ? 1.5 : sticker === 2 ? 2.5 : 3.5 : 0) + chocolate * 5.9, [sticker, chocolate]);
 
   const chooseTemplate = (template: Template) => {
     setSelectedTemplate(template);
@@ -203,45 +207,232 @@ export default function Home() {
     setEmojiPosition({ x: clamp(((event.clientX - bounds.left) / bounds.width) * 100), y: clamp(((event.clientY - bounds.top) / bounds.height) * 100) });
   };
 
-  const reset = () => { setMessage("Feliz vuelta al sol, Ana ✨"); setEmoji("✨"); setEmojiTone("natural"); setEmojiSize(28); setEmojiPosition(defaultEmojiPosition); setPhoto(null); setSize("A4"); };
+  const reset = () => { 
+    setMessage("Feliz Cumpleaños, Ana 🎂"); 
+    setEmoji("🎂"); 
+    setEmojiTone("natural"); 
+    setEmojiSize(28); 
+    setEmojiPosition(defaultEmojiPosition); 
+    setPhoto(null); 
+    setSize("A4"); 
+  };
 
   return (
     <main>
       <div className="bg-[#182443] px-4 py-2 text-center text-[11px] font-bold tracking-[.08em] text-white/90">{t.announcement}</div>
+      
       <header className="sticky top-0 z-30 border-b border-[#ebdfd6]/80 bg-[#fffaf5]/90 backdrop-blur-md">
-        <div className="container flex h-[76px] items-center justify-between gap-6">
-          <a href="#top" className="flex items-center gap-3" aria-label="Celebra Momentos, inicio"><img src="/images/logo.png" alt="Celebra Momentos" className="h-12 w-12 object-contain" /><span className="hidden text-[15px] font-black tracking-[-.03em] sm:block">Celebra<br /><span className="text-[#ee5264]">Momentos</span></span></a>
-          <nav className="hidden items-center gap-8 text-[13px] font-bold text-[#59627b] lg:flex">{t.nav.map((item, index) => <a key={item} href={index === 0 ? "#templates" : index === 1 ? "#how" : index === 2 ? "#extras" : "#footer"} className="transition-colors hover:text-[#ee5264]">{item}</a>)}</nav>
+        <div className="container flex h-[84px] items-center justify-between gap-6">
+          <a href="#top" className="flex items-center gap-3.5 focus-ring rounded-xl py-1" aria-label="Celebra Momentos, inicio">
+            <img 
+              src="/images/logo.png" 
+              alt="Celebra Momentos" 
+              className="h-14 w-14 sm:h-16 sm:w-16 object-contain shrink-0 transition-transform hover:scale-105"
+            />
+            <span className="text-[16px] font-black leading-tight tracking-[-.03em]">
+              Celebra<br />
+              <span className="text-[#ee5264]">Momentos</span>
+            </span>
+          </a>
+          
+          <nav className="hidden items-center gap-8 text-[13px] font-bold text-[#59627b] lg:flex">
+            {t.nav.map((item, index) => (
+              <a 
+                key={item} 
+                href={index === 0 ? "#templates" : index === 1 ? "#how" : index === 2 ? "#extras" : "#footer"} 
+                className="transition-colors hover:text-[#ee5264]"
+              >
+                {item}
+              </a>
+            ))}
+          </nav>
+          
           <div className="flex items-center gap-2">
-            <div className="hidden rounded-full border border-[#dfd3cc] bg-white p-1 text-[11px] font-black sm:flex"><button onClick={() => setLanguage("es")} className={`rounded-full px-3 py-1.5 ${language === "es" ? "bg-[#182443] text-white" : "text-[#7b8193]"}`}>ES</button><button onClick={() => setLanguage("pt")} className={`rounded-full px-3 py-1.5 ${language === "pt" ? "bg-[#182443] text-white" : "text-[#7b8193]"}`}>PT</button></div>
-            <button onClick={() => setCartOpen(true)} className="focus-ring relative flex h-10 items-center gap-2 rounded-full border border-[#dfd3cc] bg-white px-3 text-[12px] font-bold text-[#182443] transition hover:border-[#ee5264]" aria-label="Abrir selección"><Icon name="bag" size={18} /><span className="hidden md:inline">{language === "es" ? "Mi selección" : "A minha seleção"}</span>{(sticker || chocolate) > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ee5264] px-1 text-[10px] text-white">{1 + (sticker > 0 ? 1 : 0) + (chocolate > 0 ? chocolate : 0)}</span>}</button>
-            <button onClick={() => setMobileMenu(!mobileMenu)} className="focus-ring flex h-10 w-10 items-center justify-center rounded-full border border-[#dfd3cc] bg-white lg:hidden" aria-label="Abrir menú"><Icon name="menu" size={18} /></button>
+            <div className="hidden rounded-full border border-[#dfd3cc] bg-white p-1 text-[11px] font-black sm:flex">
+              <button 
+                onClick={() => setLanguage("es")} 
+                className={`rounded-full px-3 py-1.5 ${language === "es" ? "bg-[#182443] text-white" : "text-[#7b8193]"}`}
+              >
+                ES
+              </button>
+              <button 
+                onClick={() => setLanguage("pt")} 
+                className={`rounded-full px-3 py-1.5 ${language === "pt" ? "bg-[#182443] text-white" : "text-[#7b8193]"}`}
+              >
+                PT
+              </button>
+            </div>
+            
+            <button 
+              onClick={() => setCartOpen(true)} 
+              className="focus-ring relative flex h-10 items-center gap-2 rounded-full border border-[#dfd3cc] bg-white px-3 text-[12px] font-bold text-[#182443] transition hover:border-[#ee5264]" 
+              aria-label="Abrir selección"
+            >
+              <Icon name="bag" size={18} />
+              <span className="hidden md:inline">
+                {language === "es" ? "Mi selección" : "A minha seleção"}
+              </span>
+              {(sticker || chocolate) > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ee5264] px-1 text-[10px] text-white">
+                  {1 + (sticker > 0 ? 1 : 0) + (chocolate > 0 ? chocolate : 0)}
+                </span>
+              )}
+            </button>
+            
+            <button 
+              onClick={() => setMobileMenu(!mobileMenu)} 
+              className="focus-ring flex h-10 w-10 items-center justify-center rounded-full border border-[#dfd3cc] bg-white lg:hidden" 
+              aria-label="Abrir menú"
+            >
+              <Icon name="menu" size={18} />
+            </button>
           </div>
         </div>
-        {mobileMenu && <div className="border-t border-[#ebdfd6] bg-white px-5 py-4 lg:hidden"><nav className="container flex flex-col gap-4 text-sm font-bold text-[#59627b]">{t.nav.map((item, index) => <a key={item} href={index === 0 ? "#templates" : index === 1 ? "#how" : index === 2 ? "#extras" : "#footer"} onClick={() => setMobileMenu(false)}>{item}</a>)}<div className="flex gap-2 pt-1"><button onClick={() => setLanguage("es")} className={`rounded-full border px-3 py-1 text-xs ${language === "es" ? "border-[#182443] bg-[#182443] text-white" : "border-[#dfd3cc]"}`}>Español</button><button onClick={() => setLanguage("pt")} className={`rounded-full border px-3 py-1 text-xs ${language === "pt" ? "border-[#182443] bg-[#182443] text-white" : "border-[#dfd3cc]"}`}>Português</button></div></nav></div>}
+        
+        {mobileMenu && (
+          <div className="border-t border-[#ebdfd6] bg-white px-5 py-4 lg:hidden">
+            <nav className="container flex flex-col gap-4 text-sm font-bold text-[#59627b]">
+              {t.nav.map((item, index) => (
+                <a 
+                  key={item} 
+                  href={index === 0 ? "#templates" : index === 1 ? "#how" : index === 2 ? "#extras" : "#footer"} 
+                  onClick={() => setMobileMenu(false)}
+                >
+                  {item}
+                </a>
+              ))}
+              <div className="flex gap-2 pt-1">
+                <button 
+                  onClick={() => setLanguage("es")} 
+                  className={`rounded-full border px-3 py-1 text-xs ${language === "es" ? "border-[#182443] bg-[#182443] text-white" : "border-[#dfd3cc]"}`}
+                >
+                  Español
+                </button>
+                <button 
+                  onClick={() => setLanguage("pt")} 
+                  className={`rounded-full border px-3 py-1 text-xs ${language === "pt" ? "border-[#182443] bg-[#182443] text-white" : "border-[#dfd3cc]"}`}
+                >
+                  Português
+                </button>
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
 
+      {/* HERO SECTION - UPDATED WITH BIRTHDAY CARD */}
       <section id="top" className="relative overflow-hidden border-b border-[#ebdfd6] bg-[#fffaf5]">
-        <div className="absolute -right-20 top-10 h-72 w-72 rounded-full bg-[#f8c75e]/20 blur-3xl" /><div className="absolute -left-20 bottom-0 h-60 w-60 rounded-full bg-[#ee5264]/10 blur-3xl" />
+        <div className="absolute -right-20 top-10 h-72 w-72 rounded-full bg-[#f8c75e]/20 blur-3xl" />
+        <div className="absolute -left-20 bottom-0 h-60 w-60 rounded-full bg-[#ee5264]/10 blur-3xl" />
         <div className="container grid items-center gap-14 py-16 md:py-24 lg:grid-cols-[.9fr_1.1fr] lg:gap-20 lg:py-24">
           <div className="relative z-10 max-w-[570px]">
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#e8c7bd] bg-[#fff0e8] px-3.5 py-2 text-[10px] font-black tracking-[.13em] text-[#d83d54]"><span className="h-1.5 w-1.5 rounded-full bg-[#ee5264]" />{t.heroKicker}</div>
-            <h1 className="serif text-[49px] font-bold leading-[.98] tracking-[-.05em] text-[#182443] sm:text-[65px] lg:text-[74px]">{t.heroTitle}</h1>
-            <p className="mt-7 max-w-[500px] text-[16px] leading-7 text-[#68718a]">{t.heroBody}</p>
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row"><a href="/customize" className="focus-ring inline-flex items-center justify-center gap-3 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-[#ee5264]/20 transition hover:-translate-y-0.5 hover:bg-[#d83d54]">{t.create}<Icon name="arrow" size={17} /></a><a href="#templates" className="focus-ring inline-flex items-center justify-center rounded-full border border-[#d9cbc4] bg-white px-6 py-3.5 text-sm font-black text-[#182443] transition hover:border-[#ee5264]">{t.explore}</a></div>
-            <div className="mt-7 flex items-center gap-3 text-xs font-bold text-[#7c8191]"><div className="flex -space-x-2"><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[#f3b6a8] text-xs">M</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[#f5d47a] text-xs">J</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[#b8d9ce] text-xs">A</span></div>{t.trust}</div>
+            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#e8c7bd] bg-[#fff0e8] px-3.5 py-2 text-[10px] font-black tracking-[.13em] text-[#d83d54]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#ee5264]" />
+              {t.heroKicker}
+            </div>
+            <h1 className="serif text-[49px] font-bold leading-[.98] tracking-[-.05em] text-[#182443] sm:text-[65px] lg:text-[74px]">
+              {t.heroTitle}
+            </h1>
+            <p className="mt-7 max-w-[500px] text-[16px] leading-7 text-[#68718a]">
+              {t.heroBody}
+            </p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <a href="/customize" className="focus-ring inline-flex items-center justify-center gap-3 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-[#ee5264]/20 transition hover:-translate-y-0.5 hover:bg-[#d83d54]">
+                {t.create}
+                <Icon name="arrow" size={17} />
+              </a>
+              <a href="#templates" className="focus-ring inline-flex items-center justify-center rounded-full border border-[#d9cbc4] bg-white px-6 py-3.5 text-sm font-black text-[#182443] transition hover:border-[#ee5264]">
+                {t.explore}
+              </a>
+            </div>
+            <div className="mt-7 flex items-center gap-3 text-xs font-bold text-[#7c8191]">
+              <div className="flex -space-x-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[#f3b6a8] text-xs">M</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[#f5d47a] text-xs">J</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[#b8d9ce] text-xs">A</span>
+              </div>
+              {t.trust}
+            </div>
           </div>
           <div className="relative mx-auto w-full max-w-[570px]">
-            <div className="absolute -left-2 top-12 z-10 hidden rounded-2xl bg-white px-4 py-3 card-shadow sm:block float"><p className="text-[10px] font-black uppercase tracking-wider text-[#ee5264]">Tu foto + tus palabras</p><p className="mt-1 text-sm font-bold text-[#182443]">= un momento único</p></div>
-            <div className="relative aspect-[1.1/1] rotate-2 rounded-[28px] bg-[#f6d9cc] p-3 shadow-2xl shadow-[#8a564c]/20 sm:p-5"><div className="relative h-full overflow-hidden rounded-[20px] bg-[#fff]"><img src="/images/confetti.jpg" alt="Fondo de tarjeta con confeti" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-white/55" /><div className="absolute inset-5 flex flex-col justify-between rounded-[14px] border border-white/80 bg-white/60 p-5 backdrop-blur-[2px] sm:inset-8 sm:p-8"><div className="flex items-center justify-between"><span className="rounded-full bg-[#182443] px-3 py-1.5 text-[9px] font-black tracking-[.15em] text-white">PARA ANA</span><span className="text-xl">✨</span></div><div><p className="serif text-[35px] font-bold leading-[.96] text-[#182443] sm:text-[52px]">Feliz<br /><span className="text-[#ee5264]">vuelta</span><br />al sol</p><p className="mt-4 max-w-[180px] text-[11px] font-bold leading-4 text-[#59627b] sm:text-[13px]">Porque los mejores días merecen algo más que un mensaje.</p></div><div className="flex items-end justify-between"><span className="serif text-lg italic text-[#ee5264]">Con cariño, Marta</span><Icon name="heart" size={28} /></div></div></div></div>
-            <div className="absolute -bottom-4 -right-2 rounded-2xl bg-[#182443] px-4 py-3 text-white card-shadow sm:-right-7"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#f8c75e] text-[#182443]"><Icon name="truck" size={15} /></span><div><p className="text-[10px] font-black uppercase tracking-wider text-white/60">Entrega con cariño</p><p className="text-sm font-bold">España + Portugal</p></div></div></div>
+            <div className="absolute -left-2 top-12 z-10 hidden rounded-2xl bg-white px-4 py-3 card-shadow sm:block float">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#ee5264]">Tu foto + tus palabras</p>
+              <p className="mt-1 text-sm font-bold text-[#182443]">= un momento único</p>
+            </div>
+            <div className="relative aspect-[1.1/1] rotate-2 rounded-[28px] bg-[#f6d9cc] p-3 shadow-2xl shadow-[#8a564c]/20 sm:p-5">
+              <div className="relative h-full overflow-hidden rounded-[20px] bg-[#fff]">
+                <img 
+                  src="/images/balloon-frame.png" 
+                  alt="Feliz Cumpleaños - Birthday card with cake" 
+                  className="absolute inset-0 h-full w-full object-cover" 
+                />
+                <div className="absolute inset-0 bg-white/55" />
+                <div className="absolute inset-5 flex flex-col justify-between rounded-[14px] border border-white/80 bg-white/60 p-5 backdrop-blur-[2px] sm:inset-8 sm:p-8">
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-full bg-[#182443] px-3 py-1.5 text-[9px] font-black tracking-[.15em] text-white">PARA ANA</span>
+                    <span className="text-xl">🎂</span>
+                  </div>
+                  <div>
+                    <p className="serif text-[35px] font-bold leading-[.96] text-[#182443] sm:text-[52px]">
+                      Feliz<br />
+                      <span className="text-[#ee5264]">Cumpleaños</span>
+                      <br />
+                      🎂
+                    </p>
+                    <p className="mt-4 max-w-[180px] text-[11px] font-bold leading-4 text-[#59627b] sm:text-[13px]">
+                      Porque los mejores días merecen algo más que un mensaje.
+                    </p>
+                  </div>
+                  <div className="flex items-end justify-between">
+                    <span className="serif text-lg italic text-[#ee5264]">Con cariño, Marta</span>
+                    <Icon name="heart" size={28} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="absolute -bottom-4 -right-2 rounded-2xl bg-[#182443] px-4 py-3 text-white card-shadow sm:-right-7">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#f8c75e] text-[#182443]">
+                  <Icon name="truck" size={15} />
+                </span>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-white/60">Entrega con cariño</p>
+                  <p className="text-sm font-bold">España + Portugal</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="how" className="bg-white py-20 md:py-24"><div className="container"><div className="mx-auto max-w-[600px] text-center"><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.stepsKicker}</p><h2 className="serif mt-3 text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.stepsTitle}</h2></div><div className="mt-14 grid gap-9 md:grid-cols-3">{t.steps.map(([number, title, body], index) => <div key={number} className="relative text-center md:text-left"><span className={`mb-5 flex h-11 w-11 items-center justify-center rounded-full text-sm font-black ${index === 1 ? "bg-[#f8c75e] text-[#182443]" : "bg-[#fff0e8] text-[#ee5264]"}`}>{number}</span><h3 className="text-lg font-black">{title}</h3><p className="mt-2 max-w-[280px] text-sm leading-6 text-[#737b90]">{body}</p>{index < 2 && <span className="absolute right-5 top-5 hidden text-2xl text-[#e5d8d0] md:block">→</span>}</div>)}</div></div></section>
 
-      <section className="bg-white py-16 md:py-20"><div className="container"><div className="flex flex-col justify-between gap-6 md:flex-row md:items-end"><div><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.benefitsKicker}</p><h2 className="serif mt-3 max-w-[570px] text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.benefitsTitle}</h2></div><span className="hidden text-5xl text-[#f8c75e] md:block">✦</span></div><div className="mt-11 grid gap-4 md:grid-cols-3">{t.benefits.map(([number, title, body], index) => <article key={number} className="rounded-[22px] border border-[#eadbd3] bg-[#fffaf5] p-6 transition hover:-translate-y-1 hover:shadow-lg"><span className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-black ${index === 1 ? "bg-[#f8c75e] text-[#182443]" : "bg-[#fff0e8] text-[#ee5264]"}`}>{number}</span><h3 className="mt-5 text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-[#737b90]">{body}</p></article>)}</div></div></section><section id="templates" className="border-y border-[#ebdfd6] bg-[#fff7f1] py-20 md:py-24"><div className="container"><div className="flex flex-col justify-between gap-6 md:flex-row md:items-end"><div><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.templatesKicker}</p><h2 className="serif mt-3 text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.templatesTitle}</h2></div><p className="max-w-[300px] text-sm leading-6 text-[#737b90]">{t.templatesBody}</p></div><div className="mt-12 grid gap-5 md:grid-cols-3">{templates.map((template) => <article key={template.id} className="group rounded-[22px] border border-[#eadbd3] bg-white p-3 transition duration-300 hover:-translate-y-1 hover:border-[#e9aaa0] hover:shadow-xl hover:shadow-[#8a564c]/10"><div className="relative aspect-[1.12/1] overflow-hidden rounded-[16px]" style={{ backgroundColor: template.tone }}><img src={template.image} alt={template.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-[9px] font-black tracking-[.14em] text-[#182443]">{template.eyebrow}</div><button onClick={() => chooseTemplate(template)} className="focus-ring absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#ee5264] text-white opacity-0 shadow-lg transition group-hover:opacity-100" aria-label={`${t.customize}: ${template.name}`}><Icon name="arrow" size={17} /></button></div><div className="px-2 pb-2 pt-5"><div className="flex items-start justify-between gap-2"><h3 className="text-[17px] font-black">{template.name}</h3><span className="whitespace-nowrap text-xs font-bold text-[#ee5264]">{template.price}</span></div><p className="mt-2 min-h-[48px] text-sm leading-6 text-[#737b90]">{language === "es" ? template.description : template.id === "confetti" ? "Para celebrar em grande, mesmo com um pequeno gesto." : template.id === "floral" ? "Um cantinho bonito para dizer tudo o que às vezes custa." : "Uma fotografia, algumas palavras e uma recordação que dura."}</p><button onClick={() => chooseTemplate(template)} className="focus-ring mt-4 flex items-center gap-2 text-sm font-black text-[#182443] transition group-hover:text-[#ee5264]">{t.customize}<Icon name="arrow" size={15} /></button></div></article>)}</div></div></section>
+      <MagazineCardShowcase />
+
+      <section className="bg-white py-16 md:py-20"><div className="container"><div className="flex flex-col justify-between gap-6 md:flex-row md:items-end"><div><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.benefitsKicker}</p><h2 className="serif mt-3 max-w-[570px] text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.benefitsTitle}</h2></div><span className="hidden text-5xl text-[#f8c75e] md:block">✦</span></div><div className="mt-11 grid gap-4 md:grid-cols-3">{t.benefits.map(([number, title, body], index) => <article key={number} className="rounded-[22px] border border-[#eadbd3] bg-[#fffaf5] p-6 transition hover:-translate-y-1 hover:shadow-lg"><span className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-black ${index === 1 ? "bg-[#f8c75e] text-[#182443]" : "bg-[#fff0e8] text-[#ee5264]"}`}>{number}</span><h3 className="mt-5 text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-[#737b90]">{body}</p></article>)}</div></div></section>
+      
+      <section id="templates" className="border-y border-[#ebdfd6] bg-[#fff7f1] py-20 md:py-24"><div className="container"><div className="flex flex-col justify-between gap-6 md:flex-row md:items-end"><div><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.templatesKicker}</p><h2 className="serif mt-3 text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.templatesTitle}</h2></div><p className="max-w-[300px] text-sm leading-6 text-[#737b90]">{t.templatesBody}</p></div>
+      
+      {/* Design Categories */}
+      <div className="mt-8 flex flex-wrap items-center gap-2">
+        {designCategories.map((cat) => (
+          <button
+            key={cat.id}
+            type="button"
+            onClick={() => setSelectedCategory(cat.id)}
+            className={`focus-ring rounded-full px-4 py-2 text-xs font-black transition ${
+              selectedCategory === cat.id
+                ? "bg-[#182443] text-white shadow"
+                : "border border-[#eadbd3] bg-white text-[#59627b] hover:border-[#ee5264] hover:text-[#ee5264]"
+            }`}
+          >
+            <span className="mr-1.5 opacity-70">{cat.symbol}</span>
+            {language === "es" ? cat.name : cat.namePt}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-12 grid gap-5 md:grid-cols-3">{templates.map((template) => <article key={template.id} className="group rounded-[22px] border border-[#eadbd3] bg-white p-3 transition duration-300 hover:-translate-y-1 hover:border-[#e9aaa0] hover:shadow-xl hover:shadow-[#8a564c]/10"><div className="relative aspect-[1.12/1] overflow-hidden rounded-[16px]" style={{ backgroundColor: template.tone }}><img src={template.image} alt={template.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-[9px] font-black tracking-[.14em] text-[#182443]">{template.eyebrow}</div><button onClick={() => chooseTemplate(template)} className="focus-ring absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#ee5264] text-white opacity-0 shadow-lg transition group-hover:opacity-100" aria-label={`${t.customize}: ${template.name}`}><Icon name="arrow" size={17} /></button></div><div className="px-2 pb-2 pt-5"><div className="flex items-start justify-between gap-2"><h3 className="text-[17px] font-black">{template.name}</h3><span className="whitespace-nowrap text-xs font-bold text-[#ee5264]">{template.price}</span></div><p className="mt-2 min-h-[48px] text-sm leading-6 text-[#737b90]">{language === "es" ? template.description : template.id === "confetti" ? "Para celebrar em grande, mesmo com um pequeno gesto." : template.id === "floral" ? "Um cantinho bonito para dizer tudo o que às vezes custa." : "Uma fotografia, algumas palavras e uma recordação que dura."}</p><button onClick={() => chooseTemplate(template)} className="focus-ring mt-4 flex items-center gap-2 text-sm font-black text-[#182443] transition group-hover:text-[#ee5264]">{t.customize}<Icon name="arrow" size={15} /></button></div></article>)}</div></div></section>
 
       <section id="customizer" className="bg-white py-20 md:py-28"><div className="container"><div className="mb-12 max-w-[600px]"><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.editorKicker}</p><h2 className="serif mt-3 text-4xl font-bold tracking-[-.04em] sm:text-5xl">{t.editorTitle}</h2><p className="mt-4 text-sm leading-6 text-[#737b90]">{t.editorBody}</p></div><div className="grid gap-8 lg:grid-cols-[.78fr_1.22fr] lg:items-start">
           <div className="order-2 rounded-[24px] border border-[#eadfd8] bg-[#fffaf5] p-5 sm:p-7 lg:order-1">
@@ -296,13 +487,93 @@ export default function Home() {
 
       <section className="bg-[#fffaf5] py-20 md:py-28"><div className="container grid items-center gap-12 md:grid-cols-[.95fr_1.05fr] md:gap-20"><div className="relative mx-auto max-w-[410px]"><div className="absolute -inset-3 rotate-[-3deg] rounded-[25px] border border-[#eec7b9]" /><div className="relative aspect-[1.05/1] overflow-hidden rounded-[20px] bg-white p-3 shadow-xl"><div className="relative h-full overflow-hidden rounded-[14px]"><img src="/images/floral.jpg" alt="Tarjeta floral" className="h-full w-full object-cover" /><div className="absolute inset-0 bg-white/45" /><div className="absolute inset-6 flex flex-col justify-end"><span className="serif text-3xl font-bold text-[#182443]">Gracias por<br /><span className="text-[#ee5264]">estar siempre.</span></span></div></div></div></div><div><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{t.deliveryKicker}</p><h2 className="serif mt-3 text-4xl font-bold leading-tight tracking-[-.04em] sm:text-5xl">{t.deliveryTitle}</h2><p className="mt-5 max-w-[470px] text-sm leading-7 text-[#737b90]">{t.deliveryBody}</p><div className="mt-7 grid gap-4">{t.deliveryPoints.map((point, index) => <div key={point} className="flex items-center gap-3 text-sm font-bold"><span className={`flex h-7 w-7 items-center justify-center rounded-full ${index === 1 ? "bg-[#f8c75e]" : "bg-[#fff0e8] text-[#ee5264]"}`}><Icon name="check" size={15} /></span>{point}</div>)}</div></div></div></section>
 
+      {/* Bottom Website Card / Image */}
+      <section className="bg-gradient-to-b from-[#fffaf5] to-white py-16 md:py-24">
+        <div className="container">
+          <div className="mx-auto max-w-[1080px] overflow-hidden rounded-[28px] border border-[#eadbd3] bg-white p-6 shadow-xl shadow-[#8a564c]/10 sm:p-10">
+            <div className="grid items-center gap-8 md:grid-cols-[1fr_1.1fr] md:gap-12">
+              <div className="relative mx-auto aspect-[1.15/1] w-full max-w-[420px] overflow-hidden rounded-[20px] bg-[#fff0e8] p-3 shadow-inner">
+                <img
+                  src="/images/confetti.jpg"
+                  alt="Celebra Momentos - Diseños que alegran cada día"
+                  className="h-full w-full rounded-[14px] object-cover shadow"
+                />
+                <div className="absolute inset-0 rounded-[20px] ring-1 ring-inset ring-black/5" />
+                <span className="absolute bottom-6 left-6 rounded-full bg-[#182443]/90 px-3.5 py-1.5 text-[10px] font-black tracking-widest text-white backdrop-blur-sm">
+                  EDICIÓN LIMITADA · CELEBRA MOMENTOS
+                </span>
+              </div>
+              <div>
+                <span className="inline-block rounded-full bg-[#fff0e8] px-3.5 py-1.5 text-[10px] font-black tracking-[.18em] text-[#ee5264]">
+                  EL DETALLE QUE LO CAMBIA TODO
+                </span>
+                <h2 className="serif mt-3 text-3xl font-bold tracking-[-.04em] text-[#182443] sm:text-4xl">
+                  {language === "es" ? "Una tarjeta física que se guarda para siempre" : "Um cartão físico que se guarda para sempre"}
+                </h2>
+                <p className="mt-4 text-sm leading-7 text-[#737b90]">
+                  {language === "es"
+                    ? "Cada pedido de Celebra Momentos se imprime con tecnología de alta definición sobre papel estucado premium de 300 g y se entrega con su sobre protector a juego. Añade tu toque personal con fotos, frases emotivas y detalles dulces."
+                    : "Cada encomenda de Celebra Momentos é impressa com tecnologia de alta definição em papel couché premium de 300 g e entregue com o seu envelope protetor a condizer."}
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <a
+                    href="/customize"
+                    className="focus-ring inline-flex items-center gap-2 rounded-full bg-[#ee5264] px-6 py-3 text-xs font-black text-white transition hover:bg-[#d83d54]"
+                  >
+                    {language === "es" ? "Empezar ahora" : "Começar agora"}
+                    <Icon name="arrow" size={15} />
+                  </a>
+                  <a
+                    href="/templates"
+                    className="focus-ring inline-flex items-center rounded-full border border-[#dfd3cc] bg-white px-5 py-3 text-xs font-black text-[#182443] transition hover:border-[#ee5264]"
+                  >
+                    {language === "es" ? "Ver todos los diseños" : "Ver todos os modelos"}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="px-4 pb-20"><div className="mx-auto max-w-[1160px] overflow-hidden rounded-[28px] bg-[#f8c75e] px-7 py-14 text-center sm:px-10 md:py-20"><p className="text-[10px] font-black tracking-[.2em] text-[#806723]">{t.finalKicker}</p><h2 className="serif mx-auto mt-3 max-w-[660px] text-4xl font-bold tracking-[-.04em] text-[#182443] sm:text-6xl">{t.finalTitle}</h2><p className="mt-5 text-sm font-bold text-[#63552a]">{t.finalBody}</p><a href="/customize" className="focus-ring mt-8 inline-flex items-center gap-3 rounded-full bg-[#182443] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#ee5264]">{t.create}<Icon name="arrow" size={17} /></a></div></section>
 
-      <footer id="footer" className="border-t border-[#ebdfd6] bg-white py-12"><div className="container grid gap-10 md:grid-cols-[1.5fr_1fr_1fr] md:gap-20"><div><div className="flex items-center gap-3"><img src="/images/logo.png" alt="Celebra Momentos" className="h-12 w-12 object-contain" /><span className="text-[15px] font-black tracking-[-.03em]">Celebra<br /><span className="text-[#ee5264]">Momentos</span></span></div><p className="mt-5 max-w-[300px] text-sm leading-6 text-[#737b90]">{t.footer}</p></div><div><p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{language === "es" ? "Explora" : "Explora"}</p><div className="mt-5 flex flex-col gap-3 text-sm text-[#737b90]"><a href="#templates" className="hover:text-[#ee5264]">{t.nav[0]}</a><a href="#how" className="hover:text-[#ee5264]">{t.nav[1]}</a><a href="#extras" className="hover:text-[#ee5264]">{t.nav[2]}</a></div></div><div><p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{language === "es" ? "Información" : "Informação"}</p><div className="mt-5 flex flex-col gap-3 text-sm text-[#737b90]">{t.footerLinks.map((link) => <a key={link} href="#footer" className="hover:text-[#ee5264]">{link}</a>)}</div></div></div><div className="container mt-10 flex flex-col gap-3 border-t border-[#ebdfd6] pt-5 text-xs text-[#9297a4] sm:flex-row sm:items-center sm:justify-between"><span>© 2026 Celebra Momentos</span><span className="flex items-center gap-2"><Icon name="lock" size={13} /> Compra sencilla · Atención humana</span></div></footer>
+      <footer id="footer" className="border-t border-[#ebdfd6] bg-white py-12">
+        <div className="container grid gap-10 md:grid-cols-[1.5fr_1fr_1fr] md:gap-20">
+          <div>
+            <div className="flex items-center gap-3">
+              <img src="/images/logo.png" alt="Celebra Momentos" className="h-14 w-14 object-contain" />
+              <span className="text-[16px] font-black tracking-[-.03em]">Celebra<br /><span className="text-[#ee5264]">Momentos</span></span>
+            </div>
+            <p className="mt-5 max-w-[300px] text-sm leading-6 text-[#737b90]">{t.footer}</p>
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{language === "es" ? "Explora" : "Explora"}</p>
+            <div className="mt-5 flex flex-col gap-3 text-sm text-[#737b90]">
+              <a href="#templates" className="hover:text-[#ee5264]">{t.nav[0]}</a>
+              <a href="#how" className="hover:text-[#ee5264]">{t.nav[1]}</a>
+              <a href="#extras" className="hover:text-[#ee5264]">{t.nav[2]}</a>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{language === "es" ? "Información" : "Informação"}</p>
+            <div className="mt-5 flex flex-col gap-3 text-sm text-[#737b90]">
+              <Link href="/privacy" className="hover:text-[#ee5264]">{language === "es" ? "Privacidad" : "Privacidade"}</Link>
+              <Link href="/cookies" className="hover:text-[#ee5264]">Cookies</Link>
+              <Link href="/terms" className="hover:text-[#ee5264]">{language === "es" ? "Términos y condiciones" : "Termos e condições"}</Link>
+              <Link href="/contact" className="hover:text-[#ee5264]">{language === "es" ? "Contacto" : "Contacto"}</Link>
+            </div>
+          </div>
+        </div>
+        <div className="container mt-10 flex flex-col gap-3 border-t border-[#ebdfd6] pt-5 text-xs text-[#9297a4] sm:flex-row sm:items-center sm:justify-between">
+          <span>© 2026 Celebra Momentos</span>
+          <span className="flex items-center gap-2"><Icon name="lock" size={13} /> Compra sencilla · Atención humana</span>
+        </div>
+      </footer>
 
       {cookieOpen && <div className="fixed bottom-4 left-4 right-4 z-40 mx-auto max-w-[760px] rounded-[18px] border border-[#eadbd3] bg-white p-4 shadow-2xl shadow-[#182443]/15 sm:bottom-6 sm:flex sm:items-center sm:gap-5"><p className="flex-1 text-xs leading-5 text-[#66708a]">{t.cookie}</p><div className="mt-3 flex flex-wrap gap-2 sm:mt-0"><button onClick={() => setCookieOpen(false)} className="focus-ring rounded-full bg-[#182443] px-3.5 py-2 text-[11px] font-black text-white">{t.cookieAccept}</button><button onClick={() => setCookieOpen(false)} className="focus-ring rounded-full border border-[#dfd3cc] px-3.5 py-2 text-[11px] font-black text-[#182443]">{t.cookieReject}</button><button onClick={() => setCookieOpen(false)} className="px-2 py-2 text-[11px] font-bold text-[#737b90] underline underline-offset-2">{t.cookieSettings}</button></div></div>}
 
-      {cartOpen && <div className="fixed inset-0 z-50"><button aria-label="Cerrar selección" onClick={() => setCartOpen(false)} className="absolute inset-0 bg-[#182443]/30 backdrop-blur-[2px]" /><aside className="absolute bottom-0 right-0 top-0 flex w-full max-w-[450px] flex-col bg-[#fffaf5] shadow-2xl"><div className="flex items-center justify-between border-b border-[#ebdfd6] px-6 py-5"><div><p className="text-[10px] font-black uppercase tracking-[.17em] text-[#ee5264]">{t.cart}</p><h2 className="mt-1 text-xl font-black">{selectedTemplate.name}</h2></div><button onClick={() => setCartOpen(false)} className="focus-ring flex h-9 w-9 items-center justify-center rounded-full border border-[#dfd3cc] bg-white" aria-label="Cerrar"><Icon name="close" size={17} /></button></div><div className="flex-1 overflow-y-auto p-6"><div className="flex gap-4 rounded-2xl border border-[#eadbd3] bg-white p-3"><img src={photo || selectedTemplate.image} alt="Tu tarjeta" className="h-24 w-20 rounded-xl object-cover" /><div><p className="text-sm font-black">{t.cartCard}</p><p className="mt-1 text-xs text-[#737b90]">{size} · {selectedTemplate.eyebrow}</p><p className="mt-3 text-sm font-black">8,90 €</p></div></div><div className="mt-5 space-y-3">{sticker > 0 && <div className="flex items-center justify-between rounded-2xl border border-[#eadbd3] bg-white p-4 text-sm"><span><span className="block font-black">Sticker personalizado</span><span className="text-xs text-[#737b90]">{sticker} unidad{sticker > 1 ? "es" : ""}</span></span><span className="font-black">{sticker === 1 ? "1,50" : sticker === 2 ? "2,70" : "3,00"} €</span></div>}{chocolate > 0 && <div className="flex items-center justify-between rounded-2xl border border-[#eadbd3] bg-white p-4 text-sm"><span><span className="block font-black">Chocolate artesanal</span><span className="text-xs text-[#737b90]">{chocolate} caja</span></span><span className="font-black">{(chocolate * 5.9).toFixed(2).replace(".", ",")} €</span></div>}</div><div className="mt-8 rounded-2xl bg-[#182443] p-5 text-white"><div className="flex justify-between text-sm text-white/70"><span>Subtotal</span><span>{total.toFixed(2).replace(".", ",")} €</span></div><div className="mt-3 flex justify-between text-sm text-white/70"><span>Envío estándar</span><span className="text-[#f8c75e]">Gratis</span></div><div className="mt-5 flex justify-between border-t border-white/10 pt-4 text-lg font-black"><span>Total</span><span>{total.toFixed(2).replace(".", ",")} €</span></div></div></div><div className="border-t border-[#ebdfd6] bg-white p-6"><button onClick={() => setCartOpen(false)} className="focus-ring flex w-full items-center justify-center gap-3 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{t.checkout}<Icon name="arrow" size={17} /></button><p className="mt-3 flex justify-center items-center gap-1.5 text-center text-[11px] text-[#8a8f9e]"><Icon name="lock" size={12} /> {language === "es" ? "Pago seguro · sin compromiso" : "Pagamento seguro · sem compromisso"}</p></div></aside></div>}
+      {cartOpen && <div className="fixed inset-0 z-50"><button aria-label="Cerrar selección" onClick={() => setCartOpen(false)} className="absolute inset-0 bg-[#182443]/30 backdrop-blur-[2px]" /><aside className="absolute bottom-0 right-0 top-0 flex w-full max-w-[450px] flex-col bg-[#fffaf5] shadow-2xl"><div className="flex items-center justify-between border-b border-[#ebdfd6] px-6 py-5"><div><p className="text-[10px] font-black uppercase tracking-[.17em] text-[#ee5264]">{t.cart}</p><h2 className="mt-1 text-xl font-black">{selectedTemplate.name}</h2></div><button onClick={() => setCartOpen(false)} className="focus-ring flex h-9 w-9 items-center justify-center rounded-full border border-[#dfd3cc] bg-white" aria-label="Cerrar"><Icon name="close" size={17} /></button></div><div className="flex-1 overflow-y-auto p-6"><div className="flex gap-4 rounded-2xl border border-[#eadbd3] bg-white p-3"><img src={photo || selectedTemplate.image} alt="Tu tarjeta" className="h-24 w-20 rounded-xl object-cover" /><div><p className="text-sm font-black">{t.cartCard}</p><p className="mt-1 text-xs text-[#737b90]">{size} · {selectedTemplate.eyebrow}</p><p className="mt-3 text-sm font-black">8,90 €</p></div></div><div className="mt-5 space-y-3">{sticker > 0 && <div className="flex items-center justify-between rounded-2xl border border-[#eadbd3] bg-white p-4 text-sm"><span><span className="block font-black">Sticker personalizado</span><span className="text-xs text-[#737b90]">{sticker} unidad{sticker > 1 ? "es" : ""}</span></span><span className="font-black">{sticker === 1 ? "1,50" : sticker === 2 ? "2,50" : "3,50"} €</span></div>}{chocolate > 0 && <div className="flex items-center justify-between rounded-2xl border border-[#eadbd3] bg-white p-4 text-sm"><span><span className="block font-black">Chocolate artesanal</span><span className="text-xs text-[#737b90]">{chocolate} caja</span></span><span className="font-black">{(chocolate * 5.9).toFixed(2).replace(".", ",")} €</span></div>}</div><div className="mt-8 rounded-2xl bg-[#182443] p-5 text-white"><div className="flex justify-between text-sm text-white/70"><span>Subtotal</span><span>{total.toFixed(2).replace(".", ",")} €</span></div><div className="mt-3 flex justify-between text-sm text-white/70"><span>Envío estándar</span><span className="text-[#f8c75e]">Gratis</span></div><div className="mt-5 flex justify-between border-t border-white/10 pt-4 text-lg font-black"><span>Total</span><span>{total.toFixed(2).replace(".", ",")} €</span></div></div></div><div className="border-t border-[#ebdfd6] bg-white p-6"><button onClick={() => setCartOpen(false)} className="focus-ring flex w-full items-center justify-center gap-3 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{t.checkout}<Icon name="arrow" size={17} /></button><p className="mt-3 flex justify-center items-center gap-1.5 text-center text-[11px] text-[#8a8f9e]"><Icon name="lock" size={12} /> {language === "es" ? "Pago seguro · sin compromiso" : "Pagamento seguro · sem compromisso"}</p></div></aside></div>}
     </main>
   );
 }

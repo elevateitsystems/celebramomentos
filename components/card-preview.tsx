@@ -3,18 +3,23 @@
 import { type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { useSelector } from "react-redux";
 import { frames, templates } from "@/lib/data";
-import { defaultEmojiPosition, emojiToneFilters, type EmojiPosition, type EmojiTone } from "@/lib/emojis";
+import { defaultEmojiPosition, emojiToneFilters, type EmojiElement, type EmojiPosition, type EmojiTone } from "@/lib/emojis";
 import type { RootState } from "@/lib/store";
+import { MagazineFront } from "./magazine-card";
 
 type CardPreviewProps = {
   templateId: string;
   message: string;
-  emoji: string;
+  emoji?: string;
   emojiTone?: EmojiTone;
   emojiSize?: number;
   emojiPosition?: EmojiPosition;
+  emojiElements?: EmojiElement[];
   onEmojiPositionChange?: (position: EmojiPosition) => void;
+  onEmojiElementPositionChange?: (id: string, position: EmojiPosition) => void;
+  onEmojiSelect?: (id: string) => void;
   photoDataUrl?: string | null;
+  photoDataUrls?: (string | null)[];
   photoZoom?: number;
   photoPosition?: "center" | "top" | "bottom" | "left" | "right";
   size?: "A4" | "A3";
@@ -22,82 +27,58 @@ type CardPreviewProps = {
 };
 
 const clampPosition = (value: number) => Math.min(94, Math.max(6, value));
+const samplePhotos = ["/images/sticker-lifestyle-sports.jpg", "/images/sticker-family.jpg", "/images/sticker-baby.jpg", "/images/sticker-lifestyle-dog.jpg", "/images/sticker-cello.jpg"];
 
-export function CardPreview({
-  templateId,
-  message,
-  emoji,
-  emojiTone,
-  emojiSize,
-  emojiPosition,
-  onEmojiPositionChange,
-  photoDataUrl,
-  photoZoom = 1,
-  photoPosition = "center",
-  size = "A4",
-  compact = false,
-}: CardPreviewProps) {
-  const savedEmoji = useSelector((state: RootState) => state.cart.card);
+export function CardPreview({ templateId, message, emoji = "✨", emojiTone, emojiSize, emojiPosition, emojiElements, onEmojiPositionChange, onEmojiElementPositionChange, onEmojiSelect, photoDataUrl, photoDataUrls, photoZoom = 1, photoPosition = "center", size = "A4", compact = false }: CardPreviewProps) {
+  const savedCard = useSelector((state: RootState) => state.cart.card);
   const template = templates.find((item) => item.id === templateId) || templates[0];
-  const frame = frames.find((item) => item.id === savedEmoji.frameId) || frames[0];
-  const backgroundImage = template.magazineStyle ? (photoDataUrl || template.image) : frame.image;
+  const frame = frames.find((item) => item.id === savedCard.frameId) || frames[0];
   const designRef = useRef<HTMLDivElement>(null);
-  const canMoveEmoji = Boolean(onEmojiPositionChange) && !compact;
-  const activeEmojiTone = emojiTone ?? savedEmoji.emojiTone ?? "natural";
-  const activeEmojiSize = emojiSize ?? savedEmoji.emojiSize ?? 28;
-  const activeEmojiPosition = emojiPosition ?? savedEmoji.emojiPosition ?? defaultEmojiPosition;
+  const effectivePhotoUrls = photoDataUrls ?? (savedCard.templateId === templateId ? savedCard.photoDataUrls : undefined);
+  const photos = Array.from({ length: template.imageCount }, (_, index) => effectivePhotoUrls?.[index] ?? (index === 0 ? photoDataUrl : null) ?? null);
+  const legacyElement: EmojiElement = { id: "legacy-emoji", emoji, tone: emojiTone ?? savedCard.emojiTone ?? "natural", size: emojiSize ?? savedCard.emojiSize ?? 28, position: emojiPosition ?? savedCard.emojiPosition ?? defaultEmojiPosition };
+  const elements = emojiElements ?? (savedCard.templateId === templateId ? savedCard.emojiElements : [legacyElement]);
+  const canMoveEmoji = Boolean(onEmojiElementPositionChange || onEmojiPositionChange) && !compact;
+  const surfaceClass = compact ? "aspect-[.9/1]" : size === "A3" ? "aspect-[.78/1]" : "aspect-[.82/1]";
 
-  const moveEmoji = (event: PointerEvent<HTMLSpanElement>) => {
+  const updatePosition = (id: string, position: EmojiPosition) => {
+    onEmojiElementPositionChange?.(id, position);
+    if (id === "legacy-emoji" || elements[0]?.id === id) onEmojiPositionChange?.(position);
+  };
+
+  const moveEmoji = (event: PointerEvent<HTMLSpanElement>, id: string) => {
     if (!canMoveEmoji || !designRef.current) return;
     const bounds = designRef.current.getBoundingClientRect();
-    onEmojiPositionChange?.({
-      x: clampPosition(((event.clientX - bounds.left) / bounds.width) * 100),
-      y: clampPosition(((event.clientY - bounds.top) / bounds.height) * 100),
-    });
+    updatePosition(id, { x: clampPosition(((event.clientX - bounds.left) / bounds.width) * 100), y: clampPosition(((event.clientY - bounds.top) / bounds.height) * 100) });
   };
 
-  const handlePointerDown = (event: PointerEvent<HTMLSpanElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>, item: EmojiElement) => {
     if (!canMoveEmoji) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    moveEmoji(event);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
-    if (!canMoveEmoji || !onEmojiPositionChange) return;
     const movement = event.shiftKey ? 5 : 2;
-    const next = { ...activeEmojiPosition };
+    const next = { ...item.position };
     if (event.key === "ArrowLeft") next.x -= movement;
     else if (event.key === "ArrowRight") next.x += movement;
     else if (event.key === "ArrowUp") next.y -= movement;
     else if (event.key === "ArrowDown") next.y += movement;
     else return;
     event.preventDefault();
-    onEmojiPositionChange({ x: clampPosition(next.x), y: clampPosition(next.y) });
+    updatePosition(item.id, { x: clampPosition(next.x), y: clampPosition(next.y) });
   };
 
-  return (
-    <div className={`relative overflow-hidden rounded-[12px] bg-[#fff0e8] ${compact ? "aspect-[.9/1]" : size === "A3" ? "aspect-[.78/1]" : "aspect-[.82/1]"}`}>
-      <img src={backgroundImage} alt={`Vista previa ${template.name}`} className={`absolute inset-0 h-full w-full ${template.magazineStyle && !photoDataUrl ? "object-contain" : "object-cover"} ${template.magazineStyle ? "opacity-85" : "opacity-70"}`} style={template.magazineStyle && photoDataUrl ? { objectPosition: photoPosition, transform: `scale(${photoZoom})` } : undefined} />
-      {photoDataUrl && !template.magazineStyle && <div className="absolute inset-[11%] overflow-hidden rounded-[8px] border-2 border-white/90 shadow-lg"><img src={photoDataUrl} alt="Tu foto dentro del marco elegido" className="h-full w-full object-cover transition-transform duration-300" style={{ objectPosition: photoPosition, transform: `scale(${photoZoom})` }} /></div>}
-      <div className={`absolute inset-0 ${template.magazineStyle ? "bg-white/20" : "bg-white/50"}`} />
-      <div ref={designRef} className={`absolute flex flex-col justify-between rounded-[8px] backdrop-blur-[1px] ${template.magazineStyle ? "border-2 border-[#e51f2a] bg-white/65" : "border border-white/90 bg-white/60"} ${compact ? "inset-[7%] p-[7%]" : "inset-[8%] p-[7%]"}`}>
-        <div>{template.magazineStyle ? <span className="inline-block bg-[#e51f2a] px-3 py-2 text-[clamp(10px,2.2vw,22px)] font-black uppercase leading-none text-white">Últimas noticias</span> : <span className="rounded-full bg-[#182443] px-3 py-1.5 text-[9px] font-black tracking-[.12em] text-white">PARA ALGUIEN ESPECIAL</span>}</div>
-        <span
-          role={canMoveEmoji ? "button" : undefined}
-          tabIndex={canMoveEmoji ? 0 : undefined}
-          aria-label={canMoveEmoji ? "Mover emoji. Arrastra o usa las flechas del teclado" : undefined}
-          title={canMoveEmoji ? "Arrastra para mover el emoji" : undefined}
-          onPointerDown={handlePointerDown}
-          onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) moveEmoji(event); }}
-          onKeyDown={handleKeyDown}
-          className={`absolute z-10 select-none leading-none outline-none ${canMoveEmoji ? "cursor-grab touch-none rounded-lg focus:ring-2 focus:ring-[#ee5264] focus:ring-offset-2 active:cursor-grabbing" : ""}`}
-          style={{ left: `${activeEmojiPosition.x}%`, top: `${activeEmojiPosition.y}%`, fontSize: `${compact ? activeEmojiSize * 0.55 : activeEmojiSize}px`, filter: emojiToneFilters[activeEmojiTone], transform: "translate(-50%, -50%)" }}
-        >
-          {emoji}
-        </span>
-        <div className={template.id === "template-2" ? "rounded-xl bg-white/75 p-[5%] text-center" : ""}><p className={`${template.magazineStyle ? "font-sans" : "serif"} max-w-[460px] whitespace-pre-line break-words font-bold leading-[.98] tracking-[-.05em] text-[#182443] ${compact ? "text-2xl" : "text-[clamp(28px,5vw,58px)]"}`}>{message || "Tu mensaje aquí"}</p><div className={`mt-5 h-1 w-16 rounded-full ${template.id === "template-2" ? "mx-auto" : ""} ${template.magazineStyle ? "bg-[#1d5894]" : "bg-[#ee5264]"}`} /></div>
-        <div className="flex items-end justify-between"><span className={`${template.magazineStyle ? "rounded bg-[#1d5894] px-2 py-1 font-sans font-black text-white" : "serif italic text-[#ee5264]"} ${compact ? "text-xs" : "text-[clamp(13px,2vw,18px)]"}`}>{template.magazineStyle ? "EXCLUSIVA" : "Con todo mi cariño"}</span><span className={compact ? "text-lg" : "text-2xl"}>♡</span></div>
-      </div>
-    </div>
-  );
+  return <div ref={designRef} className={`relative overflow-hidden rounded-[12px] bg-[#fff0e8] ${surfaceClass}`}>
+    {template.magazineStyle ? <MagazineFront compact={compact} message={message} photoDataUrl={photos[0]} photoZoom={photoZoom} photoPosition={photoPosition} /> : template.id === "template-2" ? <CollageFront compact={compact} message={message} photos={photos} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} /> : <StoryFront compact={compact} message={message} photos={photos} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} />}
+    {elements.map((item) => <span key={item.id} role={canMoveEmoji ? "button" : undefined} tabIndex={canMoveEmoji ? 0 : undefined} aria-label={canMoveEmoji ? `Mover emoji ${item.emoji}. Arrastra o usa las flechas` : undefined} title={canMoveEmoji ? "Arrastra para mover; selecciónalo para cambiar su tamaño" : undefined} onPointerDown={(event) => { if (!canMoveEmoji) return; onEmojiSelect?.(item.id); event.currentTarget.setPointerCapture(event.pointerId); moveEmoji(event, item.id); }} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) moveEmoji(event, item.id); }} onKeyDown={(event) => handleKeyDown(event, item)} onFocus={() => onEmojiSelect?.(item.id)} className={`absolute z-30 select-none leading-none outline-none ${canMoveEmoji ? "cursor-grab touch-none rounded-lg focus:ring-2 focus:ring-[#ee5264] focus:ring-offset-2 active:cursor-grabbing" : ""}`} style={{ left: `${item.position.x}%`, top: `${item.position.y}%`, fontSize: `${compact ? item.size * .5 : item.size}px`, filter: emojiToneFilters[item.tone], transform: "translate(-50%, -50%)" }}>{item.emoji}</span>)}
+  </div>;
+}
+
+function PhotoTile({ src, fallback, alt, className, photoZoom = 1, photoPosition = "center" }: { src: string | null; fallback: string; alt: string; className: string; photoZoom?: number; photoPosition?: string }) {
+  return <div className={`relative overflow-hidden bg-[#eee5df] ${className}`}><img src={src || fallback} alt={alt} className={`h-full w-full object-cover ${src ? "" : "opacity-75 saturate-[.8]"}`} style={{ objectPosition: photoPosition, transform: src ? `scale(${photoZoom})` : undefined }} />{!src && <span className="absolute inset-x-0 bottom-0 bg-[#182443]/70 px-2 py-1 text-center text-[clamp(5px,1vw,9px)] font-black uppercase tracking-wider text-white">Añade foto</span>}</div>;
+}
+
+function CollageFront({ compact, message, photos, frameImage, photoZoom, photoPosition }: { compact: boolean; message: string; photos: (string | null)[]; frameImage: string; photoZoom: number; photoPosition: string }) {
+  return <div className="absolute inset-0"><img src={frameImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /><div className="absolute inset-[7%] rounded-lg border border-white/90 bg-white/85 p-[4%] shadow-lg"><div className="grid h-[72%] grid-cols-[1.35fr_1fr_1fr] grid-rows-2 gap-[2%]"><PhotoTile src={photos[0]} fallback={samplePhotos[0]} alt="Foto 1" className="row-span-2 rounded-md" photoZoom={photoZoom} photoPosition={photoPosition} />{photos.slice(1, 5).map((photo, index) => <PhotoTile key={index} src={photo} fallback={samplePhotos[index + 1]} alt={`Foto ${index + 2}`} className="rounded-md" />)}</div><div className="mt-[4%] border-l-4 border-[#ee5264] pl-[4%]"><span className={`font-black uppercase tracking-[.14em] text-[#ee5264] ${compact ? "text-[4px]" : "text-[clamp(7px,1.2vw,11px)]"}`}>Cinco fotos · Un gran recuerdo</span><p className={`mt-[2%] line-clamp-2 font-serif font-bold leading-tight text-[#182443] ${compact ? "text-[8px]" : "text-[clamp(18px,3vw,30px)]"}`}>{message || "Tu mensaje aquí"}</p></div></div></div>;
+}
+
+function StoryFront({ compact, message, photos, frameImage, photoZoom, photoPosition }: { compact: boolean; message: string; photos: (string | null)[]; frameImage: string; photoZoom: number; photoPosition: string }) {
+  return <div className="absolute inset-0"><img src={frameImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /><div className="absolute inset-[7%] rounded-lg border border-white/90 bg-white/90 p-[5%] shadow-lg"><div className="grid h-[38%] grid-cols-2 gap-[3%]"><PhotoTile src={photos[0]} fallback={samplePhotos[0]} alt="Foto 1" className="rounded-md" photoZoom={photoZoom} photoPosition={photoPosition} /><PhotoTile src={photos[1]} fallback={samplePhotos[1]} alt="Foto 2" className="rounded-md" /></div><div className="mt-[5%] border-t-2 border-[#ee5264] pt-[5%]"><span className={`font-black uppercase tracking-[.14em] text-[#ee5264] ${compact ? "text-[4px]" : "text-[clamp(7px,1.2vw,11px)]"}`}>Tu historia, con todos sus detalles</span><p className={`mt-[3%] whitespace-pre-line break-words font-serif font-bold leading-[1.12] text-[#182443] ${compact ? "line-clamp-6 text-[7px]" : "text-[clamp(16px,2.8vw,28px)]"}`}>{message || "Escribe aquí ese mensaje largo que quieres conservar para siempre…"}</p></div></div></div>;
 }
