@@ -1,0 +1,19 @@
+import { emojiOptions, emojiToneFilters, type EmojiElement, type EmojiOption } from "@/lib/emojis";
+
+export function EmojiElementControls({ items, selectedId, onAdd, onSelect, onChangeSize, onRemove }: { items: EmojiElement[]; selectedId: string | null; onAdd: (option: EmojiOption) => void; onSelect: (id: string) => void; onChangeSize: (id: string, size: number) => void; onRemove: (id: string) => void }) {
+  const selected = items.find((item) => item.id === selectedId) || null;
+  const setSize = (size: number) => selected && onChangeSize(selected.id, Math.min(96, Math.max(14, size)));
+
+  return <div className="mt-6 border-t border-[#eadfd8] pt-6">
+    <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-black">Emojis sin límite</p><p className="mt-1 text-xs leading-5 text-[#7c8191]">Pulsa cualquier emoji para añadirlo. Después arrástralo directamente sobre la tarjeta.</p></div><span className="shrink-0 rounded-full bg-[#fff0e8] px-2.5 py-1 text-[10px] font-black text-[#c94758]">{items.length} añadido{items.length === 1 ? "" : "s"}</span></div>
+    <div className="mt-3 grid grid-cols-6 gap-2 sm:grid-cols-8 lg:grid-cols-6">
+      {emojiOptions.map((option) => <button key={option.id} type="button" onClick={() => onAdd(option)} title={`Añadir ${option.label}`} aria-label={`Añadir ${option.label}`} className="focus-ring flex h-10 items-center justify-center rounded-xl border border-[#dfd3cc] bg-white text-lg transition hover:border-[#ee5264] hover:bg-[#fff0e8]"><span style={{ filter: emojiToneFilters[option.tone || "natural"] }}>{option.emoji}</span></button>)}
+    </div>
+
+    {items.length > 0 && <div className="mt-4 rounded-2xl border border-[#eadbd3] bg-white p-4">
+      <p className="text-xs font-black">Emojis añadidos</p>
+      <div className="mt-3 flex flex-wrap gap-2">{items.map((item, index) => <span key={item.id} className={`inline-flex items-center rounded-full border p-1 ${item.id === selected?.id ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc]"}`}><button type="button" onClick={() => onSelect(item.id)} className="flex h-8 items-center gap-1.5 rounded-full px-2 text-xs font-black" aria-pressed={item.id === selected?.id}><span style={{ filter: emojiToneFilters[item.tone], fontSize: Math.min(22, item.size) }}>{item.emoji}</span><span>#{index + 1}</span></button><button type="button" onClick={() => onRemove(item.id)} className="flex h-7 w-7 items-center justify-center rounded-full text-sm text-[#9297a4] hover:bg-white hover:text-[#ee5264]" aria-label={`Eliminar emoji ${index + 1}`}>×</button></span>)}</div>
+      {selected && <div className="mt-4 border-t border-[#eadbd3] pt-4"><div className="flex items-center justify-between"><div><p className="text-xs font-black">Tamaño del emoji seleccionado</p><p className="mt-1 text-[11px] text-[#7c8191]">Selecciona otro de la lista para editarlo.</p></div><span className="rounded-full bg-[#fff0e8] px-2.5 py-1 text-[10px] font-black text-[#c94758]">{selected.size}px</span></div><div className="mt-3 flex items-center gap-3"><button type="button" onClick={() => setSize(selected.size - 4)} disabled={selected.size <= 14} className="focus-ring flex h-9 w-9 items-center justify-center rounded-full border border-[#dfd3cc] text-lg font-black disabled:opacity-40" aria-label="Reducir emoji">−</button><input type="range" min="14" max="96" value={selected.size} onChange={(event) => setSize(Number(event.target.value))} className="min-w-0 flex-1 accent-[#ee5264]" aria-label="Tamaño del emoji seleccionado" /><button type="button" onClick={() => setSize(selected.size + 4)} disabled={selected.size >= 96} className="focus-ring flex h-9 w-9 items-center justify-center rounded-full border border-[#dfd3cc] text-lg font-black disabled:opacity-40" aria-label="Aumentar emoji">+</button></div></div>}
+    </div>}
+  </div>;
+}
