@@ -6,9 +6,9 @@ import { useDispatch, useSelector } from "react-redux";
 import { CardPreview } from "@/components/card-preview";
 import { Icon } from "@/components/icons";
 import { PageIntro, Price, SiteFooter, SiteHeader, StatusBadge, Toast } from "@/components/site";
-import { addOns, ENVELOPE_TEXT_PRICE, STICKER_PRICES, templates } from "@/lib/data";
+import { ENVELOPE_TEXT_PRICE, STICKER_PRICES, templates } from "@/lib/data";
 import { amountUntilFreeShipping, getDeliveryPrice, qualifiesForFreeShipping } from "@/lib/shipping";
-import { RootState, setChocolateQuantity, setDiscountCode, setEnvelopeTextAdded, setStickerQuantity } from "@/lib/store";
+import { RootState, setDiscountCode, setEnvelopeTextAdded, setStickerQuantity } from "@/lib/store";
 
 export default function CartPage() {
   const cart = useSelector((state: RootState) => state.cart);
@@ -17,12 +17,10 @@ export default function CartPage() {
   const [discount, setDiscount] = useState(cart.discountCode);
   const template = templates.find((item) => item.id === cart.card.templateId) || templates[0];
   const stickerPrice = STICKER_PRICES[cart.stickerQuantity];
-  const chocolateTotal = Object.entries(cart.chocolates).reduce((sum, [id, quantity]) => sum + (addOns.find((item) => item.id === id)?.price || 0) * quantity, 0);
-  const hasChocolate = Object.values(cart.chocolates).some((quantity) => quantity > 0);
   const envelopePrice = cart.envelopeTextAdded ? ENVELOPE_TEXT_PRICE : 0;
-  const merchandiseSubtotal = template.price + stickerPrice + chocolateTotal + envelopePrice;
+  const merchandiseSubtotal = template.price + stickerPrice + envelopePrice;
   const freeShipping = qualifiesForFreeShipping(merchandiseSubtotal);
-  const delivery = getDeliveryPrice(cart.card.delivery, merchandiseSubtotal, hasChocolate);
+  const delivery = getDeliveryPrice(cart.card.delivery, merchandiseSubtotal);
   const subtotal = merchandiseSubtotal + delivery;
   const discountValue = discount.trim().toUpperCase() === "HOLA10" ? subtotal * .1 : 0;
   const total = subtotal - discountValue;
@@ -40,8 +38,6 @@ export default function CartPage() {
 
           {cart.stickerQuantity > 0 && <CartItem icon={<div className="h-14 w-14 overflow-hidden rounded-full border-4 border-[#f8c75e] bg-[#fff0e8]"><img src={cart.stickerImage || "/images/sticker-dog.jpg"} alt="Sticker personalizado" className="h-full w-full object-cover" /></div>} title={`Sticker personalizado × ${cart.stickerQuantity}`} detail="Diámetro de 3 pulgadas · 7,62 cm" price={stickerPrice} onRemove={() => { dispatch(setStickerQuantity(0)); setToast("Sticker eliminado"); }} />}
 
-          {Object.entries(cart.chocolates).filter(([, quantity]) => quantity > 0).map(([id, quantity]) => { const item = addOns.find((addon) => addon.id === id); if (!item) return null; return <CartItem key={id} icon={<div className="h-14 w-14 overflow-hidden rounded-xl bg-[#fff0e8]"><img src={item.image} alt={item.name} className="h-full w-full object-cover" /></div>} title={`${item.name} × ${quantity}`} detail={item.description} price={item.price * quantity} onRemove={() => { dispatch(setChocolateQuantity({ id, quantity: 0 })); setToast("Extra eliminado"); }} />; })}
-
           {cart.envelopeTextAdded && <CartItem icon={<span className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#fff0e8] text-2xl">✍️</span>} title="Texto personalizado en el sobre" detail={`“${cart.envelopeText}”`} price={ENVELOPE_TEXT_PRICE} onRemove={() => { dispatch(setEnvelopeTextAdded(false)); setToast("Texto del sobre eliminado"); }} />}
 
           <Link href="/addons" className="inline-flex items-center gap-2 px-2 pt-2 text-sm font-black text-[#ee5264] hover:text-[#d83d54]"><Icon name="plus" size={15} /> Añadir más extras</Link>
@@ -50,7 +46,6 @@ export default function CartPage() {
         <aside className="h-fit rounded-[24px] bg-[#182443] p-6 text-white sm:p-7"><h2 className="text-xl font-black">Resumen del pedido</h2><div className="mt-6 space-y-4 text-sm">
           <SummaryRow label="Tarjeta personalizada" value={template.price} />
           {cart.stickerQuantity > 0 && <SummaryRow label={`Sticker × ${cart.stickerQuantity}`} value={stickerPrice} />}
-          {chocolateTotal > 0 && <SummaryRow label="Chocolates" value={chocolateTotal} />}
           {cart.envelopeTextAdded && <SummaryRow label="Texto en el sobre" value={ENVELOPE_TEXT_PRICE} />}
           <div className="flex justify-between text-white/70"><span>Entrega {cart.card.delivery === "express" ? "express" : "normal"}</span>{delivery ? <Price value={delivery} /> : <span className="font-black text-[#f8c75e]">Gratis</span>}</div>
         </div><div className={`mt-5 flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs font-bold ${freeShipping ? "bg-[#24714b]/25 text-[#bde9cc]" : "bg-white/10 text-white/70"}`}><Icon name="truck" size={15} /><span>{freeShipping ? "Envío gratis aplicado: tus productos suman 35 € o más." : <>Te faltan <Price value={amountUntilFreeShipping(merchandiseSubtotal)} /> en productos para conseguir envío gratis.</>}</span></div><div className="mt-6 flex gap-2"><input value={discount} onChange={(event) => setDiscount(event.target.value)} placeholder="Código de descuento" className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#f8c75e]" /><button onClick={() => { dispatch(setDiscountCode(discount)); setToast(discount.toUpperCase() === "HOLA10" ? "Descuento aplicado" : "Código guardado para revisar"); }} className="rounded-xl bg-white/10 px-3 text-xs font-black hover:bg-white/20">Aplicar</button></div>{discountValue > 0 && <div className="mt-3 flex justify-between text-sm text-[#f8c75e]"><span>Descuento HOLA10</span><span>−<Price value={discountValue} /></span></div>}<div className="mt-7 flex justify-between border-t border-white/10 pt-5 text-xl font-black"><span>Total</span><Price value={total} /></div><Link href="/checkout" className="focus-ring mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">Continuar al checkout <Icon name="arrow" size={16} /></Link><p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[11px] text-white/50"><Icon name="lock" size={12} /> Elige entrega normal o express en checkout</p></aside>
