@@ -10,14 +10,13 @@ import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/co
 import { MagazineFront, magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
 import { OccasionPicker } from "@/components/occasion-picker";
 import { PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
-import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, STICKER_PRICES, stickerGallery, templates, type AddOn, type DesignCategoryId } from "@/lib/data";
+import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, STICKER_PRICES, stickerGallery, templates, type DesignCategoryId } from "@/lib/data";
 import { defaultEmojiPosition, type EmojiOption } from "@/lib/emojis";
 import {
   RootState,
   addEmojiElement,
   removeEmojiElement,
   setCardCategory,
-  setChocolateQuantity,
   setEmojiElements,
   setEnvelopeText,
   setEnvelopeTextAdded,
@@ -836,7 +835,6 @@ export default function CustomizePage() {
     </>
   );
 }
-
 function TemplateStep({
   categoryId,
   selectedId,
@@ -1035,14 +1033,9 @@ function ExtrasStep({
 }) {
   const template = templates.find((item) => item.id === cart.card.templateId) || templates[0];
   const sticker = addOns[0];
-  const chocolates = addOns.slice(1);
   const stickerPrice = STICKER_PRICES[cart.stickerQuantity];
-  const chocolateTotal = Object.entries(cart.chocolates).reduce(
-    (sum, [id, quantity]) => sum + (addOns.find((item) => item.id === id)?.price || 0) * quantity,
-    0
-  );
   const envelopePrice = cart.envelopeTextAdded ? ENVELOPE_TEXT_PRICE : 0;
-  const extrasTotal = stickerPrice + chocolateTotal + envelopePrice;
+  const extrasTotal = stickerPrice + envelopePrice;
   const totalWithCard = template.price + extrasTotal;
 
   return (
@@ -1147,63 +1140,9 @@ function ExtrasStep({
             </div>
           </div>
 
-          {/* TRAPA CHOCOLATES */}
-          <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">02 · CHOCOLATES TRAPA ARTESANOS</span>
-            <h3 className="mt-1 text-xl font-black">El capricho dulce perfecto</h3>
-            <p className="mt-1 text-xs text-[#737b90]">Selecciona una o más cajas de bombones artesanales Trapa para acompañar tu tarjeta.</p>
-
-            <div className="mt-4 space-y-3">
-              {chocolates.map((item) => {
-                const quantity = cart.chocolates[item.id] || 0;
-                return (
-                  <article
-                    key={item.id}
-                    className="flex items-center justify-between gap-4 rounded-2xl border border-[#eadbd3] bg-white p-3.5 transition hover:border-[#ee5264]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[#fff0e8]">
-                        <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black sm:text-sm">{item.name}</h4>
-                        <p className="line-clamp-1 text-[11px] text-[#737b90]">{item.description}</p>
-                        <span className="mt-1 inline-block text-xs font-black text-[#ee5264]">
-                          <Price value={item.price} />
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => dispatch(setChocolateQuantity({ id: item.id, quantity: Math.max(0, quantity - 1) }))}
-                        className="focus-ring flex h-8 w-8 items-center justify-center rounded-full border border-[#dfd3cc]"
-                        aria-label={`Quitar ${item.name}`}
-                      >
-                        <Icon name="minus" size={12} />
-                      </button>
-                      <span className="w-4 text-center text-xs font-black">{quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          dispatch(setChocolateQuantity({ id: item.id, quantity: quantity + 1 }));
-                          setToast(`${item.name} añadido`);
-                        }}
-                        className="focus-ring flex h-8 w-8 items-center justify-center rounded-full bg-[#182443] text-white"
-                        aria-label={`Añadir ${item.name}`}
-                      >
-                        <Icon name="plus" size={12} />
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-
           {/* ENVELOPE PERSONALIZED MESSAGE */}
           <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">03 · MENSAJE EN EL EXTERIOR DEL SOBRE</span>
+            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">02 · MENSAJE EN EL EXTERIOR DEL SOBRE</span>
             <div className="mt-2 flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-black">Texto personalizado en el sobre</h3>
@@ -1271,12 +1210,7 @@ function ExtrasStep({
                 <Price value={stickerPrice} />
               </div>
             )}
-            {chocolateTotal > 0 && (
-              <div className="flex justify-between text-white/80">
-                <span>Bombones Trapa</span>
-                <Price value={chocolateTotal} />
-              </div>
-            )}
+
             {cart.envelopeTextAdded && (
               <div className="flex justify-between text-white/80">
                 <span>Mensaje impreso en el sobre</span>

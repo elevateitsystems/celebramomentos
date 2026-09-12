@@ -32,7 +32,6 @@ export type CartState = {
   stickerImage: string | null;
   envelopeText: string;
   envelopeTextAdded: boolean;
-  chocolates: Record<string, number>;
   discountCode: string;
 };
 
@@ -66,7 +65,6 @@ const initialState: CartState = {
   stickerImage: null,
   envelopeText: "",
   envelopeTextAdded: false,
-  chocolates: {},
   discountCode: "",
 };
 
@@ -109,7 +107,6 @@ const cartSlice = createSlice({
     setStickerImage: (state, action: PayloadAction<string | null>) => { state.stickerImage = action.payload; },
     setEnvelopeText: (state, action: PayloadAction<string>) => { state.envelopeText = action.payload.slice(0, 80); },
     setEnvelopeTextAdded: (state, action: PayloadAction<boolean>) => { state.envelopeTextAdded = action.payload; },
-    setChocolateQuantity: (state, action: PayloadAction<{ id: string; quantity: number }>) => { state.chocolates[action.payload.id] = action.payload.quantity; },
     setDiscountCode: (state, action: PayloadAction<string>) => { state.discountCode = action.payload; },
     resetCart: () => initialState,
   },
@@ -151,7 +148,6 @@ export const {
   setStickerImage,
   setEnvelopeText,
   setEnvelopeTextAdded,
-  setChocolateQuantity,
   setDiscountCode,
   resetCart,
 } = cartSlice.actions;

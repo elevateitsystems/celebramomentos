@@ -63,7 +63,7 @@ export function PolicyPage({ type }: { type: "privacy" | "cookies" | "terms" }) 
       sections: [
         [
           "1. Identidad y Objeto del Servicio",
-          "Celebra Momentos presta servicios de diseño interactivo, impresión personalizada de alta calidad en papeles prémium (tamaños A4 y A3) y envío postal de tarjetas para celebraciones especiales (cumpleaños, agradecimientos, felicitaciones y aniversarios), así como complementos opcionales (stickers personalizados, bombones artesanales Trapa y mensajes impresos en sobres).",
+          "Celebra Momentos presta servicios de diseño interactivo, impresión personalizada de alta calidad en papeles prémium y envío de tarjetas, calendarios, arte de pared e imanes, así como complementos opcionales (stickers personalizados y mensajes impresos en sobres).",
         ],
         [
           "2. Responsabilidad sobre los Contenidos del Cliente",
@@ -71,7 +71,7 @@ export function PolicyPage({ type }: { type: "privacy" | "cookies" | "terms" }) 
         ],
         [
           "3. Precios, Envíos y Gastos de Entrega",
-          "Todos los precios mostrados en el sitio web incluyen el Impuesto sobre el Valor Añadido (IVA) vigente en España. Los gastos de envío se calculan según el importe del pedido: en compras de importe igual o superior a 35,00 € el envío es GRATUITO. Para pedidos inferiores a 35,00 €: entrega estándar a 5,00 € (o 7,00 € si incluye productos que requieren protección térmica como chocolates Trapa), y entrega express a 8,00 €.",
+          "Todos los precios mostrados en el sitio web incluyen el Impuesto sobre el Valor Añadido (IVA) vigente en España. Los gastos de envío se calculan según el importe del pedido: en compras de importe igual o superior a 35,00 € el envío es GRATUITO. Para pedidos inferiores a 35,00 €: entrega estándar a 5,00 € y entrega express a 8,00 €.",
         ],
         [
           "4. Plazos de Preparación y Entrega",

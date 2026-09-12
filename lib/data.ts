@@ -43,7 +43,7 @@ export type AddOn = {
   descriptionPt: string;
   price: number;
   image?: string;
-  kind: "sticker" | "chocolate";
+  kind: "sticker";
 };
 
 export const templates: Template[] = [
@@ -71,9 +71,6 @@ export const frames: Frame[] = [
 
 export const addOns: AddOn[] = [
   { id: "sticker", name: "Sticker personalizado", namePt: "Sticker personalizado", description: "Círculo de 7,62 cm (3 pulgadas) con tu fotografía favorita.", descriptionPt: "Círculo de 7,62 cm (3 polegadas) com a tua fotografia favorita.", price: 1.5, image: "/images/sticker-dog.jpg", kind: "sticker" },
-  { id: "small-chocolate", name: "Bombones surtidos Artesanía de Trapa – 8 Unidades", namePt: "Bombons sortidos Artesanía de Trapa – 8 Unidades", description: "Caja de bombones surtidos con deliciosos rellenos artesanos: Caramelo, Praliné y Avellana.", descriptionPt: "Caixa de bombons sortidos com deliciosos recheios artesanais: Caramelo, Praliné e Avelã.", price: 5.9, image: "/images/chocolate-small.jpg", kind: "chocolate" },
-  { id: "big-chocolate", name: "Bombones Cortados Artesanía de Trapa – 12 unidades", namePt: "Bombons Cortados Artesanía de Trapa – 12 unidades", description: "Caja de 12 bombones cortados artesanos con una cuidada combinación de sabores: Avellana, Café, Naranja y Limón.", descriptionPt: "Caixa de 12 bombons cortados artesanais com sabores: Avelã, Café, Laranja e Limão.", price: 7.5, image: "/images/chocolate-small.jpg", kind: "chocolate" },
-  { id: "heart-chocolate", name: "Bolsita con 4 irresistibles corazones de chocolate con leche", namePt: "Saquinho com 4 irresistíveis corações de chocolate de leite", description: "Bolsita con 4 irresistibles corazones de chocolate con leche con una textura suave y fundente.", descriptionPt: "Saquinho com 4 irresistíveis corações de chocolate de leite com textura suave.", price: 7, image: "/images/chocolate-hearts.jpg", kind: "chocolate" },
 ];
 
 export const STICKER_PRICES = [0, 1.5, 2.5, 3.5] as const;
@@ -89,7 +86,7 @@ export const stickerGallery = [
 export const mockOrders = [
   { id: "CM-10482", date: "18 Jun 2026", item: "", amount: "18,40 €", payment: "Pagado", status: "En camino", statusTone: "amber", delivery: "Express" },
   { id: "CM-10291", date: "04 May 2026", item: "Siempre contigo", amount: "15,90 €", payment: "Pagado", status: "Entregado", statusTone: "green", delivery: "Estándar" },
-  { id: "CM-09844", date: "14 Feb 2026", item: "Flores para ti + chocolates", amount: "23,40 €", payment: "Pagado", status: "Entregado", statusTone: "green", delivery: "Estándar" },
+  { id: "CM-09844", date: "14 Feb 2026", item: "Flores para ti + sticker", amount: "17,50 €", payment: "Pagado", status: "Entregado", statusTone: "green", delivery: "Estándar" },
 ];
 
 export const mockCustomers = [
