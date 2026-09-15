@@ -140,7 +140,7 @@ export function MagazineCardShowcase() {
             Ejemplo de tarjeta personalizada
           </h2>
           <p className="mt-4 text-sm leading-6 text-[#737b90] sm:text-base">
-            Descubre cómo queda una tarjeta completamente personalizada con nuestra Plantilla 1 estilo periódico / revista. Combina 1 gran fotografía principal con 3 fotos interiores y textos a medida.
+            Descubre cómo queda una tarjeta completamente personalizada con nuestra tercera plantilla, estilo periódico / revista. Combina 1 gran fotografía principal con 3 fotos interiores y textos a medida.
           </p>
           <div className="mt-7 inline-flex rounded-full border border-[#eadbd3] bg-white p-1.5 shadow-sm">
             <button
@@ -225,7 +225,7 @@ export function MagazineCardShowcase() {
               href="/customize"
               className="focus-ring inline-flex items-center gap-2 rounded-full bg-[#db1822] px-7 py-3.5 text-sm font-black text-white shadow-lg shadow-[#db1822]/20 transition hover:-translate-y-0.5 hover:bg-[#b8121a]"
             >
-              Personalizar esta plantilla revista (Plantilla 1) →
+              Personalizar la plantilla Magazine →
             </Link>
             <Link
               href="/templates"

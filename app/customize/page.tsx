@@ -7,16 +7,14 @@ import { CardPreview } from "@/components/card-preview";
 import { EmojiElementControls } from "@/components/emoji-element-controls";
 import { Icon } from "@/components/icons";
 import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/components/postcard-preview";
-import { MagazineFront, magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
-import { OccasionPicker } from "@/components/occasion-picker";
+import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
 import { PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
-import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, STICKER_PRICES, stickerGallery, templates, type DesignCategoryId } from "@/lib/data";
+import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, STICKER_PRICES, stickerGallery, templates } from "@/lib/data";
 import { defaultEmojiPosition, type EmojiOption } from "@/lib/emojis";
 import {
   RootState,
   addEmojiElement,
   removeEmojiElement,
-  setCardCategory,
   setEmojiElements,
   setEnvelopeText,
   setEnvelopeTextAdded,
@@ -58,6 +56,9 @@ export default function CustomizePage() {
   const template = templates.find((item) => item.id === (chosenTemplateId || cart.card.templateId)) || templates[0];
   const frame = frames.find((item) => item.id === (chosenFrameId || cart.card.frameId)) || frames[0];
   const isMagazine = Boolean(template.magazineStyle);
+  const isTraditional = Boolean(template.longText);
+  const isCollage = template.id === "template-2";
+  const rightPrimaryPhotoIndex = isTraditional ? 1 : isMagazine ? 2 : 3;
 
   const chooseTemplate = (templateId: string) => {
     const nextTemplate = templates.find((item) => item.id === templateId) || templates[0];
@@ -73,6 +74,13 @@ export default function CustomizePage() {
       dispatch(setInsideLeftText(magazineInsideLeft));
       dispatch(setInsideRightText(magazineInsideRight));
       dispatch(setBackText("Una tarjeta creada especialmente para alguien especial."));
+    } else {
+      const message = nextTemplate.longText ? "Felicidades" : "Enhorabuena";
+      dispatch(setMessage(message));
+      dispatch(setFrontSubheadline(""));
+      dispatch(setInsideLeftText("Escribe aquí tu dedicatoria personal."));
+      dispatch(setInsideRightText("Con todo mi cariño."));
+      dispatch(setBackText("Hecha especialmente para ti."));
     }
   };
 
@@ -124,11 +132,13 @@ export default function CustomizePage() {
       dispatch(setInsideRightText(magazineInsideRight));
       dispatch(setBackText("Una tarjeta creada especialmente para alguien especial."));
     } else {
-      dispatch(setMessage("Feliz vuelta al sol, Ana ✨"));
-      dispatch(setFrontHeadline("Feliz vuelta al sol, Ana ✨"));
-      dispatch(setInsideLeftText("Deseándote el mejor de los días y un año repleto de momentos inolvidables."));
-      dispatch(setInsideRightText("Con todo nuestro cariño y admiración."));
-      dispatch(setBackText("Celebra cada momento inolvidable."));
+      const message = template.longText ? "Felicidades" : "Enhorabuena";
+      dispatch(setMessage(message));
+      dispatch(setFrontHeadline(message));
+      dispatch(setFrontSubheadline(""));
+      dispatch(setInsideLeftText("Escribe aquí tu dedicatoria personal."));
+      dispatch(setInsideRightText("Con todo mi cariño."));
+      dispatch(setBackText("Hecha especialmente para ti."));
     }
     dispatch(setEmojiElements([{ id: "emoji-reset", emoji: "✨", tone: "natural", size: 28, position: defaultEmojiPosition }]));
     setSelectedEmojiId("emoji-reset");
@@ -222,12 +232,7 @@ export default function CustomizePage() {
           {/* STEP 1: TEMPLATE */}
           {step === "template" && (
             <TemplateStep
-              categoryId={cart.card.categoryId}
               selectedId={chosenTemplateId}
-              onCategorySelect={(categoryId) => {
-                dispatch(setCardCategory(categoryId));
-                setChosenTemplateId(null);
-              }}
               onSelect={chooseTemplate}
               onContinue={continueFromTemplate}
             />
@@ -435,8 +440,8 @@ export default function CustomizePage() {
                         </span>
                       </label>
 
-                      {/* Photo 2 Upload */}
-                      <div>
+                      {/* Photo 2 Upload: not present on the traditional inside-left face */}
+                      {!isTraditional && <div>
                         <p className="text-sm font-black">Foto 2 · Interior izquierdo</p>
                         <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
                           <button
@@ -467,7 +472,17 @@ export default function CustomizePage() {
                             </button>
                           )}
                         </div>
-                      </div>
+                      </div>}
+
+                      {isCollage && <div>
+                        <p className="text-sm font-black">Foto 3 · Interior izquierdo inferior</p>
+                        <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
+                          <button type="button" onClick={() => { setUploadIndex(2); inputRef.current?.click(); }} className="focus-ring relative block aspect-[16/10] w-full overflow-hidden bg-[#f8efe8] text-left">
+                            {cart.card.photoDataUrls[2] ? <img src={cart.card.photoDataUrls[2]} alt="Foto 3 interior izquierdo" className="h-full w-full object-cover" /> : <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#ee5264]"><Icon name="plus" size={24} /><span className="text-xs font-black">SUBIR FOTO 3</span></span>}
+                          </button>
+                          {cart.card.photoDataUrls[2] && <button type="button" onClick={() => dispatch(setPhotoAt({ index: 2, dataUrl: null }))} className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#ee5264] shadow" aria-label="Eliminar foto 3">×</button>}
+                        </div>
+                      </div>}
                     </div>
                   )}
 
@@ -488,33 +503,33 @@ export default function CustomizePage() {
                         </span>
                       </label>
 
-                      {/* Photo 3 Upload */}
+                      {/* Primary photo for the inside-right face */}
                       <div>
-                        <p className="text-sm font-black">Foto 3 · Interior derecho superior</p>
+                        <p className="text-sm font-black">Foto {rightPrimaryPhotoIndex + 1} · Interior derecho superior</p>
                         <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
                           <button
                             type="button"
                             onClick={() => {
-                              setUploadIndex(2);
+                              setUploadIndex(rightPrimaryPhotoIndex);
                               inputRef.current?.click();
                             }}
                             className="focus-ring relative block aspect-[16/10] w-full overflow-hidden bg-[#f8efe8] text-left"
                           >
-                            {cart.card.photoDataUrls[2] ? (
-                              <img src={cart.card.photoDataUrls[2]} alt="Foto 3 interior derecho" className="h-full w-full object-cover" />
+                            {cart.card.photoDataUrls[rightPrimaryPhotoIndex] ? (
+                              <img src={cart.card.photoDataUrls[rightPrimaryPhotoIndex]} alt={`Foto ${rightPrimaryPhotoIndex + 1} interior derecho`} className="h-full w-full object-cover" />
                             ) : (
                               <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#ee5264]">
                                 <Icon name="plus" size={24} />
-                                <span className="text-xs font-black">SUBIR FOTO 3</span>
+                                <span className="text-xs font-black">SUBIR FOTO {rightPrimaryPhotoIndex + 1}</span>
                               </span>
                             )}
                           </button>
-                          {cart.card.photoDataUrls[2] && (
+                          {cart.card.photoDataUrls[rightPrimaryPhotoIndex] && (
                             <button
                               type="button"
-                              onClick={() => dispatch(setPhotoAt({ index: 2, dataUrl: null }))}
+                              onClick={() => dispatch(setPhotoAt({ index: rightPrimaryPhotoIndex, dataUrl: null }))}
                               className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#ee5264] shadow"
-                              aria-label="Eliminar foto 3"
+                              aria-label={`Eliminar foto ${rightPrimaryPhotoIndex + 1}`}
                             >
                               ×
                             </button>
@@ -522,8 +537,8 @@ export default function CustomizePage() {
                         </div>
                       </div>
 
-                      {/* Photo 4 Upload (For Magazine / 4 photos) */}
-                      {template.imageCount >= 4 && (
+                      {/* Second inside-right photo: Magazine only */}
+                      {isMagazine && (
                         <div>
                           <p className="text-sm font-black">Foto 4 · Interior derecho inferior</p>
                           <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
@@ -836,46 +851,28 @@ export default function CustomizePage() {
   );
 }
 function TemplateStep({
-  categoryId,
   selectedId,
-  onCategorySelect,
   onSelect,
   onContinue,
 }: {
-  categoryId: DesignCategoryId;
   selectedId: string | null;
-  onCategorySelect: (id: DesignCategoryId) => void;
   onSelect: (id: string) => void;
   onContinue: () => void;
 }) {
-  const category = designCategories.find((item) => item.id === categoryId) || designCategories[0];
   return (
     <section aria-labelledby="template-step-title">
       <PageIntro
         eyebrow="PASO 1 · EMPIEZA AQUÍ"
         title="Elige tu Plantilla"
-        body="Primero selecciona la ocasión y después una de nuestras tres composiciones. Es obligatorio elegir plantilla para poder personalizar."
+        body="Ve directamente a una de nuestras tres composiciones. Elige Tradicional, Collage o Magazine y empieza a hacerla tuya."
       />
-      <div className="mt-12 rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-        <div className="mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[.17em] text-[#ee5264]">1 · Elige la ocasión</p>
-            <h2 className="mt-1 text-xl font-black text-[#182443]">¿Qué quieres celebrar?</h2>
-          </div>
-          <p className="max-w-[350px] text-xs leading-5 text-[#737b90]">
-            Explora las categorías y encuentra el tono perfecto para tu tarjeta.
-          </p>
-        </div>
-        <OccasionPicker activeId={categoryId} onChange={onCategorySelect} />
-      </div>
-
-      <div className="mb-5 mt-10 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+      <div className="mb-5 mt-12 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[.17em] text-[#ee5264]">2 · Selecciona el diseño</p>
+          <p className="text-[10px] font-black uppercase tracking-[.17em] text-[#ee5264]">SELECCIONA EL DISEÑO</p>
           <h2 className="mt-1 text-xl font-black text-[#182443]">Elige una de las 3 plantillas</h2>
         </div>
         <p className="max-w-[380px] text-xs leading-5 text-[#737b90]">
-          <span className="font-black text-[#182443]">{category.name}:</span> {category.description}
+          Cada vista muestra el número de fotos y su posición real en la tarjeta.
         </p>
       </div>
 
@@ -893,19 +890,9 @@ function TemplateStep({
               }`}
             >
               <span className="relative block aspect-[1.12/1] overflow-hidden bg-[#fffaf5] p-3">
-                {item.magazineStyle ? (
-                  <span className="flex h-full items-center justify-center">
-                    <span className="block aspect-[.82/1] h-[94%] overflow-hidden rounded shadow-lg">
-                      <MagazineFront compact message={magazineHeadline} />
-                    </span>
-                  </span>
-                ) : (
-                  <img
-                    src={item.image}
-                    alt={`Vista de ${item.name}`}
-                    className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]"
-                  />
-                )}
+                <span className="mx-auto block aspect-[.82/1] h-full overflow-hidden rounded shadow-lg transition duration-300 group-hover:scale-[1.02]">
+                  <CardPreview compact templateId={item.id} message={item.magazineStyle ? magazineHeadline : item.longText ? "Felicidades" : "Enhorabuena"} emojiElements={[]} photoDataUrls={Array(item.imageCount).fill(null)} />
+                </span>
                 <span
                   className={`absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${
                     selected ? "border-[#ee5264] text-[#ee5264]" : "border-[#d3c8c1] text-transparent"
@@ -924,7 +911,7 @@ function TemplateStep({
                 <span className="mt-1 block text-lg font-black">{item.name}</span>
                 <span className="mt-2 block text-sm leading-6 text-[#737b90]">{item.description}</span>
                 <span className="mt-4 block text-xs font-bold text-[#59627b]">
-                  {item.magazineStyle ? "Sin marco · Va directo al editor" : "Paso de marco a continuación"}
+                  {item.imageCount} fotos · {item.magazineStyle ? "Sin marco, va directo al editor" : "El marco solo aparece en portada"}
                 </span>
               </span>
             </button>
@@ -965,9 +952,9 @@ function FrameStep({
       <PageIntro
         eyebrow="PASO 2 · ELIGE MARCO"
         title="Ahora, elige un marco"
-        body="Este paso solo aparece para las Plantillas 2 y 3. La Plantilla 1 continúa directamente al editor porque ya incluye su diseño exclusivo de revista."
+        body="Este paso solo aparece en Tradicional y Collage. El marco se aplicará únicamente a la portada; Magazine continúa directamente al editor."
       />
-      <div className="mx-auto mt-12 grid max-w-[960px] gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mx-auto mt-12 grid max-w-[1050px] gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {frames.map((item) => {
           const selected = selectedId === item.id;
           return (
@@ -981,7 +968,7 @@ function FrameStep({
               }`}
             >
               <span className="relative block aspect-square overflow-hidden bg-[#f8efe8]">
-                <img src={item.image} alt={item.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                <img src={item.image} alt={item.name} className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105" />
                 <span
                   className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${
                     selected ? "border-[#ee5264] text-[#ee5264]" : "border-[#d3c8c1] text-transparent"
