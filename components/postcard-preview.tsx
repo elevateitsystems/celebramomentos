@@ -56,13 +56,14 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
   const card = useSelector((state: RootState) => state.cart.card);
   const template = templates.find((item) => item.id === card.templateId) || templates[0];
   const frame = frames.find((item) => item.id === card.frameId) || frames[0];
-  const image = card.photoDataUrls[0] || card.photoDataUrl || (template.magazineStyle ? template.image : frame.image);
+  const image = card.photoDataUrls[0] || card.photoDataUrl || "/images/sticker-family.jpg";
   const surfaceClass = compact ? "aspect-[.9/1]" : card.size === "A3" ? "aspect-[.78/1]" : "aspect-[.82/1]";
   const imageStyle = { objectPosition: card.photoPosition, transform: `scale(${card.photoZoom})` };
   const primaryEmoji = card.emojiElements[0];
   const emojiStyle = primaryEmoji ? { filter: emojiToneFilters[primaryEmoji.tone], fontSize: compact ? `${Math.max(11, primaryEmoji.size * .42)}px` : `${Math.max(18, primaryEmoji.size * .8)}px` } : undefined;
   const messageClass = compact ? "text-[10px] leading-tight" : "text-[clamp(18px,3.5vw,42px)] leading-[1.02]";
-  const isTemplateOne = template.id === "template-1";
+  const isTraditional = Boolean(template.longText);
+  const isCollage = template.id === "template-2";
   const accent = template.magazineStyle ? "#e51f2a" : "#ee5264";
 
   if (side === "front") {
@@ -71,7 +72,6 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
 
   if (side === "back") {
     return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
-      {!template.magazineStyle && <img src={frame.image} alt="" className="absolute inset-x-0 top-0 h-[14%] w-full object-cover opacity-80" />}
       {template.magazineStyle && <div className="absolute inset-x-0 top-0 h-[14%] bg-[#e51f2a]"><span className={`absolute left-[7%] top-1/2 -translate-y-1/2 font-black uppercase text-white ${compact ? "text-[6px]" : "text-sm"}`}>Últimas noticias</span></div>}
       <div className="absolute inset-[10%] flex flex-col items-center justify-center text-center">
         <img src="/images/logo.png" alt="Celebra Momentos" className={compact ? "h-14 w-14 object-contain" : "h-32 w-32 object-contain sm:h-40 sm:w-40"} />
@@ -94,26 +94,23 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
     const leftPhoto = card.photoDataUrls[1] || image;
     const leftText = card.insideLeftText || card.message || "Tu mensaje aquí";
     return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
-      {!template.magazineStyle && <img src={frame.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[.16]" />}
       <div className={`absolute flex flex-col justify-between border bg-white/90 ${compact ? "inset-[7%] rounded-md p-[7%]" : "inset-[8%] rounded-xl p-[8%]"}`} style={{ borderColor: `${accent}55` }}>
         <div className="flex items-start justify-between gap-2"><span className={`font-black uppercase tracking-[.14em] ${compact ? "text-[5px]" : "text-[10px]"}`} style={{ color: accent }}>INTERIOR IZQUIERDO</span>{primaryEmoji && <span style={emojiStyle}>{primaryEmoji.emoji}</span>}</div>
-        {isTemplateOne ? <div><p className={`serif whitespace-pre-line break-words font-bold text-[#182443] ${messageClass}`}>{leftText}</p><div className={compact ? "mt-2 h-0.5 w-8" : "mt-5 h-1 w-16"} style={{ backgroundColor: accent }} /></div> : <>
-          <div className={`relative overflow-hidden rounded-lg bg-[#f4ebe5] ${compact ? "my-1 flex-1" : "my-[6%] flex-1"}`}><img src={leftPhoto} alt="Tu foto en el interior izquierdo" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>
+        {isTraditional ? <div><p className={`serif whitespace-pre-line break-words font-bold text-[#182443] ${messageClass}`}>{leftText}</p><div className={compact ? "mt-2 h-0.5 w-8" : "mt-5 h-1 w-16"} style={{ backgroundColor: accent }} /></div> : <>
+          <div className={`grid min-h-0 gap-[3%] ${isCollage ? "grid-rows-2" : "grid-rows-1"} ${compact ? "my-1 flex-1" : "my-[6%] flex-1"}`}><div className="relative overflow-hidden rounded-lg bg-[#f4ebe5]"><img src={leftPhoto} alt="Tu foto en el interior izquierdo" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>{isCollage && <div className="relative overflow-hidden rounded-lg bg-[#f4ebe5]"><img src={card.photoDataUrls[2] || "/images/sticker-baby.jpg"} alt="Tu segunda foto en el interior izquierdo" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>}</div>
           <p className={`serif line-clamp-3 font-bold text-[#182443] ${compact ? "text-[7px]" : "text-xl sm:text-2xl"}`}>{leftText}</p>
         </>}
       </div>
     </div>;
   }
 
-  const rightPhoto = card.photoDataUrls[2] || image;
+  const rightPhoto = card.photoDataUrls[isTraditional ? 1 : 3] || image;
   const rightText = card.insideRightText || card.message || "Tu mensaje aquí";
   return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
-    {!template.magazineStyle && <img src={frame.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[.13]" />}
     <div className={`absolute flex flex-col border bg-white/90 ${compact ? "inset-[7%] gap-1 rounded-md p-[6%]" : "inset-[8%] gap-[5%] rounded-xl p-[7%]"}`} style={{ borderColor: `${accent}55` }}>
       <span className={`font-black uppercase tracking-[.14em] ${compact ? "text-[5px]" : "text-[10px]"}`} style={{ color: accent }}>INTERIOR DERECHO</span>
-      <div className={`relative overflow-hidden rounded-lg bg-[#f4ebe5] ${isTemplateOne ? "flex-[1.5]" : "flex-1"}`}><img src={rightPhoto} alt="Tu foto en el interior derecho" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>
+      <div className={`relative overflow-hidden rounded-lg bg-[#f4ebe5] ${isTraditional ? "flex-[1.5]" : "flex-1"}`}><img src={rightPhoto} alt="Tu foto en el interior derecho" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>
       <div className="flex items-start gap-2"><p className={`serif flex-1 whitespace-pre-line break-words font-bold text-[#182443] ${compact ? "line-clamp-2 text-[7px] leading-tight" : "text-xl leading-tight sm:text-2xl"}`}>{rightText}</p>{primaryEmoji && <span className="shrink-0" style={emojiStyle}>{primaryEmoji.emoji}</span>}</div>
-      {!isTemplateOne && card.photoDataUrls[3] && <div className={`relative overflow-hidden rounded-lg bg-[#f4ebe5] ${compact ? "h-[28%]" : "h-[25%]"}`}><img src={card.photoDataUrls[3]} alt="Tu segunda foto en el interior derecho" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>}
     </div>
   </div>;
 }

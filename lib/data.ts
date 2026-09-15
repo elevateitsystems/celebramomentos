@@ -47,9 +47,9 @@ export type AddOn = {
 };
 
 export const templates: Template[] = [
-  { id: "template-1", name: "Plantilla 1", namePt: "Modelo 1", eyebrow: "REVISTA · 4 FOTOS", description: "Una revista personalizada con una foto protagonista y tres fotos interiores. No necesita marco.", descriptionPt: "Uma revista personalizada com uma fotografia principal e três fotografias interiores. Não precisa de moldura.", image: "/images/news-template.png", price: 8.9, imageCount: 4, requiresFrame: false, magazineStyle: true },
-  { id: "template-2", name: "Plantilla 2", namePt: "Modelo 2", eyebrow: "COLLAGE · 5 FOTOS", description: "Una composición visual para combinar cinco fotografías con el marco que elijas.", descriptionPt: "Uma composição visual para combinar cinco fotografias com a moldura escolhida.", image: "/images/customizable-template.png", price: 8.9, imageCount: 5, requiresFrame: true },
-  { id: "template-3", name: "Plantilla 3", namePt: "Modelo 3", eyebrow: "2 FOTOS · TEXTO LARGO", description: "Dos fotografías y un espacio amplio para contar una historia, con marco a elegir.", descriptionPt: "Duas fotografias e um espaço amplo para contar uma história, com moldura à escolha.", image: "/images/short-template.png", price: 8.9, imageCount: 2, requiresFrame: true, longText: true },
+  { id: "template-3", name: "Tradicional", namePt: "Tradicional", eyebrow: "CLÁSICA · 2 FOTOS", description: "Una portada atemporal, dedicatoria interior y dos fotografías colocadas exactamente donde esperas.", descriptionPt: "Uma capa intemporal, dedicatória interior e duas fotografias colocadas exatamente onde esperas.", image: "/images/short-template.png", price: 8.9, imageCount: 2, requiresFrame: true, longText: true },
+  { id: "template-2", name: "Collage", namePt: "Colagem", eyebrow: "COLLAGE · 4 FOTOS", description: "Cuatro recuerdos repartidos entre portada y páginas interiores, con el marco que elijas.", descriptionPt: "Quatro memórias distribuídas pela capa e páginas interiores, com a moldura escolhida.", image: "/images/customizable-template.png", price: 8.9, imageCount: 4, requiresFrame: true },
+  { id: "template-1", name: "Magazine", namePt: "Revista", eyebrow: "REVISTA · 4 FOTOS", description: "Una portada de revista con una foto protagonista y tres fotografías en el interior. No necesita marco.", descriptionPt: "Uma capa de revista com uma fotografia principal e três fotografias no interior. Não precisa de moldura.", image: "/images/news-template.png", price: 8.9, imageCount: 4, requiresFrame: false, magazineStyle: true },
 ];
 
 export const designCategories: DesignCategory[] = [
@@ -62,11 +62,9 @@ export const designCategories: DesignCategory[] = [
 ];
 
 export const frames: Frame[] = [
-  { id: "floral", name: "Flores para ti", namePt: "Flores para ti", image: "/images/floral.jpg" },
+  { id: "floral", name: "Flores para ti", namePt: "Flores para ti", image: "/images/floral-clean.png" },
   { id: "classic", name: "Siempre contigo", namePt: "Sempre contigo", image: "/images/frame.jpg" },
-  { id: "romantic-red", name: "Un corazón para ti", namePt: "Um coração para ti", image: "/images/romantic-red.jpg" },
   { id: "balloon-frame", name: "Marco de globos", namePt: "Moldura de balões", image: "/images/balloon-frame.png" },
-  { id: "confetti", name: "Confeti de alegría", namePt: "Confetes de alegria", image: "/images/confetti.jpg" },
 ];
 
 export const addOns: AddOn[] = [
