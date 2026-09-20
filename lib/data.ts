@@ -64,6 +64,7 @@ export const designCategories: DesignCategory[] = [
 export const frames: Frame[] = [
   { id: "floral", name: "Flores para ti", namePt: "Flores para ti", image: "/images/floral-clean.png" },
   { id: "classic", name: "Siempre contigo", namePt: "Sempre contigo", image: "/images/frame.jpg" },
+  { id: "romantic-red", name: "Corazones", namePt: "Corações", image: "/images/romantic-red.jpg" },
   { id: "balloon-frame", name: "Marco de globos", namePt: "Moldura de balões", image: "/images/balloon-frame.png" },
 ];
 
