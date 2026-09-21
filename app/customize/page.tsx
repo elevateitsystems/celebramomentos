@@ -75,7 +75,7 @@ export default function CustomizePage() {
       dispatch(setInsideRightText(magazineInsideRight));
       dispatch(setBackText("Una tarjeta creada especialmente para alguien especial."));
     } else {
-      const message = nextTemplate.longText ? "Felicidades" : "Enhorabuena";
+      const message = "Enhorabuena";
       dispatch(setMessage(message));
       dispatch(setFrontSubheadline(""));
       dispatch(setInsideLeftText("Escribe aquí tu dedicatoria personal."));
@@ -132,7 +132,7 @@ export default function CustomizePage() {
       dispatch(setInsideRightText(magazineInsideRight));
       dispatch(setBackText("Una tarjeta creada especialmente para alguien especial."));
     } else {
-      const message = template.longText ? "Felicidades" : "Enhorabuena";
+      const message = "Enhorabuena";
       dispatch(setMessage(message));
       dispatch(setFrontHeadline(message));
       dispatch(setFrontSubheadline(""));
@@ -890,8 +890,8 @@ function TemplateStep({
               }`}
             >
               <span className="relative block aspect-[1.12/1] overflow-hidden bg-[#fffaf5] p-3">
-                <span className="mx-auto block aspect-[.82/1] h-full overflow-hidden rounded shadow-lg transition duration-300 group-hover:scale-[1.02]">
-                  <CardPreview compact templateId={item.id} message={item.magazineStyle ? magazineHeadline : item.longText ? "Felicidades" : "Enhorabuena"} emojiElements={[]} photoDataUrls={Array(item.imageCount).fill(null)} />
+                <span className={`mx-auto block h-full overflow-hidden rounded shadow-lg transition duration-300 group-hover:scale-[1.02] ${item.magazineStyle ? "aspect-square" : "aspect-[.82/1]"}`}>
+                  <CardPreview compact templateId={item.id} message={item.magazineStyle ? magazineHeadline : "Enhorabuena"} emojiElements={[]} photoDataUrls={Array(item.imageCount).fill(null)} />
                 </span>
                 <span
                   className={`absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${
