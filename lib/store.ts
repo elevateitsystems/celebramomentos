@@ -1,7 +1,7 @@
 "use client";
 
 import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import type { CardSize, DeliveryMethod, DesignCategoryId, RecipientMode } from "./data";
+import type { CardSize, DeliveryMethod, DesignCategoryId, Packaging, RecipientMode } from "./data";
 import { defaultEmojiPosition, type EmojiElement, type EmojiPosition, type EmojiTone } from "./emojis";
 
 export type CartState = {
@@ -26,6 +26,7 @@ export type CartState = {
     photoPosition: "center" | "top" | "bottom" | "left" | "right";
     size: CardSize;
     delivery: DeliveryMethod;
+    packaging: Packaging;
     recipientMode: RecipientMode;
   };
   stickerQuantity: 0 | 1 | 2 | 3;
@@ -59,6 +60,7 @@ const initialState: CartState = {
     photoPosition: "center",
     size: "A4",
     delivery: "standard",
+    packaging: "standard",
     recipientMode: "recipient",
   },
   stickerQuantity: 0,
@@ -102,12 +104,14 @@ const cartSlice = createSlice({
     setPhotoPosition: (state, action: PayloadAction<"center" | "top" | "bottom" | "left" | "right">) => { state.card.photoPosition = action.payload; },
     setSize: (state, action: PayloadAction<CardSize>) => { state.card.size = action.payload; },
     setDelivery: (state, action: PayloadAction<DeliveryMethod>) => { state.card.delivery = action.payload; },
+    setPackaging: (state, action: PayloadAction<Packaging>) => { state.card.packaging = action.payload; },
     setRecipientMode: (state, action: PayloadAction<RecipientMode>) => { state.card.recipientMode = action.payload; },
     setStickerQuantity: (state, action: PayloadAction<0 | 1 | 2 | 3>) => { state.stickerQuantity = action.payload; },
     setStickerImage: (state, action: PayloadAction<string | null>) => { state.stickerImage = action.payload; },
     setEnvelopeText: (state, action: PayloadAction<string>) => { state.envelopeText = action.payload.slice(0, 80); },
     setEnvelopeTextAdded: (state, action: PayloadAction<boolean>) => { state.envelopeTextAdded = action.payload; },
     setDiscountCode: (state, action: PayloadAction<string>) => { state.discountCode = action.payload; },
+    hydrateCart: (state, action: PayloadAction<CartState>) => ({ ...state, ...action.payload, card: { ...state.card, ...action.payload.card, frameId: action.payload.card.frameId === "romantic-red" ? "geometric-heart" : action.payload.card.frameId, packaging: action.payload.card.packaging || "standard" } }),
     resetCart: () => initialState,
   },
 });
@@ -115,7 +119,7 @@ const cartSlice = createSlice({
 const languageSlice = createSlice({
   name: "language",
   initialState: { language: "es" } as LanguageState,
-  reducers: { setLanguage: (state, action: PayloadAction<"es" | "pt">) => { state.language = action.payload; } },
+  reducers: { setLanguage: (state, action: PayloadAction<"es" | "pt">) => { state.language = action.payload; }, hydrateLanguage: (_, action: PayloadAction<"es" | "pt">) => ({ language: action.payload }) },
 });
 
 export const {
@@ -143,15 +147,17 @@ export const {
   setPhotoPosition,
   setSize,
   setDelivery,
+  setPackaging,
   setRecipientMode,
   setStickerQuantity,
   setStickerImage,
   setEnvelopeText,
   setEnvelopeTextAdded,
   setDiscountCode,
+  hydrateCart,
   resetCart,
 } = cartSlice.actions;
-export const { setLanguage } = languageSlice.actions;
+export const { setLanguage, hydrateLanguage } = languageSlice.actions;
 export const store = configureStore({ reducer: { cart: cartSlice.reducer, language: languageSlice.reducer } });
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminPageHeader, AdminShell } from "@/components/admin";
 import { Icon } from "@/components/icons";
 import { addOns, templates } from "@/lib/data";
+import { updateMockDb, useMockDb } from "@/lib/mock-store";
 import { Price, StatusBadge, Toast } from "@/components/site";
 
 type Product = { id: string; name: string; category: string; price: number; active: boolean };
@@ -15,17 +16,20 @@ const initialProducts: Product[] = [
 const emptyDraft: ProductDraft = { name: "", category: "Postcard template", price: 8.9 };
 
 export default function AdminProductsPage() {
+  const db = useMockDb();
   const [products, setProducts] = useState(initialProducts);
   const [draft, setDraft] = useState<ProductDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [toast, setToast] = useState("");
+  useEffect(() => setProducts([...db.templates.map((item) => ({ id: item.id, name: item.name, category: "Postcard template", price: db.templatePrices[item.id] ?? item.price, active: item.active })), ...addOns.map((item) => ({ id: item.id, name: item.name, category: "Custom sticker", price: item.price, active: true }))]), [db.templates, db.templatePrices]);
   const openNew = () => { setDraft(emptyDraft); setEditingId(null); setPanelOpen(true); };
   const openEdit = (product: Product) => { setDraft({ name: product.name, category: product.category, price: product.price }); setEditingId(product.id); setPanelOpen(true); };
   const save = () => {
     if (!draft.name.trim() || !Number.isFinite(draft.price) || draft.price < 0) { setToast("Add a product name and a valid price"); return; }
     if (editingId) {
       setProducts((items) => items.map((item) => item.id === editingId ? { ...item, ...draft, name: draft.name.trim() } : item));
+      if (editingId.startsWith("template")) updateMockDb((current) => ({ ...current, templatePrices: { ...current.templatePrices, [editingId]: draft.price } }));
       setToast("Product updated");
     } else {
       setProducts((items) => [{ id: `product-${Date.now()}`, ...draft, name: draft.name.trim(), active: true }, ...items]);
