@@ -5,7 +5,6 @@ import { useSelector } from "react-redux";
 import { CardPreview } from "./card-preview";
 import { Icon } from "./icons";
 import { designCategories, frames, templates } from "@/lib/data";
-import { emojiToneFilters } from "@/lib/emojis";
 import type { RootState } from "@/lib/store";
 import { MagazineInsideLeftView, MagazineInsideRightView } from "./magazine-card";
 
@@ -17,6 +16,10 @@ const sides: { id: PostcardSide; label: string; description: string }[] = [
   { id: "inside-right", label: "Interior derecho", description: "La parte principal interior" },
   { id: "back", label: "Contraportada", description: "La parte posterior" },
 ];
+
+function SelectedFrameOverlay({ src }: { src: string }) {
+  return <img src={src} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 h-full w-full object-fill opacity-65" />;
+}
 
 export function PostcardPreviewWindow() {
   const card = useSelector((state: RootState) => state.cart.card);
@@ -32,8 +35,8 @@ export function PostcardPreviewWindow() {
         <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">VISTA ACTUAL · {active.label}</p><p className="mt-1 text-sm text-white/60">{active.description}</p></div>
         <div className="flex flex-wrap gap-2 text-[10px] font-black"><span className="rounded-full bg-[#f8c75e] px-3 py-1.5 text-[#182443]">{category.name}</span><span className="rounded-full bg-white/10 px-3 py-1.5">{template.name}</span>{!template.magazineStyle && <span className="rounded-full bg-white/10 px-3 py-1.5">Marco: {frame.name}</span>}<span className="rounded-full bg-white/10 px-3 py-1.5">{card.size}</span></div>
       </div>
-      <div className="mx-auto max-w-[650px] rounded-[20px] bg-[#f5ece6] p-3 sm:p-5">
-        <div className="overflow-hidden rounded-[14px] bg-white shadow-xl shadow-black/10">
+      <div className="mx-auto max-w-[650px] rounded-[20px] bg-[#f5ece6] p-0 sm:p-2">
+        <div className="overflow-hidden rounded-[14px]">
           <PostcardSideView side={activeSide} compact={false} />
         </div>
       </div>
@@ -59,8 +62,6 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
   const image = card.photoDataUrls[0] || card.photoDataUrl || "/images/sticker-family.jpg";
   const surfaceClass = compact ? "aspect-[.9/1]" : card.size === "A3" ? "aspect-[.78/1]" : "aspect-[.82/1]";
   const imageStyle = { objectPosition: card.photoPosition, transform: `scale(${card.photoZoom})` };
-  const primaryEmoji = card.emojiElements[0];
-  const emojiStyle = primaryEmoji ? { filter: emojiToneFilters[primaryEmoji.tone], fontSize: compact ? `${Math.max(11, primaryEmoji.size * .42)}px` : `${Math.max(18, primaryEmoji.size * .8)}px` } : undefined;
   const messageClass = compact ? "text-[10px] leading-tight" : "text-[clamp(18px,3.5vw,42px)] leading-[1.02]";
   const isTraditional = Boolean(template.longText);
   const isCollage = template.id === "template-2";
@@ -72,8 +73,9 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
 
   if (side === "back") {
     return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
+      {!template.magazineStyle && <SelectedFrameOverlay src={frame.image} />}
       {template.magazineStyle && <div className="absolute inset-x-0 top-0 h-[14%] bg-[#e51f2a]"><span className={`absolute left-[7%] top-1/2 -translate-y-1/2 font-black uppercase text-white ${compact ? "text-[6px]" : "text-sm"}`}>Últimas noticias</span></div>}
-      <div className="absolute inset-[10%] flex flex-col items-center justify-center text-center">
+      <div className="absolute inset-[10%] z-10 flex flex-col items-center justify-center text-center">
         <img src="/images/logo.png" alt="Celebra Momentos" className={compact ? "h-14 w-14 object-contain" : "h-32 w-32 object-contain sm:h-40 sm:w-40"} />
         <p className={`font-black text-[#182443] ${compact ? "mt-1 text-[7px]" : "mt-3 text-lg"}`}>Celebra Momentos</p>
         <p className={`text-[#737b90] ${compact ? "mt-0.5 text-[5px]" : "mt-2 text-xs"}`}>{card.backText || "Una tarjeta creada especialmente para alguien especial."}</p>
@@ -94,8 +96,8 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
     const leftPhoto = card.photoDataUrls[1] || image;
     const leftText = card.insideLeftText || card.message || "Tu mensaje aquí";
     return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
-      <div className={`absolute flex flex-col justify-between border bg-white/90 ${compact ? "inset-[7%] rounded-md p-[7%]" : "inset-[8%] rounded-xl p-[8%]"}`} style={{ borderColor: `${accent}55` }}>
-        <div className="flex items-start justify-between gap-2"><span className={`font-black uppercase tracking-[.14em] ${compact ? "text-[5px]" : "text-[10px]"}`} style={{ color: accent }}>INTERIOR IZQUIERDO</span>{primaryEmoji && <span style={emojiStyle}>{primaryEmoji.emoji}</span>}</div>
+      <SelectedFrameOverlay src={frame.image} />
+      <div className={`absolute z-10 flex flex-col justify-between border bg-white/90 ${compact ? "inset-[7%] rounded-md p-[7%]" : "inset-[8%] rounded-xl p-[8%]"}`} style={{ borderColor: `${accent}55` }}>
         {isTraditional ? <div><p className={`serif whitespace-pre-line break-words font-bold text-[#182443] ${messageClass}`}>{leftText}</p><div className={compact ? "mt-2 h-0.5 w-8" : "mt-5 h-1 w-16"} style={{ backgroundColor: accent }} /></div> : <>
           <div className={`grid min-h-0 gap-[3%] ${isCollage ? "grid-rows-2" : "grid-rows-1"} ${compact ? "my-1 flex-1" : "my-[6%] flex-1"}`}><div className="relative overflow-hidden rounded-lg bg-[#f4ebe5]"><img src={leftPhoto} alt="Tu foto en el interior izquierdo" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>{isCollage && <div className="relative overflow-hidden rounded-lg bg-[#f4ebe5]"><img src={card.photoDataUrls[2] || "/images/sticker-baby.jpg"} alt="Tu segunda foto en el interior izquierdo" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>}</div>
           <p className={`serif line-clamp-3 font-bold text-[#182443] ${compact ? "text-[7px]" : "text-xl sm:text-2xl"}`}>{leftText}</p>
@@ -107,10 +109,10 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
   const rightPhoto = card.photoDataUrls[isTraditional ? 1 : 3] || image;
   const rightText = card.insideRightText || card.message || "Tu mensaje aquí";
   return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
-    <div className={`absolute flex flex-col border bg-white/90 ${compact ? "inset-[7%] gap-1 rounded-md p-[6%]" : "inset-[8%] gap-[5%] rounded-xl p-[7%]"}`} style={{ borderColor: `${accent}55` }}>
-      <span className={`font-black uppercase tracking-[.14em] ${compact ? "text-[5px]" : "text-[10px]"}`} style={{ color: accent }}>INTERIOR DERECHO</span>
+    <SelectedFrameOverlay src={frame.image} />
+    <div className={`absolute z-10 flex flex-col border bg-white/90 ${compact ? "inset-[7%] gap-1 rounded-md p-[6%]" : "inset-[8%] gap-[5%] rounded-xl p-[7%]"}`} style={{ borderColor: `${accent}55` }}>
       <div className={`relative overflow-hidden rounded-lg bg-[#f4ebe5] ${isTraditional ? "flex-[1.5]" : "flex-1"}`}><img src={rightPhoto} alt="Tu foto en el interior derecho" className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>
-      <div className="flex items-start gap-2"><p className={`serif flex-1 whitespace-pre-line break-words font-bold text-[#182443] ${compact ? "line-clamp-2 text-[7px] leading-tight" : "text-xl leading-tight sm:text-2xl"}`}>{rightText}</p>{primaryEmoji && <span className="shrink-0" style={emojiStyle}>{primaryEmoji.emoji}</span>}</div>
+      <div className="flex items-start gap-2"><p className={`serif flex-1 whitespace-pre-line break-words font-bold text-[#182443] ${compact ? "line-clamp-2 text-[7px] leading-tight" : "text-xl leading-tight sm:text-2xl"}`}>{rightText}</p></div>
     </div>
   </div>;
 }

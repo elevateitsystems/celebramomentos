@@ -9,7 +9,7 @@ import { Icon } from "@/components/icons";
 import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/components/postcard-preview";
 import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
 import { PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
-import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, STICKER_PRICES, stickerGallery, templates } from "@/lib/data";
+import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, stickerGallery, templates } from "@/lib/data";
 import { defaultEmojiPosition, type EmojiOption } from "@/lib/emojis";
 import {
   RootState,
@@ -29,6 +29,7 @@ import {
   setPhotoPosition,
   setPhotoSlots,
   setPhotoZoom,
+  setPackaging,
   setRecipientMode,
   setSize,
   setStickerImage,
@@ -147,6 +148,7 @@ export default function CustomizePage() {
     dispatch(setPhotoZoom(1));
     dispatch(setPhotoPosition("center"));
     dispatch(setSize("A4"));
+    dispatch(setPackaging("standard"));
     setToast("Personalización restablecida");
   };
 
@@ -156,6 +158,11 @@ export default function CustomizePage() {
     dispatch(addEmojiElement({ id, emoji: option.emoji, tone: option.tone || "natural", size: 32, position: { x: 18 + offset * 12, y: 16 + (offset % 2) * 12 } }));
     setSelectedEmojiId(id);
     setToast(`Emoji ${option.emoji} añadido`);
+  };
+
+  const openEmojiStep = () => {
+    setActiveSection("front");
+    setStep("emojis");
   };
 
   // 6-step progress steps (or 5 if frame skipped for Magazine)
@@ -199,7 +206,7 @@ export default function CustomizePage() {
                   <button
                     type="button"
                     disabled={!allowed}
-                    onClick={() => setStep(item.id)}
+                    onClick={() => (item.id === "emojis" ? openEmojiStep() : setStep(item.id))}
                     className={`flex items-center gap-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50`}
                   >
                     <span
@@ -676,7 +683,7 @@ export default function CustomizePage() {
                         if (currentIndex < sideOrder.length - 1) {
                           setActiveSection(sideOrder[currentIndex + 1]);
                         } else {
-                          setStep("emojis");
+                          openEmojiStep();
                         }
                       }}
                       className="focus-ring inline-flex items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3 text-xs font-black text-white hover:bg-[#d83d54]"
@@ -701,7 +708,7 @@ export default function CustomizePage() {
                       {activeSection === "back" && "Contraportada"}
                     </span>
                   </div>
-                  <div className="mx-auto max-w-[580px] overflow-hidden rounded-[18px] bg-white p-3 shadow-xl shadow-[#8a564c]/10">
+                  <div className="mx-auto max-w-[580px] overflow-hidden rounded-[18px]">
                     <PostcardSideView side={activeSection} compact={false} />
                   </div>
                   <p className="mt-3 text-center text-xs text-[#7b7180]">
@@ -710,7 +717,7 @@ export default function CustomizePage() {
                   <div className="mt-5 flex justify-center">
                     <button
                       type="button"
-                      onClick={() => setStep("emojis")}
+                      onClick={openEmojiStep}
                       className="focus-ring inline-flex items-center gap-2 rounded-full bg-[#182443] px-6 py-3 text-xs font-black text-white hover:bg-[#ee5264]"
                     >
                       Ir a Emojis (Paso 4) <Icon name="arrow" size={15} />
@@ -726,14 +733,14 @@ export default function CustomizePage() {
             <>
               <PageIntro
                 eyebrow={!template.requiresFrame ? "PASO 3 DE 5 · EMOJIS" : "PASO 4 DE 6 · EMOJIS"}
-                title="Añade y coloca tus emojis"
-                body="Añade todos los emojis que quieras sin límite. Arrástralos sobre la tarjeta para situarlos exactamente donde te guste y cambia su tamaño con los controles."
+                title="Añade y coloca tus emojis en la portada"
+                body="Todos los emojis se añaden únicamente a la portada. Arrástralos sobre la tarjeta para situarlos exactamente donde te guste y cambia su tamaño con los controles."
               />
 
               <div className="mt-10 grid gap-8 lg:grid-cols-[.85fr_1.15fr] lg:items-start">
                 <section className="order-2 rounded-[24px] border border-[#eadfd8] bg-[#fffaf5] p-5 sm:p-7 lg:order-1">
                   <div className="border-b border-[#eadfd8] pb-4">
-                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">Colección de emojis</p>
+                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">Colección de emojis · Portada</p>
                     <h2 className="mt-1 text-xl font-black">Emojis para celebrar</h2>
                     <p className="mt-1 text-xs text-[#7c8191]">
                       Elige de la colección, añade tantos como quieras y ajusta el tamaño de cada uno por separado (+ / −).
@@ -773,13 +780,13 @@ export default function CustomizePage() {
                 <section className="order-1 rounded-[26px] bg-[#f8efe8] p-5 sm:p-8 lg:order-2">
                   <div className="mb-4 flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-[.18em] text-[#7b7180]">
-                      Lienzo interactivo
+                      Portada · lienzo interactivo
                     </span>
                     <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-[#182443]">
-                      Arrastra y suelta
+                      Solo portada
                     </span>
                   </div>
-                  <div className="mx-auto max-w-[620px] rounded-[18px] bg-white p-3 shadow-xl shadow-[#8a564c]/10 sm:p-5">
+                  <div className="mx-auto max-w-[620px] rounded-[18px]">
                     <CardPreview
                       templateId={template.id}
                       message={cart.card.frontHeadline || cart.card.message}
@@ -859,6 +866,14 @@ function TemplateStep({
   onSelect: (id: string) => void;
   onContinue: () => void;
 }) {
+  const previewPhotos = [
+    "/images/graduation-celebration.png",
+    "/images/sticker-family.jpg",
+    "/images/sticker-baby.jpg",
+    "/images/sticker-lifestyle-dog.jpg",
+  ];
+  const traditionalPreviewPhotos = ["/images/traditional-birthday-preview.png", ...previewPhotos.slice(1)];
+
   return (
     <section aria-labelledby="template-step-title">
       <PageIntro
@@ -891,7 +906,7 @@ function TemplateStep({
             >
               <span className="relative block aspect-[1.12/1] overflow-hidden bg-[#fffaf5] p-3">
                 <span className={`mx-auto block h-full overflow-hidden rounded shadow-lg transition duration-300 group-hover:scale-[1.02] ${item.magazineStyle ? "aspect-square" : "aspect-[.82/1]"}`}>
-                  <CardPreview compact templateId={item.id} message={item.magazineStyle ? magazineHeadline : "Enhorabuena"} emojiElements={[]} photoDataUrls={Array(item.imageCount).fill(null)} />
+                  {item.magazineStyle ? <img src={item.image} alt={`${item.name} preview`} className="h-full w-full bg-white object-contain object-center" /> : <CardPreview compact templateId={item.id} message="Enhorabuena" emojiElements={[]} photoDataUrls={item.id === "template-2" ? Array(item.imageCount).fill(null) : Array.from({ length: item.imageCount }, (_, photoIndex) => (item.id === "template-3" ? traditionalPreviewPhotos : previewPhotos)[photoIndex % previewPhotos.length])} photoFit={item.id === "template-3" ? "fill" : undefined} />}
                 </span>
                 <span
                   className={`absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${
@@ -954,7 +969,7 @@ function FrameStep({
         title="Ahora, elige un marco"
         body="Este paso solo aparece en Tradicional y Collage. El marco se aplicará únicamente a la portada; Magazine continúa directamente al editor."
       />
-      <div className="mx-auto mt-12 grid max-w-[1050px] gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mx-auto mt-12 grid max-w-[980px] grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {frames.map((item) => {
           const selected = selectedId === item.id;
           return (
@@ -967,8 +982,8 @@ function FrameStep({
                 selected ? "border-[#ee5264]" : "border-[#eadbd3]"
               }`}
             >
-              <span className="relative block aspect-square overflow-hidden bg-[#f8efe8]">
-                <img src={item.image} alt={item.name} className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105" />
+              <span className="relative block aspect-square overflow-hidden bg-[#f8efe8] p-1.5 sm:p-2">
+                <img src={item.image} alt={item.name} className="h-full w-full object-contain object-center transition duration-300 group-hover:scale-[1.03]" />
                 <span
                   className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${
                     selected ? "border-[#ee5264] text-[#ee5264]" : "border-[#d3c8c1] text-transparent"
@@ -977,7 +992,7 @@ function FrameStep({
                   <Icon name="check" size={14} />
                 </span>
               </span>
-              <span className="block p-4 text-sm font-black">{item.name}</span>
+              <span className="block px-3 py-3 text-xs font-black sm:text-sm">{item.name}</span>
             </button>
           );
         })}
@@ -1022,7 +1037,9 @@ function ExtrasStep({
   const sticker = addOns[0];
   const stickerPrice = STICKER_PRICES[cart.stickerQuantity];
   const envelopePrice = cart.envelopeTextAdded ? ENVELOPE_TEXT_PRICE : 0;
-  const extrasTotal = stickerPrice + envelopePrice;
+  const packagingPrice = PACKAGING_PRICES[cart.card.packaging];
+  const sizePrice = SIZE_PRICES[cart.card.size];
+  const extrasTotal = stickerPrice + envelopePrice + packagingPrice + sizePrice;
   const totalWithCard = template.price + extrasTotal;
 
   return (
@@ -1035,11 +1052,24 @@ function ExtrasStep({
 
       <div className="mt-12 grid gap-8 lg:grid-cols-[1.1fr_.9fr]">
         <div className="space-y-8">
+          {/* PACKAGING */}
+          <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
+            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">01 · PRESENTACIÓN</span>
+            <h3 className="mt-1 text-xl font-black">Elige el packaging</h3>
+            <p className="mt-1 max-w-[520px] text-xs leading-5 text-[#737b90]">Selecciona cómo quieres que preparemos tu tarjeta para entregar o recibir.</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {([ ["standard", "Sobre estándar", "Protección sencilla y bonita", PACKAGING_PRICES.standard], ["gift", "Packaging regalo", "Listo para regalar", PACKAGING_PRICES.gift] ] as const).map(([value, title, body, price]) => (
+                <button key={value} type="button" onClick={() => dispatch(setPackaging(value))} className={`focus-ring rounded-2xl border p-4 text-left transition ${cart.card.packaging === value ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"}`}>
+                  <span className="flex items-start justify-between gap-3"><span><span className="block text-sm font-black">{title}</span><span className="mt-1 block text-xs text-[#737b90]">{body}</span></span><span className="text-sm font-black">{price ? <Price value={price} /> : "Gratis"}</span></span>
+                </button>
+              ))}
+            </div>
+          </div>
           {/* STICKERS */}
           <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">01 · PEGATINAS PERSONALIZADAS</span>
+              <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">02 · PEGATINAS PERSONALIZADAS</span>
                 <h3 className="mt-1 text-xl font-black">{sticker.name}</h3>
                 <p className="mt-1 max-w-[440px] text-xs leading-5 text-[#737b90]">{sticker.description}</p>
               </div>
@@ -1129,7 +1159,7 @@ function ExtrasStep({
 
           {/* ENVELOPE PERSONALIZED MESSAGE */}
           <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">02 · MENSAJE EN EL EXTERIOR DEL SOBRE</span>
+            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">03 · MENSAJE EN EL EXTERIOR DEL SOBRE</span>
             <div className="mt-2 flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-black">Texto personalizado en el sobre</h3>
@@ -1190,6 +1220,14 @@ function ExtrasStep({
             <div className="flex justify-between text-white/80">
               <span>{template.name} ({cart.card.size})</span>
               <Price value={template.price} />
+            </div>
+            <div className="flex justify-between text-white/80">
+              <span>{cart.card.packaging === "gift" ? "Packaging regalo" : "Sobre estándar"}</span>
+              {packagingPrice ? <Price value={packagingPrice} /> : <span>Gratis</span>}
+            </div>
+            <div className="flex justify-between text-white/80">
+              <span>Formato {cart.card.size}</span>
+              {sizePrice ? <Price value={sizePrice} /> : <span>Incluido</span>}
             </div>
             {cart.stickerQuantity > 0 && (
               <div className="flex justify-between text-white/80">

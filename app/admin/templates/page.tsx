@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminPageHeader, AdminShell } from "@/components/admin";
 import { Icon } from "@/components/icons";
 import { CardPreview } from "@/components/card-preview";
 import { templates } from "@/lib/data";
+import { updateMockDb, useMockDb } from "@/lib/mock-store";
 import { Toast } from "@/components/site";
 
 type TemplateRecord = { id: string; layoutId: string; name: string; eyebrow: string; description: string; price: number; imageCount: number };
@@ -13,17 +14,27 @@ const initialTemplates: TemplateRecord[] = templates.map(({ id, name, eyebrow, d
 const blankTemplate: TemplateDraft = { layoutId: "template-3", name: "", eyebrow: "NEW · 2 PHOTOS", description: "", price: 8.9, imageCount: 2 };
 
 export default function AdminTemplatesPage() {
-  const [items, setItems] = useState(initialTemplates);
+  const db = useMockDb();
+  const [items, setItems] = useState<TemplateRecord[]>(initialTemplates);
   const [draft, setDraft] = useState<TemplateDraft>(blankTemplate);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [toast, setToast] = useState("");
+  useEffect(() => setItems(db.templates.map((item) => ({ ...item, layoutId: item.id }))), [db.templates]);
   const startNew = () => { setEditingId(null); setDraft(blankTemplate); setPanelOpen(true); };
   const startEdit = (item: TemplateRecord) => { setEditingId(item.id); setDraft({ layoutId: item.layoutId, name: item.name, eyebrow: item.eyebrow, description: item.description, price: item.price, imageCount: item.imageCount }); setPanelOpen(true); };
   const save = () => {
     if (!draft.name.trim() || !draft.description.trim() || draft.price < 0) { setToast("Add a name, description, and valid price"); return; }
-    if (editingId) { setItems((current) => current.map((item) => item.id === editingId ? { ...item, ...draft, name: draft.name.trim(), description: draft.description.trim() } : item)); setToast("Template updated"); }
-    else { setItems((current) => [{ id: `template-demo-${Date.now()}`, ...draft, name: draft.name.trim(), description: draft.description.trim() }, ...current]); setToast("New template added to this demo"); }
+    if (editingId) {
+      const next = { ...draft, name: draft.name.trim(), description: draft.description.trim() };
+      updateMockDb((current) => ({ ...current, templates: current.templates.map((item) => item.id === editingId ? { ...item, ...next } : item), templatePrices: { ...current.templatePrices, [editingId]: next.price } }));
+      setToast("Template updated and persisted");
+    } else {
+      const id = `template-demo-${Date.now()}`;
+      const next = { id, ...draft, name: draft.name.trim(), description: draft.description.trim(), active: true };
+      updateMockDb((current) => ({ ...current, templates: [next, ...current.templates], templatePrices: { ...current.templatePrices, [id]: next.price } }));
+      setToast("New template added to this demo");
+    }
     setPanelOpen(false);
   };
   return <AdminShell><AdminPageHeader eyebrow="CATALOG / DESIGN SYSTEM" title="Templates" body="Create and edit the starting points customers use to make their card their own." action={<button onClick={startNew} className="rounded-full bg-[#ee5264] px-4 py-3 text-xs font-black text-white">+ New template</button>} />

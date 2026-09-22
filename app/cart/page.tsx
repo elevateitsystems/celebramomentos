@@ -6,19 +6,24 @@ import { useDispatch, useSelector } from "react-redux";
 import { CardPreview } from "@/components/card-preview";
 import { Icon } from "@/components/icons";
 import { PageIntro, Price, SiteFooter, SiteHeader, StatusBadge, Toast } from "@/components/site";
-import { ENVELOPE_TEXT_PRICE, STICKER_PRICES, templates } from "@/lib/data";
+import { ENVELOPE_TEXT_PRICE, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, templates } from "@/lib/data";
 import { amountUntilFreeShipping, getDeliveryPrice, qualifiesForFreeShipping } from "@/lib/shipping";
 import { RootState, setDiscountCode, setEnvelopeTextAdded, setStickerQuantity } from "@/lib/store";
+import { getTemplatePrice, useMockDb } from "@/lib/mock-store";
 
 export default function CartPage() {
   const cart = useSelector((state: RootState) => state.cart);
   const dispatch = useDispatch();
+  const db = useMockDb();
   const [toast, setToast] = useState("");
   const [discount, setDiscount] = useState(cart.discountCode);
   const template = templates.find((item) => item.id === cart.card.templateId) || templates[0];
+  const templatePrice = getTemplatePrice(template.id, db);
+  const packagingPrice = PACKAGING_PRICES[cart.card.packaging];
+  const sizePrice = SIZE_PRICES[cart.card.size];
   const stickerPrice = STICKER_PRICES[cart.stickerQuantity];
   const envelopePrice = cart.envelopeTextAdded ? ENVELOPE_TEXT_PRICE : 0;
-  const merchandiseSubtotal = template.price + stickerPrice + envelopePrice;
+  const merchandiseSubtotal = templatePrice + packagingPrice + sizePrice + stickerPrice + envelopePrice;
   const freeShipping = qualifiesForFreeShipping(merchandiseSubtotal);
   const delivery = getDeliveryPrice(cart.card.delivery, merchandiseSubtotal);
   const subtotal = merchandiseSubtotal + delivery;
@@ -33,7 +38,7 @@ export default function CartPage() {
         <section className="space-y-4">
           <div className="rounded-[24px] border border-[#eadbd3] bg-white p-4 sm:p-6"><div className="flex flex-col gap-5 sm:flex-row">
             <div className="w-full max-w-[190px] shrink-0 rounded-2xl bg-[#f8efe8] p-3"><CardPreview compact templateId={template.id} message={cart.card.message} emojiElements={cart.card.emojiElements} photoDataUrls={cart.card.photoDataUrls} photoZoom={cart.card.photoZoom} photoPosition={cart.card.photoPosition} /></div>
-            <div className="flex-1"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{template.eyebrow}</p><h2 className="mt-1 text-xl font-black">{template.name}</h2><p className="mt-2 text-sm text-[#737b90]">{cart.card.size} · {cart.card.recipientMode === "recipient" ? "Entrega directa al destinatario" : "Entrega a mi dirección"}</p></div><Link href="/customize" className="flex h-9 w-9 items-center justify-center rounded-full border border-[#dfd3cc] hover:border-[#ee5264]" aria-label="Editar tarjeta"><Icon name="edit" size={15} /></Link></div><div className="mt-6 flex items-center justify-between border-t border-[#eadbd3] pt-4"><StatusBadge tone={cart.card.delivery === "express" ? "amber" : "green"}>{cart.card.delivery === "express" ? "Express · 1–2 días" : "Normal · 3–5 días"}</StatusBadge><span className="font-black"><Price value={template.price} /></span></div></div>
+            <div className="flex-1"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{template.eyebrow}</p><h2 className="mt-1 text-xl font-black">{template.name}</h2><p className="mt-2 text-sm text-[#737b90]">{cart.card.size} · {cart.card.recipientMode === "recipient" ? "Entrega directa al destinatario" : "Entrega a mi dirección"}</p></div><Link href="/customize" className="flex h-9 w-9 items-center justify-center rounded-full border border-[#dfd3cc] hover:border-[#ee5264]" aria-label="Editar tarjeta"><Icon name="edit" size={15} /></Link></div><div className="mt-6 flex items-center justify-between border-t border-[#eadbd3] pt-4"><StatusBadge tone={cart.card.delivery === "express" ? "amber" : "green"}>{cart.card.delivery === "express" ? "Express · 1–2 días" : "Normal · 3–5 días"}</StatusBadge><span className="font-black"><Price value={templatePrice + packagingPrice} /></span></div></div>
           </div></div>
 
           {cart.stickerQuantity > 0 && <CartItem icon={<div className="h-14 w-14 overflow-hidden rounded-full border-4 border-[#f8c75e] bg-[#fff0e8]"><img src={cart.stickerImage || "/images/sticker-dog.jpg"} alt="Sticker personalizado" className="h-full w-full object-cover" /></div>} title={`Sticker personalizado × ${cart.stickerQuantity}`} detail="Diámetro de 3 pulgadas · 7,62 cm" price={stickerPrice} onRemove={() => { dispatch(setStickerQuantity(0)); setToast("Sticker eliminado"); }} />}
@@ -44,7 +49,9 @@ export default function CartPage() {
         </section>
 
         <aside className="h-fit rounded-[24px] bg-[#182443] p-6 text-white sm:p-7"><h2 className="text-xl font-black">Resumen del pedido</h2><div className="mt-6 space-y-4 text-sm">
-          <SummaryRow label="Tarjeta personalizada" value={template.price} />
+          <SummaryRow label="Tarjeta personalizada" value={templatePrice} />
+          <SummaryRow label={cart.card.packaging === "gift" ? "Packaging regalo" : "Sobre estándar"} value={packagingPrice} />
+          <SummaryRow label={`Formato ${cart.card.size}`} value={sizePrice} />
           {cart.stickerQuantity > 0 && <SummaryRow label={`Sticker × ${cart.stickerQuantity}`} value={stickerPrice} />}
           {cart.envelopeTextAdded && <SummaryRow label="Texto en el sobre" value={ENVELOPE_TEXT_PRICE} />}
           <div className="flex justify-between text-white/70"><span>Entrega {cart.card.delivery === "express" ? "express" : "normal"}</span>{delivery ? <Price value={delivery} /> : <span className="font-black text-[#f8c75e]">Gratis</span>}</div>
