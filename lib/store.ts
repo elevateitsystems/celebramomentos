@@ -49,11 +49,11 @@ const initialState: CartState = {
     insideLeftText: "Escribe aquí tu dedicatoria personal.",
     insideRightText: "Con todo mi cariño.",
     backText: "Hecha especialmente para ti.",
-    emoji: "🎓",
+    emoji: "",
     emojiTone: "natural",
     emojiSize: 32,
     emojiPosition: defaultEmojiPosition,
-    emojiElements: [{ id: "emoji-initial", emoji: "🎓", tone: "natural", size: 32, position: defaultEmojiPosition }],
+    emojiElements: [],
     photoDataUrl: null,
     photoDataUrls: [null, null, null, null],
     photoZoom: 1,
@@ -111,7 +111,14 @@ const cartSlice = createSlice({
     setEnvelopeText: (state, action: PayloadAction<string>) => { state.envelopeText = action.payload.slice(0, 80); },
     setEnvelopeTextAdded: (state, action: PayloadAction<boolean>) => { state.envelopeTextAdded = action.payload; },
     setDiscountCode: (state, action: PayloadAction<string>) => { state.discountCode = action.payload; },
-    hydrateCart: (state, action: PayloadAction<CartState>) => ({ ...state, ...action.payload, card: { ...state.card, ...action.payload.card, frameId: action.payload.card.frameId === "romantic-red" ? "geometric-heart" : action.payload.card.frameId, packaging: action.payload.card.packaging || "standard" } }),
+    hydrateCart: (state, action: PayloadAction<CartState>) => {
+      const card = { ...state.card, ...action.payload.card, frameId: action.payload.card.frameId === "romantic-red" ? "geometric-heart" : action.payload.card.frameId, packaging: action.payload.card.packaging || "standard" };
+      // Remove the old built-in graduation-cap emoji from carts saved before
+      // emojis became optional. User-added emojis remain untouched.
+      if (card.emoji === "🎓") card.emoji = "";
+      card.emojiElements = card.emojiElements.filter((item) => !(item.id === "emoji-initial" && item.emoji === "🎓"));
+      return { ...state, ...action.payload, card };
+    },
     resetCart: () => initialState,
   },
 });

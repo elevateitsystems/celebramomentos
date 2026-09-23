@@ -55,6 +55,8 @@ export function MagazineFront({
   photoDataUrl,
   photoPosition,
   photoZoom,
+  highlightText,
+  footerText,
 }: {
   compact: boolean;
   message?: string;
@@ -63,9 +65,13 @@ export function MagazineFront({
   photoDataUrl?: string | null;
   photoPosition?: "center" | "top" | "bottom" | "left" | "right";
   photoZoom?: number;
+  highlightText?: string;
+  footerText?: string;
 }) {
   const displayHeadline = headline || message || magazineHeadline;
   const displaySubheadline = subheadline || magazineSubheadline;
+  const displayHighlight = highlightText || "Feliz cumpleaños";
+  const displayFooter = footerText || "Roberto García celebra con su familia";
 
   return <div className="relative h-full w-full overflow-hidden rounded-[clamp(6px,1.2vw,18px)] border-[clamp(2px,.45vw,5px)] border-[#d91b2a] bg-[#fffdf8] font-sans text-[#102044]">
     {/* Client reference masthead */}
@@ -84,7 +90,7 @@ export function MagazineFront({
     </div>
 
     <MagazinePhoto quadrant="hero" alt="Roberto celebra su cumpleaños" photoDataUrl={photoDataUrl} photoPosition={photoPosition} photoZoom={photoZoom} className="absolute inset-x-[4%] top-[20.5%] h-[37%] rounded-[clamp(4px,.8vw,12px)] border border-[#102044]/20 bg-cover" />
-    <span className={`absolute left-[5.5%] top-[23%] max-w-[37%] -rotate-3 bg-[#f8c927] px-[2.5%] py-[1.5%] text-center font-black uppercase leading-[.9] tracking-[-.04em] text-[#102044] shadow-sm ${compact ? "text-[5px]" : "text-[clamp(9px,1.7vw,19px)]"}`}>¡Feliz<br />cumpleaños! <span className={`${compact ? "text-[6px]" : "text-[clamp(11px,1.9vw,22px)]"}`}>🎂</span></span>
+    <span className={`absolute left-[5.5%] top-[23%] max-w-[37%] -rotate-3 bg-[#f8c927] px-[2.5%] py-[1.5%] text-center font-black uppercase leading-[.9] tracking-[-.04em] text-[#102044] shadow-sm ${compact ? "text-[5px]" : "text-[clamp(9px,1.7vw,19px)]"}`}>{displayHighlight} <span className={`${compact ? "text-[6px]" : "text-[clamp(11px,1.9vw,22px)]"}`}>🎂</span></span>
     <span className={`absolute right-[7%] top-[36%] rotate-12 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.45)] ${compact ? "text-[12px]" : "text-[clamp(22px,4vw,48px)]"}`}>⚽</span>
     <span className={`absolute bottom-[40%] left-[4%] -rotate-3 bg-[#d90619] px-[3%] py-[1%] font-black uppercase leading-none tracking-[.04em] text-white shadow-sm ${compact ? "text-[5px]" : "text-[clamp(10px,1.8vw,21px)]"}`}>¡Atención!</span>
 
@@ -98,7 +104,7 @@ export function MagazineFront({
       <div className="flex items-start gap-[3%]"><span className={`flex shrink-0 items-center justify-center rounded-[clamp(2px,.4vw,6px)] bg-[#d90619] text-white ${compact ? "h-[10px] w-[10px] text-[7px]" : "h-[clamp(18px,3vw,34px)] w-[clamp(18px,3vw,34px)] text-[clamp(10px,1.7vw,18px)]"}`}>★</span><p className={`max-w-[86%] font-bold leading-[1.05] text-[#102044] ${compact ? "line-clamp-2 text-[4px]" : "line-clamp-2 text-[clamp(8px,1.35vw,15px)]"}`}>{displaySubheadline}</p></div>
     </div>
 
-    <div className={`absolute inset-x-[4%] bottom-[2.5%] flex items-center justify-between gap-2 border-t border-[#102044]/35 pt-[1.5%] font-black uppercase tracking-[.1em] ${compact ? "text-[3px]" : "text-[clamp(5px,1vw,10px)]"}`}><span className="text-[#d90619]">♥ Exclusiva</span><span className="truncate">Roberto García celebra con su familia</span><span className="shrink-0">Pág. 6 →</span></div>
+    <div className={`absolute inset-x-[4%] bottom-[2.5%] flex items-center justify-between gap-2 border-t border-[#102044]/35 pt-[1.5%] font-black uppercase tracking-[.1em] ${compact ? "text-[3px]" : "text-[clamp(5px,1vw,10px)]"}`}><span className="text-[#d90619]">♥ Exclusiva</span><span className="truncate">{displayFooter}</span><span className="shrink-0">Pág. 6 →</span></div>
   </div>;
 }
 
