@@ -10,11 +10,12 @@ import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/co
 import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
 import { PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
 import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, stickerGallery, templates } from "@/lib/data";
-import { defaultEmojiPosition, type EmojiOption } from "@/lib/emojis";
+import { type EmojiOption } from "@/lib/emojis";
 import {
   RootState,
   addEmojiElement,
   removeEmojiElement,
+  setEmoji,
   setEmojiElements,
   setEnvelopeText,
   setEnvelopeTextAdded,
@@ -38,12 +39,16 @@ import {
   updateEmojiElement,
 } from "@/lib/store";
 
-const cropPositions = [["left", "Izquierda"], ["center", "Centro"], ["right", "Derecha"], ["top", "Arriba"], ["bottom", "Abajo"]] as const;
 type FlowStep = "template" | "frame" | "customize" | "emojis" | "preview" | "extras";
 
 export default function CustomizePage() {
   const dispatch = useDispatch();
   const cart = useSelector((state: RootState) => state.cart);
+  const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
+  const tx = (es: string, pt: string) => isPortuguese ? pt : es;
+  const cropPositions = isPortuguese
+    ? ([['left', 'Esquerda'], ['center', 'Centro'], ['right', 'Direita'], ['top', 'Topo'], ['bottom', 'Fundo']] as const)
+    : ([['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha'], ['top', 'Arriba'], ['bottom', 'Abajo']] as const);
   const [step, setStep] = useState<FlowStep>("template");
   const [chosenTemplateId, setChosenTemplateId] = useState<string | null>(null);
   const [chosenFrameId, setChosenFrameId] = useState<string | null>(null);
@@ -60,6 +65,9 @@ export default function CustomizePage() {
   const isTraditional = Boolean(template.longText);
   const isCollage = template.id === "template-2";
   const rightPrimaryPhotoIndex = isTraditional ? 1 : isMagazine ? 2 : 3;
+  const magazineCopy = isPortuguese
+    ? { headline: "Hoje celebra-se o 13.º aniversário do Roberto García", subheadline: "Que tenhas um dia tão incrível como tu, Roberto! 🎉 ⚽ 💙", insideLeft: "Os teus avós, a tua irmã, o pai, a mãe e o Rocky gostam muito de ti.", insideRight: "Continua assim, campeão!!" }
+    : { headline: magazineHeadline, subheadline: magazineSubheadline, insideLeft: magazineInsideLeft, insideRight: magazineInsideRight };
 
   const chooseTemplate = (templateId: string) => {
     const nextTemplate = templates.find((item) => item.id === templateId) || templates[0];
@@ -69,19 +77,19 @@ export default function CustomizePage() {
     dispatch(setFrame(nextTemplate.requiresFrame ? frames[0].id : null));
     dispatch(setPhotoSlots(nextTemplate.imageCount));
     if (nextTemplate.magazineStyle) {
-      dispatch(setMessage(magazineHeadline));
-      dispatch(setFrontHeadline(magazineHeadline));
-      dispatch(setFrontSubheadline(magazineSubheadline));
-      dispatch(setInsideLeftText(magazineInsideLeft));
-      dispatch(setInsideRightText(magazineInsideRight));
-      dispatch(setBackText("Una tarjeta creada especialmente para alguien especial."));
+      dispatch(setMessage(magazineCopy.headline));
+      dispatch(setFrontHeadline(magazineCopy.headline));
+      dispatch(setFrontSubheadline(magazineCopy.subheadline));
+      dispatch(setInsideLeftText(magazineCopy.insideLeft));
+      dispatch(setInsideRightText(magazineCopy.insideRight));
+      dispatch(setBackText(isPortuguese ? "Um cartão criado especialmente para alguém especial." : "Una tarjeta creada especialmente para alguien especial."));
     } else {
-      const message = "Enhorabuena";
+      const message = isPortuguese ? "Parabéns" : "Enhorabuena";
       dispatch(setMessage(message));
       dispatch(setFrontSubheadline(""));
-      dispatch(setInsideLeftText("Escribe aquí tu dedicatoria personal."));
-      dispatch(setInsideRightText("Con todo mi cariño."));
-      dispatch(setBackText("Hecha especialmente para ti."));
+      dispatch(setInsideLeftText(isPortuguese ? "Escreve aqui a tua dedicatória pessoal." : "Escribe aquí tu dedicatoria personal."));
+      dispatch(setInsideRightText(isPortuguese ? "Com todo o meu carinho." : "Con todo mi cariño."));
+      dispatch(setBackText(isPortuguese ? "Feito especialmente para ti." : "Hecha especialmente para ti."));
     }
   };
 
@@ -107,7 +115,7 @@ export default function CustomizePage() {
       dispatch(setPhotoAt({ index: uploadIndex, dataUrl: String(reader.result) }));
       dispatch(setPhotoZoom(1));
       dispatch(setPhotoPosition("center"));
-      setToast(`Foto ${uploadIndex + 1} actualizada`);
+      setToast(isPortuguese ? `Fotografia ${uploadIndex + 1} atualizada` : `Foto ${uploadIndex + 1} actualizada`);
     };
     reader.readAsDataURL(file);
     event.target.value = "";
@@ -119,37 +127,38 @@ export default function CustomizePage() {
     const reader = new FileReader();
     reader.onload = () => {
       dispatch(setStickerImage(String(reader.result)));
-      setToast("Imagen del sticker guardada");
+      setToast(isPortuguese ? "Imagem do autocolante guardada" : "Imagen del sticker guardada");
     };
     reader.readAsDataURL(file);
   };
 
   const reset = () => {
     if (isMagazine) {
-      dispatch(setMessage(magazineHeadline));
-      dispatch(setFrontHeadline(magazineHeadline));
-      dispatch(setFrontSubheadline(magazineSubheadline));
-      dispatch(setInsideLeftText(magazineInsideLeft));
-      dispatch(setInsideRightText(magazineInsideRight));
-      dispatch(setBackText("Una tarjeta creada especialmente para alguien especial."));
+      dispatch(setMessage(magazineCopy.headline));
+      dispatch(setFrontHeadline(magazineCopy.headline));
+      dispatch(setFrontSubheadline(magazineCopy.subheadline));
+      dispatch(setInsideLeftText(magazineCopy.insideLeft));
+      dispatch(setInsideRightText(magazineCopy.insideRight));
+      dispatch(setBackText(isPortuguese ? "Um cartão criado especialmente para alguém especial." : "Una tarjeta creada especialmente para alguien especial."));
     } else {
-      const message = "Enhorabuena";
+      const message = isPortuguese ? "Parabéns" : "Enhorabuena";
       dispatch(setMessage(message));
       dispatch(setFrontHeadline(message));
       dispatch(setFrontSubheadline(""));
-      dispatch(setInsideLeftText("Escribe aquí tu dedicatoria personal."));
-      dispatch(setInsideRightText("Con todo mi cariño."));
-      dispatch(setBackText("Hecha especialmente para ti."));
+      dispatch(setInsideLeftText(isPortuguese ? "Escreve aqui a tua dedicatória pessoal." : "Escribe aquí tu dedicatoria personal."));
+      dispatch(setInsideRightText(isPortuguese ? "Com todo o meu carinho." : "Con todo mi cariño."));
+      dispatch(setBackText(isPortuguese ? "Feito especialmente para ti." : "Hecha especialmente para ti."));
     }
-    dispatch(setEmojiElements([{ id: "emoji-reset", emoji: "✨", tone: "natural", size: 28, position: defaultEmojiPosition }]));
-    setSelectedEmojiId("emoji-reset");
+    dispatch(setEmoji(""));
+    dispatch(setEmojiElements([]));
+    setSelectedEmojiId(null);
     dispatch(setPhotoSlots(template.imageCount));
     for (let index = 0; index < template.imageCount; index += 1) dispatch(setPhotoAt({ index, dataUrl: null }));
     dispatch(setPhotoZoom(1));
     dispatch(setPhotoPosition("center"));
     dispatch(setSize("A4"));
     dispatch(setPackaging("standard"));
-    setToast("Personalización restablecida");
+    setToast(isPortuguese ? "Personalização reposta" : "Personalización restablecida");
   };
 
   const addEmoji = (option: EmojiOption) => {
@@ -157,7 +166,7 @@ export default function CustomizePage() {
     const offset = cart.card.emojiElements.length % 6;
     dispatch(addEmojiElement({ id, emoji: option.emoji, tone: option.tone || "natural", size: 32, position: { x: 18 + offset * 12, y: 16 + (offset % 2) * 12 } }));
     setSelectedEmojiId(id);
-    setToast(`Emoji ${option.emoji} añadido`);
+    setToast(isPortuguese ? `Emoji ${option.emoji} adicionado` : `Emoji ${option.emoji} añadido`);
   };
 
   const openEmojiStep = () => {
@@ -168,18 +177,18 @@ export default function CustomizePage() {
   // 6-step progress steps (or 5 if frame skipped for Magazine)
   const progressSteps: { id: FlowStep; label: string }[] = template.requiresFrame
     ? [
-        { id: "template", label: "Plantilla" },
-        { id: "frame", label: "Marco" },
-        { id: "customize", label: "Secciones" },
+        { id: "template", label: tx("Plantilla", "Modelo") },
+        { id: "frame", label: tx("Marco", "Moldura") },
+        { id: "customize", label: tx("Secciones", "Secções") },
         { id: "emojis", label: "Emojis" },
-        { id: "preview", label: "Vista previa" },
+        { id: "preview", label: tx("Vista previa", "Pré-visualização") },
         { id: "extras", label: "Extras" },
       ]
     : [
-        { id: "template", label: "Plantilla" },
-        { id: "customize", label: "Secciones" },
+        { id: "template", label: tx("Plantilla", "Modelo") },
+        { id: "customize", label: tx("Secciones", "Secções") },
         { id: "emojis", label: "Emojis" },
-        { id: "preview", label: "Vista previa" },
+        { id: "preview", label: tx("Vista previa", "Pré-visualização") },
         { id: "extras", label: "Extras" },
       ];
 
@@ -196,7 +205,7 @@ export default function CustomizePage() {
       <main className="bg-white">
         <div className="container pb-24 pt-10">
           {/* Progress bar */}
-          <ol className="mx-auto mb-10 flex max-w-[840px] items-center" aria-label="Progreso de personalización">
+          <ol className="mx-auto mb-10 flex max-w-[840px] items-center" aria-label={tx("Progreso de personalización", "Progresso da personalização")}>
             {progressSteps.map((item, index) => {
               const isCurrent = item.id === step;
               const isCompleted = index < activeProgressIndex;
@@ -242,6 +251,7 @@ export default function CustomizePage() {
               selectedId={chosenTemplateId}
               onSelect={chooseTemplate}
               onContinue={continueFromTemplate}
+              isPortuguese={isPortuguese}
             />
           )}
 
@@ -252,6 +262,7 @@ export default function CustomizePage() {
               onSelect={chooseFrame}
               onBack={() => setStep("template")}
               onContinue={() => setStep("customize")}
+              isPortuguese={isPortuguese}
             />
           )}
 
@@ -259,12 +270,12 @@ export default function CustomizePage() {
           {step === "customize" && (
             <>
               <PageIntro
-                eyebrow={!template.requiresFrame ? "PASO 2 DE 5 · SECCIONES" : "PASO 3 DE 6 · SECCIONES"}
-                title="Personalización por secciones"
+                eyebrow={!template.requiresFrame ? tx("PASO 2 DE 5 · SECCIONES", "PASSO 2 DE 5 · SECÇÕES") : tx("PASO 3 DE 6 · SECCIONES", "PASSO 3 DE 6 · SECÇÕES")}
+                title={tx("Personalización por secciones", "Personalização por secções")}
                 body={
                   !template.requiresFrame
-                    ? `Edita las 4 caras de tu tarjeta revista (Portada, Interior Izquierdo, Interior Derecho y Contraportada) con sus ${template.imageCount} fotos y textos.`
-                    : `Has elegido ${template.name} con el marco “${frame.name}”. Personaliza cada cara de la tarjeta paso a paso.`
+                    ? tx(`Edita las 4 caras de tu tarjeta revista (Portada, Interior Izquierdo, Interior Derecho y Contraportada) con sus ${template.imageCount} fotos y textos.`, `Edita as 4 faces do teu cartão revista (Capa, Interior esquerdo, Interior direito e Contracapa) com as suas ${template.imageCount} fotografias e textos.`)
+                    : tx(`Has elegido ${template.name} con el marco “${frame.name}”. Personaliza cada cara de la tarjeta paso a paso.`, `Escolheste ${template.namePt || template.name} com a moldura “${frame.namePt || frame.name}”. Personaliza cada face do cartão passo a passo.`)
                 }
               />
 
@@ -272,13 +283,13 @@ export default function CustomizePage() {
               <div className="mt-8 flex items-center justify-center">
                 <nav
                   className="inline-flex rounded-full border border-[#eadfd8] bg-[#fffaf5] p-1.5 shadow-sm"
-                  aria-label="Seleccionar sección para editar"
+                  aria-label={tx("Seleccionar sección para editar", "Selecionar secção para editar")}
                 >
                   {[
-                    { id: "front" as PostcardSide, label: "1. Portada", icon: "📄" },
-                    { id: "inside-left" as PostcardSide, label: "2. Interior Izq.", icon: "📖" },
-                    { id: "inside-right" as PostcardSide, label: "3. Interior Dcho.", icon: "✍️" },
-                    { id: "back" as PostcardSide, label: "4. Contraportada", icon: "✨" },
+                    { id: "front" as PostcardSide, label: tx("1. Portada", "1. Capa"), icon: "📄" },
+                    { id: "inside-left" as PostcardSide, label: tx("2. Interior Izq.", "2. Interior Esq."), icon: "📖" },
+                    { id: "inside-right" as PostcardSide, label: tx("3. Interior Dcho.", "3. Interior Dir."), icon: "✍️" },
+                    { id: "back" as PostcardSide, label: tx("4. Contraportada", "4. Contracapa"), icon: "✨" },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -306,20 +317,20 @@ export default function CustomizePage() {
                         {designCategories.find((category) => category.id === cart.card.categoryId)?.name} · {template.eyebrow}
                       </p>
                       <h2 className="mt-1 font-black">
-                        {activeSection === "front" && "Cara 1: Portada"}
-                        {activeSection === "inside-left" && "Cara 2: Interior Izquierdo"}
-                        {activeSection === "inside-right" && "Cara 3: Interior Derecho"}
-                        {activeSection === "back" && "Cara 4: Contraportada"}
+                        {activeSection === "front" && tx("Cara 1: Portada", "Face 1: Capa")}
+                        {activeSection === "inside-left" && tx("Cara 2: Interior Izquierdo", "Face 2: Interior Esquerdo")}
+                        {activeSection === "inside-right" && tx("Cara 3: Interior Derecho", "Face 3: Interior Direito")}
+                        {activeSection === "back" && tx("Cara 4: Contraportada", "Face 4: Contracapa")}
                       </h2>
                       <button
                         onClick={() => setStep(template.requiresFrame ? "frame" : "template")}
                         className="mt-2 text-xs font-bold text-[#7c8191] underline underline-offset-4 hover:text-[#ee5264]"
                       >
-                        Cambiar {template.requiresFrame ? "marco o plantilla" : "plantilla"}
+                        {tx("Cambiar", "Alterar")} {template.requiresFrame ? tx("marco o plantilla", "moldura ou modelo") : tx("plantilla", "modelo")}
                       </button>
                     </div>
                     <button onClick={reset} className="text-xs font-bold text-[#7c8191] underline underline-offset-4 hover:text-[#ee5264]">
-                      Restablecer
+                      {tx("Restablecer", "Repor")}
                     </button>
                   </div>
 
@@ -327,7 +338,7 @@ export default function CustomizePage() {
                   {activeSection === "front" && (
                     <div className="space-y-6 pt-5">
                       <label className="block text-sm font-black">
-                        {isMagazine ? "Titular de Portada (Noticia principal)" : "Titular / Mensaje de Portada"}
+                        {isMagazine ? tx("Titular de Portada (Noticia principal)", "Título da capa (Notícia principal)") : tx("Titular / Mensaje de Portada", "Título / Mensagem da capa")}
                         <textarea
                           value={cart.card.frontHeadline || cart.card.message}
                           onChange={(e) => dispatch(setFrontHeadline(e.target.value))}
@@ -342,7 +353,7 @@ export default function CustomizePage() {
 
                       {isMagazine && (
                         <label className="block text-sm font-black">
-                          Subtitular de Portada
+                          {tx("Subtitular de Portada", "Subtítulo da capa")}
                           <input
                             type="text"
                             value={cart.card.frontSubheadline}
@@ -358,7 +369,7 @@ export default function CustomizePage() {
 
                       {/* Photo 1 Upload */}
                       <div>
-                        <p className="text-sm font-black">Foto 1 · Portada principal</p>
+                        <p className="text-sm font-black">{tx("Foto 1 · Portada principal", "Fotografia 1 · Capa principal")}</p>
                         <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
                           <button
                             type="button"
@@ -369,11 +380,11 @@ export default function CustomizePage() {
                             className="focus-ring relative block aspect-[16/10] w-full overflow-hidden bg-[#f8efe8] text-left"
                           >
                             {cart.card.photoDataUrls[0] ? (
-                              <img src={cart.card.photoDataUrls[0]} alt="Foto 1 de portada" className="h-full w-full object-cover" />
+                              <img src={cart.card.photoDataUrls[0]} alt={tx("Foto 1 de portada", "Fotografia 1 da capa")} className="h-full w-full object-cover" />
                             ) : (
                               <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#ee5264]">
                                 <Icon name="plus" size={24} />
-                                <span className="text-xs font-black">SUBIR FOTO DE PORTADA</span>
+                                <span className="text-xs font-black">{tx("AÑADIR FOTO DE PORTADA", "ADICIONAR FOTOGRAFIA DA CAPA")}</span>
                               </span>
                             )}
                           </button>
@@ -382,7 +393,7 @@ export default function CustomizePage() {
                               type="button"
                               onClick={() => dispatch(setPhotoAt({ index: 0, dataUrl: null }))}
                               className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#ee5264] shadow"
-                              aria-label="Eliminar foto de portada"
+                              aria-label={tx("Eliminar foto de portada", "Remover fotografia da capa")}
                             >
                               ×
                             </button>
@@ -392,9 +403,9 @@ export default function CustomizePage() {
 
                       {/* Photo crop/zoom controls */}
                       <div className={`rounded-2xl border border-[#eadbd3] bg-white p-4 ${cart.card.photoDataUrls[0] ? "" : "opacity-55"}`}>
-                        <p className="text-xs font-black">Ajuste de encuadre (Foto 1)</p>
+                        <p className="text-xs font-black">{tx("Ajuste de encuadre (Foto 1)", "Ajuste do enquadramento (Fotografia 1)")}</p>
                         <label className="mt-3 block text-xs font-bold text-[#7c8191]">
-                          Zoom
+                          {tx("Zoom", "Zoom")}
                           <input
                             type="range"
                             min="1"
@@ -407,7 +418,7 @@ export default function CustomizePage() {
                           />
                         </label>
                         <div className="mt-3">
-                          <p className="text-xs font-bold text-[#7c8191]">Posición</p>
+                          <p className="text-xs font-bold text-[#7c8191]">{tx("Posición", "Posição")}</p>
                           <div className="mt-1.5 grid grid-cols-5 gap-1.5">
                             {cropPositions.map(([value, label]) => (
                               <button
@@ -434,7 +445,7 @@ export default function CustomizePage() {
                   {activeSection === "inside-left" && (
                     <div className="space-y-6 pt-5">
                       <label className="block text-sm font-black">
-                        Texto / Dedicatoria interior izquierda
+                        {tx("Texto / Dedicatoria interior izquierda", "Texto / Dedicatória do interior esquerdo")}
                         <textarea
                           value={cart.card.insideLeftText}
                           onChange={(e) => dispatch(setInsideLeftText(e.target.value))}
@@ -449,7 +460,7 @@ export default function CustomizePage() {
 
                       {/* Photo 2 Upload: not present on the traditional inside-left face */}
                       {!isTraditional && <div>
-                        <p className="text-sm font-black">Foto 2 · Interior izquierdo</p>
+                        <p className="text-sm font-black">{tx("Foto 2 · Interior izquierdo", "Fotografia 2 · Interior esquerdo")}</p>
                         <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
                           <button
                             type="button"
@@ -460,11 +471,11 @@ export default function CustomizePage() {
                             className="focus-ring relative block aspect-[16/10] w-full overflow-hidden bg-[#f8efe8] text-left"
                           >
                             {cart.card.photoDataUrls[1] ? (
-                              <img src={cart.card.photoDataUrls[1]} alt="Foto 2 interior izquierdo" className="h-full w-full object-cover" />
+                              <img src={cart.card.photoDataUrls[1]} alt={tx("Foto 2 interior izquierdo", "Fotografia 2 do interior esquerdo")} className="h-full w-full object-cover" />
                             ) : (
                               <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#ee5264]">
                                 <Icon name="plus" size={24} />
-                                <span className="text-xs font-black">SUBIR FOTO INTERIOR IZQUIERDA</span>
+                                <span className="text-xs font-black">{tx("AÑADIR FOTO DEL INTERIOR IZQUIERDO", "ADICIONAR FOTOGRAFIA DO INTERIOR ESQUERDO")}</span>
                               </span>
                             )}
                           </button>
@@ -473,7 +484,7 @@ export default function CustomizePage() {
                               type="button"
                               onClick={() => dispatch(setPhotoAt({ index: 1, dataUrl: null }))}
                               className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#ee5264] shadow"
-                              aria-label="Eliminar foto 2"
+                              aria-label={tx("Eliminar foto 2", "Remover fotografia 2")}
                             >
                               ×
                             </button>
@@ -482,12 +493,12 @@ export default function CustomizePage() {
                       </div>}
 
                       {isCollage && <div>
-                        <p className="text-sm font-black">Foto 3 · Interior izquierdo inferior</p>
+                        <p className="text-sm font-black">{tx("Foto 3 · Interior izquierdo inferior", "Fotografia 3 · Interior esquerdo inferior")}</p>
                         <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
                           <button type="button" onClick={() => { setUploadIndex(2); inputRef.current?.click(); }} className="focus-ring relative block aspect-[16/10] w-full overflow-hidden bg-[#f8efe8] text-left">
-                            {cart.card.photoDataUrls[2] ? <img src={cart.card.photoDataUrls[2]} alt="Foto 3 interior izquierdo" className="h-full w-full object-cover" /> : <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#ee5264]"><Icon name="plus" size={24} /><span className="text-xs font-black">SUBIR FOTO 3</span></span>}
+                            {cart.card.photoDataUrls[2] ? <img src={cart.card.photoDataUrls[2]} alt={tx("Foto 3 interior izquierdo", "Fotografia 3 do interior esquerdo")} className="h-full w-full object-cover" /> : <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#ee5264]"><Icon name="plus" size={24} /><span className="text-xs font-black">{tx("AÑADIR FOTO 3", "ADICIONAR FOTOGRAFIA 3")}</span></span>}
                           </button>
-                          {cart.card.photoDataUrls[2] && <button type="button" onClick={() => dispatch(setPhotoAt({ index: 2, dataUrl: null }))} className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#ee5264] shadow" aria-label="Eliminar foto 3">×</button>}
+                          {cart.card.photoDataUrls[2] && <button type="button" onClick={() => dispatch(setPhotoAt({ index: 2, dataUrl: null }))} className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#ee5264] shadow" aria-label={tx("Eliminar foto 3", "Remover fotografia 3")}>×</button>}
                         </div>
                       </div>}
                     </div>
@@ -512,7 +523,7 @@ export default function CustomizePage() {
 
                       {/* Primary photo for the inside-right face */}
                       <div>
-                        <p className="text-sm font-black">Foto {rightPrimaryPhotoIndex + 1} · Interior derecho superior</p>
+                        <p className="text-sm font-black">{tx(`Foto ${rightPrimaryPhotoIndex + 1} · Interior derecho superior`, `Fotografia ${rightPrimaryPhotoIndex + 1} · Interior direito superior`)}</p>
                         <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
                           <button
                             type="button"
@@ -527,7 +538,7 @@ export default function CustomizePage() {
                             ) : (
                               <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#ee5264]">
                                 <Icon name="plus" size={24} />
-                                <span className="text-xs font-black">SUBIR FOTO {rightPrimaryPhotoIndex + 1}</span>
+                                <span className="text-xs font-black">{tx(`AÑADIR FOTO ${rightPrimaryPhotoIndex + 1}`, `ADICIONAR FOTOGRAFIA ${rightPrimaryPhotoIndex + 1}`)}</span>
                               </span>
                             )}
                           </button>
@@ -536,7 +547,7 @@ export default function CustomizePage() {
                               type="button"
                               onClick={() => dispatch(setPhotoAt({ index: rightPrimaryPhotoIndex, dataUrl: null }))}
                               className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#ee5264] shadow"
-                              aria-label={`Eliminar foto ${rightPrimaryPhotoIndex + 1}`}
+                              aria-label={tx(`Eliminar foto ${rightPrimaryPhotoIndex + 1}`, `Remover fotografia ${rightPrimaryPhotoIndex + 1}`)}
                             >
                               ×
                             </button>
@@ -547,7 +558,7 @@ export default function CustomizePage() {
                       {/* Second inside-right photo: Magazine only */}
                       {isMagazine && (
                         <div>
-                          <p className="text-sm font-black">Foto 4 · Interior derecho inferior</p>
+                          <p className="text-sm font-black">{tx("Foto 4 · Interior derecho inferior", "Fotografia 4 · Interior direito inferior")}</p>
                           <div className="mt-2 relative overflow-hidden rounded-2xl border border-[#dfd3cc] bg-white">
                             <button
                               type="button"
@@ -558,11 +569,11 @@ export default function CustomizePage() {
                               className="focus-ring relative block aspect-[16/10] w-full overflow-hidden bg-[#f8efe8] text-left"
                             >
                               {cart.card.photoDataUrls[3] ? (
-                                <img src={cart.card.photoDataUrls[3]} alt="Foto 4 interior derecho" className="h-full w-full object-cover" />
+                                <img src={cart.card.photoDataUrls[3]} alt={tx("Foto 4 interior derecho", "Fotografia 4 do interior direito")} className="h-full w-full object-cover" />
                               ) : (
                                 <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#ee5264]">
                                   <Icon name="plus" size={24} />
-                                  <span className="text-xs font-black">SUBIR FOTO 4</span>
+                                  <span className="text-xs font-black">{tx("AÑADIR FOTO 4", "ADICIONAR FOTOGRAFIA 4")}</span>
                                 </span>
                               )}
                             </button>
@@ -571,7 +582,7 @@ export default function CustomizePage() {
                                 type="button"
                                 onClick={() => dispatch(setPhotoAt({ index: 3, dataUrl: null }))}
                                 className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#ee5264] shadow"
-                                aria-label="Eliminar foto 4"
+                                aria-label={tx("Eliminar foto 4", "Remover fotografia 4")}
                               >
                                 ×
                               </button>
@@ -586,7 +597,7 @@ export default function CustomizePage() {
                   {activeSection === "back" && (
                     <div className="space-y-6 pt-5">
                       <label className="block text-sm font-black">
-                        Mensaje de Contraportada / Cierre
+                        {tx("Mensaje de Contraportada / Cierre", "Mensagem da contracapa / Encerramento")}
                         <textarea
                           value={cart.card.backText}
                           onChange={(e) => dispatch(setBackText(e.target.value))}
@@ -600,7 +611,7 @@ export default function CustomizePage() {
                       </label>
 
                       <div>
-                        <p className="text-sm font-black">Tamaño físico de la tarjeta</p>
+                        <p className="text-sm font-black">{tx("Tamaño físico de la tarjeta", "Tamanho físico do cartão")}</p>
                         <div className="mt-2 grid grid-cols-2 gap-2">
                           {(["A4", "A3"] as const).map((option) => (
                             <button
@@ -623,12 +634,12 @@ export default function CustomizePage() {
                       </div>
 
                       <div>
-                        <p className="text-sm font-black">¿Dónde lo enviamos?</p>
+                        <p className="text-sm font-black">{tx("¿Dónde lo enviamos?", "Para onde o enviamos?")}</p>
                         <div className="mt-2 grid gap-2">
                           {(
                             [
-                              ["recipient", "Directamente a quien lo recibe", "Nosotros lo preparamos y lo entregamos por ti."],
-                              ["customer", "A mi dirección", "Recíbelo en casa, listo para entregar en mano."],
+                              ["recipient", tx("Directamente a quien lo recibe", "Diretamente a quem o recebe"), tx("Nosotros lo preparamos y lo entregamos por ti.", "Nós preparamo-lo e entregamo-lo por ti.")],
+                              ["customer", tx("A mi dirección", "Para a minha morada"), tx("Recíbelo en casa, listo para entregar en mano.", "Recebe-o em casa, pronto para entregar em mão.")],
                             ] as const
                           ).map(([value, title, body]) => (
                             <button
@@ -673,7 +684,7 @@ export default function CustomizePage() {
                       }}
                       className="focus-ring rounded-full border border-[#d9cbc4] bg-white px-5 py-3 text-xs font-black text-[#182443] hover:border-[#ee5264]"
                     >
-                      Anterior cara
+                      {tx("Anterior cara", "Face anterior")}
                     </button>
                     <button
                       type="button"
@@ -688,7 +699,7 @@ export default function CustomizePage() {
                       }}
                       className="focus-ring inline-flex items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3 text-xs font-black text-white hover:bg-[#d83d54]"
                     >
-                      {activeSection === "back" ? "Continuar a Emojis (Paso 4)" : "Siguiente cara"}{" "}
+                      {activeSection === "back" ? tx("Continuar a Emojis (Paso 4)", "Continuar para Emojis (Passo 4)") : tx("Siguiente cara", "Próxima face")}{" "}
                       <Icon name="arrow" size={15} />
                     </button>
                   </div>
@@ -698,21 +709,21 @@ export default function CustomizePage() {
                 <section className="order-1 rounded-[26px] bg-[#f8efe8] p-5 sm:p-8 lg:order-2">
                   <div className="mb-4 flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-[.18em] text-[#7b7180]">
-                      Vista previa en vivo · Cara activa
+                      {tx("Vista previa en vivo · Cara activa", "Pré-visualização ao vivo · Face ativa")}
                     </span>
                     <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-[#182443]">
                       {cart.card.size} ·{" "}
-                      {activeSection === "front" && "Portada"}
-                      {activeSection === "inside-left" && "Interior Izq."}
-                      {activeSection === "inside-right" && "Interior Dcho."}
-                      {activeSection === "back" && "Contraportada"}
+                      {activeSection === "front" && tx("Portada", "Capa")}
+                      {activeSection === "inside-left" && tx("Interior Izq.", "Interior Esq.")}
+                      {activeSection === "inside-right" && tx("Interior Dcho.", "Interior Dir.")}
+                      {activeSection === "back" && tx("Contraportada", "Contracapa")}
                     </span>
                   </div>
                   <div className="mx-auto max-w-[580px] overflow-hidden rounded-[18px]">
                     <PostcardSideView side={activeSection} compact={false} />
                   </div>
                   <p className="mt-3 text-center text-xs text-[#7b7180]">
-                    Tus cambios se reflejan al instante en esta cara. En el siguiente paso podrás añadir y mover todos tus emojis.
+                    {tx("Tus cambios se reflejan al instante en esta cara. En el siguiente paso podrás añadir y mover todos tus emojis.", "As tuas alterações aparecem imediatamente nesta face. No passo seguinte poderás adicionar e mover todos os teus emojis.")}
                   </p>
                   <div className="mt-5 flex justify-center">
                     <button
@@ -720,7 +731,7 @@ export default function CustomizePage() {
                       onClick={openEmojiStep}
                       className="focus-ring inline-flex items-center gap-2 rounded-full bg-[#182443] px-6 py-3 text-xs font-black text-white hover:bg-[#ee5264]"
                     >
-                      Ir a Emojis (Paso 4) <Icon name="arrow" size={15} />
+                      {tx("Ir a Emojis (Paso 4)", "Ir para Emojis (Passo 4)")} <Icon name="arrow" size={15} />
                     </button>
                   </div>
                 </section>
@@ -732,23 +743,24 @@ export default function CustomizePage() {
           {step === "emojis" && (
             <>
               <PageIntro
-                eyebrow={!template.requiresFrame ? "PASO 3 DE 5 · EMOJIS" : "PASO 4 DE 6 · EMOJIS"}
-                title="Añade y coloca tus emojis en la portada"
-                body="Todos los emojis se añaden únicamente a la portada. Arrástralos sobre la tarjeta para situarlos exactamente donde te guste y cambia su tamaño con los controles."
+                eyebrow={!template.requiresFrame ? tx("PASO 3 DE 5 · EMOJIS", "PASSO 3 DE 5 · EMOJIS") : tx("PASO 4 DE 6 · EMOJIS", "PASSO 4 DE 6 · EMOJIS")}
+                title={tx("Añade y coloca tus emojis en la portada", "Adiciona e posiciona os teus emojis na capa")}
+                body={tx("Todos los emojis se añaden únicamente a la portada. Arrástralos sobre la tarjeta para situarlos exactamente donde te guste y cambia su tamaño con los controles.", "Todos os emojis são adicionados apenas à capa. Arrasta-os sobre o cartão para os posicionares exatamente onde quiseres e altera o tamanho com os controlos.")}
               />
 
               <div className="mt-10 grid gap-8 lg:grid-cols-[.85fr_1.15fr] lg:items-start">
                 <section className="order-2 rounded-[24px] border border-[#eadfd8] bg-[#fffaf5] p-5 sm:p-7 lg:order-1">
                   <div className="border-b border-[#eadfd8] pb-4">
-                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">Colección de emojis · Portada</p>
-                    <h2 className="mt-1 text-xl font-black">Emojis para celebrar</h2>
+                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{tx("Colección de emojis · Portada", "Coleção de emojis · Capa")}</p>
+                    <h2 className="mt-1 text-xl font-black">{tx("Emojis para celebrar", "Emojis para celebrar")}</h2>
                     <p className="mt-1 text-xs text-[#7c8191]">
-                      Elige de la colección, añade tantos como quieras y ajusta el tamaño de cada uno por separado (+ / −).
+                      {tx("Elige de la colección, añade tantos como quieras y ajusta el tamaño de cada uno por separado (+ / −).", "Escolhe da coleção, adiciona quantos quiseres e ajusta o tamanho de cada um separadamente (+ / −).")}
                     </p>
                   </div>
 
                   <EmojiElementControls
                     items={cart.card.emojiElements}
+                    language={isPortuguese ? "pt" : "es"}
                     selectedId={selectedEmojiId}
                     onAdd={addEmoji}
                     onSelect={setSelectedEmojiId}
@@ -765,14 +777,14 @@ export default function CustomizePage() {
                       onClick={() => setStep("customize")}
                       className="focus-ring rounded-full border border-[#d9cbc4] bg-white px-5 py-3 text-xs font-black text-[#182443] hover:border-[#ee5264]"
                     >
-                      Volver a secciones
+                      {tx("Volver a secciones", "Voltar às secções")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setStep("preview")}
                       className="focus-ring inline-flex items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3 text-xs font-black text-white hover:bg-[#d83d54]"
                     >
-                      Continuar a Vista previa <Icon name="arrow" size={15} />
+                      {tx("Continuar a Vista previa", "Continuar para a pré-visualização")} <Icon name="arrow" size={15} />
                     </button>
                   </div>
                 </section>
@@ -780,10 +792,10 @@ export default function CustomizePage() {
                 <section className="order-1 rounded-[26px] bg-[#f8efe8] p-5 sm:p-8 lg:order-2">
                   <div className="mb-4 flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-[.18em] text-[#7b7180]">
-                      Portada · lienzo interactivo
+                      {tx("Portada · lienzo interactivo", "Capa · área interativa")}
                     </span>
                     <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-[#182443]">
-                      Solo portada
+                      {tx("Solo portada", "Apenas a capa")}
                     </span>
                   </div>
                   <div className="mx-auto max-w-[620px] rounded-[18px]">
@@ -801,7 +813,7 @@ export default function CustomizePage() {
                     />
                   </div>
                   <p className="mt-3 text-center text-xs text-[#7b7180]">
-                    Haz clic en un emoji o arrástralo sobre la tarjeta para colocarlo en cualquier posición.
+                    {tx("Haz clic en un emoji o arrástralo sobre la tarjeta para colocarlo en cualquier posición.", "Clica num emoji ou arrasta-o sobre o cartão para o colocar em qualquer posição.")}
                   </p>
                 </section>
               </div>
@@ -812,9 +824,9 @@ export default function CustomizePage() {
           {step === "preview" && (
             <>
               <PageIntro
-                eyebrow={!template.requiresFrame ? "PASO 4 DE 5 · VISTA COMPLETA" : "PASO 5 DE 6 · VISTA COMPLETA"}
-                title="Revisa las 4 caras de tu tarjeta"
-                body="Comprueba cómo lucirá la tarjeta física desplegada antes de pasar a los extras o finalizar tu compra."
+                eyebrow={!template.requiresFrame ? tx("PASO 4 DE 5 · VISTA COMPLETA", "PASSO 4 DE 5 · VISTA COMPLETA") : tx("PASO 5 DE 6 · VISTA COMPLETA", "PASSO 5 DE 6 · VISTA COMPLETA")}
+                title={tx("Revisa las 4 caras de tu tarjeta", "Revê as 4 faces do teu cartão")}
+                body={tx("Comprueba cómo lucirá la tarjeta física desplegada antes de pasar a los extras o finalizar tu compra.", "Confirma como ficará o cartão físico aberto antes de avançar para os extras ou finalizar a compra.")}
               />
               <PostcardPreviewWindow />
               <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -823,18 +835,18 @@ export default function CustomizePage() {
                   onClick={() => setStep("customize")}
                   className="focus-ring inline-flex items-center justify-center gap-2 rounded-full border border-[#d9cbc4] bg-white px-6 py-3.5 text-sm font-black text-[#182443] hover:border-[#ee5264]"
                 >
-                  <Icon name="edit" size={15} /> Volver a editar
+                  <Icon name="edit" size={15} /> {tx("Volver a editar", "Voltar a editar")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setStep("extras")}
                   className="focus-ring inline-flex min-w-[240px] items-center justify-center gap-2 rounded-full bg-[#ee5264] px-7 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]"
                 >
-                  Continuar a Extras (Paso 6) <Icon name="arrow" size={16} />
+                  {tx("Continuar a Extras (Paso 6)", "Continuar para Extras (Passo 6)")} <Icon name="arrow" size={16} />
                 </button>
               </div>
               <p className="mt-4 text-center text-xs text-[#7c8191]">
-                Tu diseño ya está guardado en esta sesión.
+                {tx("Tu diseño ya está guardado en esta sesión.", "O teu design já está guardado nesta sessão.")}
               </p>
             </>
           )}
@@ -848,6 +860,7 @@ export default function CustomizePage() {
               handleStickerPhoto={handleStickerPhoto}
               onBack={() => setStep("preview")}
               setToast={setToast}
+              isPortuguese={isPortuguese}
             />
           )}
         </div>
@@ -861,11 +874,14 @@ function TemplateStep({
   selectedId,
   onSelect,
   onContinue,
+  isPortuguese,
 }: {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onContinue: () => void;
+  isPortuguese: boolean;
 }) {
+  const tx = (es: string, pt: string) => isPortuguese ? pt : es;
   const previewPhotos = [
     "/images/graduation-celebration.png",
     "/images/sticker-family.jpg",
@@ -877,21 +893,21 @@ function TemplateStep({
   return (
     <section aria-labelledby="template-step-title">
       <PageIntro
-        eyebrow="PASO 1 · EMPIEZA AQUÍ"
-        title="Elige tu Plantilla"
-        body="Ve directamente a una de nuestras tres composiciones. Elige Tradicional, Collage o Magazine y empieza a hacerla tuya."
+        eyebrow={tx("PASO 1 · EMPIEZA AQUÍ", "PASSO 1 · COMEÇA AQUI")}
+        title={tx("Elige tu Plantilla", "Escolhe o teu modelo")}
+        body={tx("Ve directamente a una de nuestras dos composiciones. Elige Tradicional o Collage y empieza a hacerla tuya.", "Escolhe diretamente uma das nossas duas composições. Escolhe Tradicional ou Colagem e começa a personalizá-la.")}
       />
       <div className="mb-5 mt-12 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[.17em] text-[#ee5264]">SELECCIONA EL DISEÑO</p>
-          <h2 className="mt-1 text-xl font-black text-[#182443]">Elige una de las 3 plantillas</h2>
+          <p className="text-[10px] font-black uppercase tracking-[.17em] text-[#ee5264]">{tx("SELECCIONA EL DISEÑO", "SELECIONA O DESIGN")}</p>
+          <h2 className="mt-1 text-xl font-black text-[#182443]">{tx("Elige una de las 2 plantillas", "Escolhe um dos 2 modelos")}</h2>
         </div>
         <p className="max-w-[380px] text-xs leading-5 text-[#737b90]">
-          Cada vista muestra el número de fotos y su posición real en la tarjeta.
+          {tx("Cada vista muestra el número de fotos y su posición real en la tarjeta.", "Cada vista mostra o número de fotografias e a sua posição real no cartão.")}
         </p>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="mx-auto grid max-w-[860px] gap-5 md:grid-cols-2">
         {templates.map((item, index) => {
           const selected = selectedId === item.id;
           return (
@@ -906,7 +922,7 @@ function TemplateStep({
             >
               <span className="relative block aspect-[1.12/1] overflow-hidden bg-[#fffaf5] p-3">
                 <span className={`mx-auto block h-full overflow-hidden rounded shadow-lg transition duration-300 group-hover:scale-[1.02] ${item.magazineStyle ? "aspect-square" : "aspect-[.82/1]"}`}>
-                  {item.magazineStyle ? <img src={item.image} alt={`${item.name} preview`} className="h-full w-full bg-white object-contain object-center" /> : <CardPreview compact templateId={item.id} message="Enhorabuena" emojiElements={[]} photoDataUrls={item.id === "template-2" ? Array(item.imageCount).fill(null) : Array.from({ length: item.imageCount }, (_, photoIndex) => (item.id === "template-3" ? traditionalPreviewPhotos : previewPhotos)[photoIndex % previewPhotos.length])} photoFit={item.id === "template-3" ? "fill" : undefined} />}
+                  {item.magazineStyle ? <img src={item.image} alt={`${item.name} preview`} className="h-full w-full bg-white object-contain object-center" /> : <CardPreview compact templateId={item.id} message={isPortuguese ? "Parabéns" : "Enhorabuena"} emojiElements={[]} photoDataUrls={item.id === "template-2" ? Array(item.imageCount).fill(null) : Array.from({ length: item.imageCount }, (_, photoIndex) => (item.id === "template-3" ? traditionalPreviewPhotos : previewPhotos)[photoIndex % previewPhotos.length])} photoFit={item.id === "template-3" ? "fill" : undefined} />}
                 </span>
                 <span
                   className={`absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${
@@ -917,16 +933,16 @@ function TemplateStep({
                 </span>
                 {item.magazineStyle && (
                   <span className="absolute bottom-4 left-4 rounded-full bg-[#182443] px-3 py-1.5 text-[9px] font-black uppercase tracking-[.12em] text-white">
-                    1 + 3 fotos · Revista
+                    {isPortuguese ? "1 + 3 fotografias · Revista" : "1 + 3 fotos · Revista"}
                   </span>
                 )}
               </span>
               <span className="block p-5">
-                <span className="text-[10px] font-black uppercase tracking-[.15em] text-[#ee5264]">Opción {index + 1}</span>
-                <span className="mt-1 block text-lg font-black">{item.name}</span>
-                <span className="mt-2 block text-sm leading-6 text-[#737b90]">{item.description}</span>
+                <span className="text-[10px] font-black uppercase tracking-[.15em] text-[#ee5264]">{tx("Opción", "Opção")} {index + 1}</span>
+                <span className="mt-1 block text-lg font-black">{isPortuguese ? item.namePt || item.name : item.name}</span>
+                <span className="mt-2 block text-sm leading-6 text-[#737b90]">{isPortuguese ? item.descriptionPt || item.description : item.description}</span>
                 <span className="mt-4 block text-xs font-bold text-[#59627b]">
-                  {item.imageCount} fotos · {item.magazineStyle ? "Sin marco, va directo al editor" : "El marco solo aparece en portada"}
+                  {item.imageCount} {tx("fotos", "fotografias")} · {item.magazineStyle ? tx("Sin marco, va directo al editor", "Sem moldura, segue diretamente para o editor") : tx("El marco solo aparece en portada", "A moldura aparece apenas na capa")}
                 </span>
               </span>
             </button>
@@ -941,10 +957,10 @@ function TemplateStep({
           onClick={onContinue}
           className="focus-ring inline-flex min-w-[240px] items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Empezar a personalizar <Icon name="arrow" size={16} />
+          {tx("Empezar a personalizar", "Começar a personalizar")} <Icon name="arrow" size={16} />
         </button>
         <p className="mt-3 text-center text-xs text-[#7c8191]">
-          {selectedId ? "Plantilla seleccionada. Pulsa para continuar." : "Selecciona una plantilla para continuar."}
+          {selectedId ? tx("Plantilla seleccionada. Pulsa para continuar.", "Modelo selecionado. Clica para continuar.") : tx("Selecciona una plantilla para continuar.", "Seleciona um modelo para continuar.")}
         </p>
       </div>
     </section>
@@ -956,18 +972,21 @@ function FrameStep({
   onSelect,
   onBack,
   onContinue,
+  isPortuguese,
 }: {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onBack: () => void;
   onContinue: () => void;
+  isPortuguese: boolean;
 }) {
+  const tx = (es: string, pt: string) => isPortuguese ? pt : es;
   return (
     <section aria-labelledby="frame-step-title">
       <PageIntro
-        eyebrow="PASO 2 · ELIGE MARCO"
-        title="Ahora, elige un marco"
-        body="Este paso solo aparece en Tradicional y Collage. El marco se aplicará únicamente a la portada; Magazine continúa directamente al editor."
+        eyebrow={tx("PASO 2 · ELIGE MARCO", "PASSO 2 · ESCOLHE A MOLDURA")}
+        title={tx("Ahora, elige un marco", "Agora, escolhe uma moldura")}
+        body={tx("El marco se aplicará únicamente a la portada de tu tarjeta.", "A moldura será aplicada apenas à capa do teu cartão.")}
       />
       <div className="mx-auto mt-12 grid max-w-[980px] grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {frames.map((item) => {
@@ -983,7 +1002,7 @@ function FrameStep({
               }`}
             >
               <span className="relative block aspect-square overflow-hidden bg-[#f8efe8] p-1.5 sm:p-2">
-                <img src={item.image} alt={item.name} className="h-full w-full object-contain object-center transition duration-300 group-hover:scale-[1.03]" />
+                <img src={item.image} alt={isPortuguese ? item.namePt || item.name : item.name} className="h-full w-full object-contain object-center transition duration-300 group-hover:scale-[1.03]" />
                 <span
                   className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${
                     selected ? "border-[#ee5264] text-[#ee5264]" : "border-[#d3c8c1] text-transparent"
@@ -992,7 +1011,7 @@ function FrameStep({
                   <Icon name="check" size={14} />
                 </span>
               </span>
-              <span className="block px-3 py-3 text-xs font-black sm:text-sm">{item.name}</span>
+              <span className="block px-3 py-3 text-xs font-black sm:text-sm">{isPortuguese ? item.namePt || item.name : item.name}</span>
             </button>
           );
         })}
@@ -1003,7 +1022,7 @@ function FrameStep({
           onClick={onBack}
           className="focus-ring rounded-full border border-[#d9cbc4] bg-white px-6 py-3.5 text-sm font-black text-[#182443] hover:border-[#ee5264]"
         >
-          Volver a plantillas
+          {tx("Volver a plantillas", "Voltar aos modelos")}
         </button>
         <button
           type="button"
@@ -1011,7 +1030,7 @@ function FrameStep({
           onClick={onContinue}
           className="focus-ring inline-flex min-w-[220px] items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Personalizar tarjeta <Icon name="arrow" size={16} />
+          {tx("Personalizar tarjeta", "Personalizar cartão")} <Icon name="arrow" size={16} />
         </button>
       </div>
     </section>
@@ -1025,6 +1044,7 @@ function ExtrasStep({
   handleStickerPhoto,
   onBack,
   setToast,
+  isPortuguese,
 }: {
   cart: RootState["cart"];
   dispatch: ReturnType<typeof useDispatch>;
@@ -1032,7 +1052,9 @@ function ExtrasStep({
   handleStickerPhoto: (e: ChangeEvent<HTMLInputElement>) => void;
   onBack: () => void;
   setToast: (msg: string) => void;
+  isPortuguese: boolean;
 }) {
+  const tx = (es: string, pt: string) => isPortuguese ? pt : es;
   const template = templates.find((item) => item.id === cart.card.templateId) || templates[0];
   const sticker = addOns[0];
   const stickerPrice = STICKER_PRICES[cart.stickerQuantity];
@@ -1045,22 +1067,22 @@ function ExtrasStep({
   return (
     <section aria-labelledby="extras-step-title">
       <PageIntro
-        eyebrow="PASO 6 · EXTRAS OPCIONALES"
-        title="Completa tu momento con extras"
-        body="Detalles opcionales pensados con cariño para que abrir el paquete sea todavía más especial e inolvidable."
+        eyebrow={tx("PASO 6 · EXTRAS OPCIONALES", "PASSO 6 · EXTRAS OPCIONAIS")}
+        title={tx("Completa tu momento con extras", "Completa o teu momento com extras")}
+        body={tx("Detalles opcionales pensados con cariño para que abrir el paquete sea todavía más especial e inolvidable.", "Detalhes opcionais pensados com carinho para tornar a abertura da encomenda ainda mais especial e inesquecível.")}
       />
 
       <div className="mt-12 grid gap-8 lg:grid-cols-[1.1fr_.9fr]">
         <div className="space-y-8">
           {/* PACKAGING */}
           <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">01 · PRESENTACIÓN</span>
-            <h3 className="mt-1 text-xl font-black">Elige el packaging</h3>
-            <p className="mt-1 max-w-[520px] text-xs leading-5 text-[#737b90]">Selecciona cómo quieres que preparemos tu tarjeta para entregar o recibir.</p>
+            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">01 · {tx("PRESENTACIÓN", "APRESENTAÇÃO")}</span>
+            <h3 className="mt-1 text-xl font-black">{tx("Elige el packaging", "Escolhe a embalagem")}</h3>
+            <p className="mt-1 max-w-[520px] text-xs leading-5 text-[#737b90]">{tx("Selecciona cómo quieres que preparemos tu tarjeta para entregar o recibir.", "Seleciona como queres que preparemos o teu cartão para oferecer ou receber.")}</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {([ ["standard", "Sobre estándar", "Protección sencilla y bonita", PACKAGING_PRICES.standard], ["gift", "Packaging regalo", "Listo para regalar", PACKAGING_PRICES.gift] ] as const).map(([value, title, body, price]) => (
+              {([ ["standard", tx("Sobre estándar", "Envelope standard"), tx("Protección sencilla y bonita", "Proteção simples e bonita"), PACKAGING_PRICES.standard], ["gift", tx("Packaging regalo", "Embalagem para presente"), tx("Listo para regalar", "Pronto para oferecer"), PACKAGING_PRICES.gift] ] as const).map(([value, title, body, price]) => (
                 <button key={value} type="button" onClick={() => dispatch(setPackaging(value))} className={`focus-ring rounded-2xl border p-4 text-left transition ${cart.card.packaging === value ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"}`}>
-                  <span className="flex items-start justify-between gap-3"><span><span className="block text-sm font-black">{title}</span><span className="mt-1 block text-xs text-[#737b90]">{body}</span></span><span className="text-sm font-black">{price ? <Price value={price} /> : "Gratis"}</span></span>
+                  <span className="flex items-start justify-between gap-3"><span><span className="block text-sm font-black">{title}</span><span className="mt-1 block text-xs text-[#737b90]">{body}</span></span><span className="text-sm font-black">{price ? <Price value={price} /> : tx("Gratis", "Grátis")}</span></span>
                 </button>
               ))}
             </div>
@@ -1069,9 +1091,9 @@ function ExtrasStep({
           <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
-              <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">02 · PEGATINAS PERSONALIZADAS</span>
+              <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">02 · {tx("PEGATINAS PERSONALIZADAS", "AUTOCOLANTES PERSONALIZADOS")}</span>
                 <h3 className="mt-1 text-xl font-black">{sticker.name}</h3>
-                <p className="mt-1 max-w-[440px] text-xs leading-5 text-[#737b90]">{sticker.description}</p>
+                <p className="mt-1 max-w-[440px] text-xs leading-5 text-[#737b90]">{isPortuguese ? sticker.descriptionPt : sticker.description}</p>
               </div>
               <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-[4px] border-white bg-[#fff0e8] shadow-[0_0_0_2px_#f8c75e] sm:h-24 sm:w-24">
                 {cart.stickerImage ? (
@@ -1088,11 +1110,11 @@ function ExtrasStep({
             <div className="mt-5 rounded-2xl bg-white p-4 border border-[#eadbd3]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black">Elige cuántos stickers quieres</p>
+                  <p className="text-xs font-black">{tx("Elige cuántos stickers quieres", "Escolhe quantos autocolantes queres")}</p>
                   <p className="mt-0.5 text-[11px] text-[#737b90]">1=€1.50 · 2=€2.50 · 3=€3.50</p>
                 </div>
                 <span className="text-base font-black">
-                  {cart.stickerQuantity === 0 ? "Sin sticker" : <Price value={stickerPrice} />}
+                  {cart.stickerQuantity === 0 ? tx("Sin sticker", "Sem autocolante") : <Price value={stickerPrice} />}
                 </span>
               </div>
 
@@ -1103,7 +1125,7 @@ function ExtrasStep({
                     type="button"
                     onClick={() => {
                       dispatch(setStickerQuantity(quantity));
-                      if (quantity > 0) setToast(`Sticker${quantity > 1 ? "s" : ""} añadido${quantity > 1 ? "s" : ""}`);
+                      if (quantity > 0) setToast(isPortuguese ? `Autocolante${quantity > 1 ? "s" : ""} adicionado${quantity > 1 ? "s" : ""}` : `Sticker${quantity > 1 ? "s" : ""} añadido${quantity > 1 ? "s" : ""}`);
                     }}
                     className={`focus-ring rounded-xl border py-2.5 text-xs font-black transition ${
                       cart.stickerQuantity === quantity
@@ -1136,17 +1158,17 @@ function ExtrasStep({
               </span>
               <span>
                 <span className="block text-xs font-black">
-                  {cart.stickerImage ? "Cambiar foto del sticker" : "Subir foto propia para el sticker"}
+                  {cart.stickerImage ? tx("Cambiar foto del sticker", "Alterar fotografia do autocolante") : tx("Subir foto propia para el sticker", "Carregar fotografia própria para o autocolante")}
                 </span>
                 <span className="block text-[10px] text-[#7c8191]">
-                  Tu foto se recorta automáticamente al círculo · JPG o PNG
+                  {tx("Tu foto se recorta automáticamente al círculo · JPG o PNG", "A tua fotografia será recortada automaticamente em círculo · JPG ou PNG")}
                 </span>
               </span>
             </button>
             <input ref={stickerFileRef} onChange={handleStickerPhoto} type="file" accept="image/png,image/jpeg" className="hidden" />
 
             <div className="mt-4">
-              <p className="text-[10px] font-black uppercase tracking-[.13em] text-[#9297a4]">Inspiración</p>
+              <p className="text-[10px] font-black uppercase tracking-[.13em] text-[#9297a4]">{tx("Inspiración", "Inspiração")}</p>
               <div className="mt-2 grid grid-cols-4 gap-2">
                 {stickerGallery.map((item) => (
                   <div key={item.id} className="overflow-hidden rounded-xl bg-[#f8efe8]">
@@ -1159,12 +1181,12 @@ function ExtrasStep({
 
           {/* ENVELOPE PERSONALIZED MESSAGE */}
           <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">03 · MENSAJE EN EL EXTERIOR DEL SOBRE</span>
+            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">03 · {tx("MENSAJE EN EL EXTERIOR DEL SOBRE", "MENSAGEM NO EXTERIOR DO ENVELOPE")}</span>
             <div className="mt-2 flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-black">Texto personalizado en el sobre</h3>
+                <h3 className="text-xl font-black">{tx("Texto personalizado en el sobre", "Texto personalizado no envelope")}</h3>
                 <p className="mt-0.5 text-xs text-[#737b90]">
-                  Imprime una frase especial en el exterior del sobre. Será lo primero que vean (+1,00 €).
+                  {tx("Imprime una frase especial en el exterior del sobre. Será lo primero que vean (+1,00 €).", "Imprime uma frase especial no exterior do envelope. Será a primeira coisa que verão (+1,00 €).")}
                 </p>
               </div>
               <span className="text-sm font-black text-[#ee5264]">
@@ -1174,9 +1196,9 @@ function ExtrasStep({
 
             <div className="mt-4 rounded-2xl border border-[#e5d8d0] bg-white p-4">
               <div className="border-b border-[#e5d8d0] pb-3 text-center">
-                <span className="text-[9px] font-black uppercase tracking-[.16em] text-[#9297a4]">VISTA PREVIA DEL SOBRE</span>
+                <span className="text-[9px] font-black uppercase tracking-[.16em] text-[#9297a4]">{tx("VISTA PREVIA DEL SOBRE", "PRÉ-VISUALIZAÇÃO DO ENVELOPE")}</span>
                 <p className="serif mx-auto mt-2 min-h-6 max-w-[400px] text-base font-bold italic text-[#182443]">
-                  {cart.envelopeText || "Tu dedicatoria especial aparecerá aquí…"}
+                  {cart.envelopeText || tx("Tu dedicatoria especial aparecerá aquí…", "A tua dedicatória especial aparecerá aqui…")}
                 </p>
               </div>
               <textarea
@@ -1184,7 +1206,7 @@ function ExtrasStep({
                 onChange={(e) => dispatch(setEnvelopeText(e.target.value))}
                 maxLength={80}
                 rows={2}
-                placeholder="Ej.: Para alguien que ilumina todos mis días ✨"
+                placeholder={tx("Ej.: Para alguien que ilumina todos mis días ✨", "Ex.: Para alguém que ilumina todos os meus dias ✨")}
                 className="focus-ring mt-3 w-full resize-none rounded-xl border border-[#dfd3cc] bg-white p-2.5 text-xs text-[#182443]"
               />
               <div className="mt-2 flex items-center justify-between">
@@ -1193,10 +1215,10 @@ function ExtrasStep({
                   type="button"
                   onClick={() => {
                     if (!cart.envelopeTextAdded && !cart.envelopeText.trim()) {
-                      return setToast("Escribe primero el texto del sobre");
+                      return setToast(tx("Escribe primero el texto del sobre", "Escreve primeiro o texto do envelope"));
                     }
                     dispatch(setEnvelopeTextAdded(!cart.envelopeTextAdded));
-                    setToast(cart.envelopeTextAdded ? "Texto del sobre eliminado" : "Texto del sobre añadido (+1,00 €)");
+                    setToast(cart.envelopeTextAdded ? tx("Texto del sobre eliminado", "Texto do envelope removido") : tx("Texto del sobre añadido (+1,00 €)", "Texto do envelope adicionado (+1,00 €)"));
                   }}
                   className={`focus-ring rounded-full px-4 py-2 text-xs font-black transition ${
                     cart.envelopeTextAdded
@@ -1204,7 +1226,7 @@ function ExtrasStep({
                       : "bg-[#182443] text-white hover:bg-[#ee5264]"
                   }`}
                 >
-                  {cart.envelopeTextAdded ? "Eliminar del pedido" : "Añadir por 1,00 €"}
+                  {cart.envelopeTextAdded ? tx("Eliminar del pedido", "Remover da encomenda") : tx("Añadir por 1,00 €", "Adicionar por 1,00 €")}
                 </button>
               </div>
             </div>
@@ -1213,8 +1235,8 @@ function ExtrasStep({
 
         {/* Order Summary Aside */}
         <aside className="h-fit rounded-[24px] bg-[#182443] p-6 text-white sm:p-7 lg:sticky lg:top-24">
-          <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">RESUMEN DEL PEDIDO</p>
-          <h3 className="mt-1 text-2xl font-black">Tu selección</h3>
+          <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">{tx("RESUMEN DEL PEDIDO", "RESUMO DA ENCOMENDA")}</p>
+          <h3 className="mt-1 text-2xl font-black">{tx("Tu selección", "A tua seleção")}</h3>
 
           <div className="mt-6 space-y-3.5 border-b border-white/10 pb-5 text-sm">
             <div className="flex justify-between text-white/80">
@@ -1222,37 +1244,37 @@ function ExtrasStep({
               <Price value={template.price} />
             </div>
             <div className="flex justify-between text-white/80">
-              <span>{cart.card.packaging === "gift" ? "Packaging regalo" : "Sobre estándar"}</span>
-              {packagingPrice ? <Price value={packagingPrice} /> : <span>Gratis</span>}
+              <span>{cart.card.packaging === "gift" ? tx("Packaging regalo", "Embalagem para presente") : tx("Sobre estándar", "Envelope standard")}</span>
+              {packagingPrice ? <Price value={packagingPrice} /> : <span>{tx("Gratis", "Grátis")}</span>}
             </div>
             <div className="flex justify-between text-white/80">
-              <span>Formato {cart.card.size}</span>
-              {sizePrice ? <Price value={sizePrice} /> : <span>Incluido</span>}
+              <span>{tx("Formato", "Formato")} {cart.card.size}</span>
+              {sizePrice ? <Price value={sizePrice} /> : <span>{tx("Incluido", "Incluído")}</span>}
             </div>
             {cart.stickerQuantity > 0 && (
               <div className="flex justify-between text-white/80">
-                <span>Stickers personalizados × {cart.stickerQuantity}</span>
+                <span>{tx("Stickers personalizados", "Autocolantes personalizados")} × {cart.stickerQuantity}</span>
                 <Price value={stickerPrice} />
               </div>
             )}
 
             {cart.envelopeTextAdded && (
               <div className="flex justify-between text-white/80">
-                <span>Mensaje impreso en el sobre</span>
+                <span>{tx("Mensaje impreso en el sobre", "Mensagem impressa no envelope")}</span>
                 <Price value={ENVELOPE_TEXT_PRICE} />
               </div>
             )}
           </div>
 
           <div className="mt-5 flex justify-between text-lg font-black">
-            <span>Subtotal</span>
+            <span>{tx("Subtotal", "Subtotal")}</span>
             <Price value={totalWithCard} />
           </div>
 
           <p className="mt-3 text-xs text-white/60">
             {totalWithCard >= 35
-              ? "🎉 ¡Enhorabuena! Tu pedido supera los 35 € y tiene envío gratis."
-              : `Añade ${(35 - totalWithCard).toFixed(2).replace(".", ",")} € más para conseguir envío gratis.`}
+              ? tx("🎉 ¡Enhorabuena! Tu pedido supera los 35 € y tiene envío gratis.", "🎉 Parabéns! A tua encomenda ultrapassa os 35 € e tem envio grátis.")
+              : tx(`Añade ${(35 - totalWithCard).toFixed(2).replace(".", ",")} € más para conseguir envío gratis.`, `Adiciona mais ${(35 - totalWithCard).toFixed(2).replace(".", ",")} € para obteres envio grátis.`)}
           </p>
 
           <div className="mt-6 space-y-3">
@@ -1260,14 +1282,14 @@ function ExtrasStep({
               href="/cart"
               className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]"
             >
-              Añadir a la cesta <Icon name="bag" size={17} />
+              {tx("Añadir a la cesta", "Adicionar ao carrinho")} <Icon name="bag" size={17} />
             </Link>
             <button
               type="button"
               onClick={onBack}
               className="focus-ring flex w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-xs font-black text-white transition hover:bg-white/20"
             >
-              Volver a Vista previa
+              {tx("Volver a Vista previa", "Voltar à pré-visualização")}
             </button>
           </div>
         </aside>

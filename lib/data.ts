@@ -50,7 +50,6 @@ export type AddOn = {
 export const templates: Template[] = [
   { id: "template-3", name: "Tradicional", namePt: "Tradicional", eyebrow: "CLÁSICA · 2 FOTOS", description: "Una portada atemporal, dedicatoria interior y dos fotografías colocadas exactamente donde esperas.", descriptionPt: "Uma capa intemporal, dedicatória interior e duas fotografias colocadas exatamente onde esperas.", image: "/images/short-template.png", price: 8.9, imageCount: 2, requiresFrame: true, longText: true },
   { id: "template-2", name: "Collage", namePt: "Colagem", eyebrow: "COLLAGE · 4 FOTOS", description: "Cuatro recuerdos repartidos entre portada y páginas interiores, con el marco que elijas.", descriptionPt: "Quatro memórias distribuídas pela capa e páginas interiores, com a moldura escolhida.", image: "/images/customizable-template.png", price: 8.9, imageCount: 4, requiresFrame: true },
-  { id: "template-1", name: "Magazine", namePt: "Revista", eyebrow: "REVISTA · 4 FOTOS", description: "Una portada de revista con una foto protagonista y tres fotografías en el interior. No necesita marco.", descriptionPt: "Uma capa de revista com uma fotografia principal e três fotografias no interior. Não precisa de moldura.", image: "/images/magazine-reference-preview.png", price: 8.9, imageCount: 4, requiresFrame: false, magazineStyle: true },
 ];
 
 export const designCategories: DesignCategory[] = [
@@ -67,6 +66,7 @@ export const frames: Frame[] = [
   { id: "classic", name: "Siempre contigo", namePt: "Sempre contigo", image: "/images/frame.jpg" },
   { id: "geometric-heart", name: "Corazones geométricos", namePt: "Corações geométricos", image: "/images/geometric-heart-frame.png" },
   { id: "balloon-frame", name: "Marco de globos", namePt: "Moldura de balões", image: "/images/balloon-frame.png" },
+  { id: "romantic-heart", name: "Corazón romántico", namePt: "Coração romântico", image: "/images/romantic-heart-frame.png" },
 ];
 
 export const addOns: AddOn[] = [

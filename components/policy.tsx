@@ -9,7 +9,7 @@ export function PolicyPage({ type }: { type: "privacy" | "cookies" | "terms" }) 
       sections: [
         [
           "1. Responsable del Tratamiento de Datos",
-          "El responsable del tratamiento de los datos recabados en este sitio web es Celebra Momentos S.L., con domicilio fiscal en España y dirección de correo electrónico de contacto: privacidad@celebramomentos.com. Nos comprometemos a garantizar la confidencialidad, integridad y disponibilidad de tus datos personales en todo momento.",
+          "El responsable del tratamiento de los datos recabados en este sitio web es Celebra Momentos S.L., con domicilio fiscal en España y dirección de correo electrónico de contacto: celebramomentos@outlook.com. Nos comprometemos a garantizar la confidencialidad, integridad y disponibilidad de tus datos personales en todo momento.",
         ],
         [
           "2. Datos que recopilamos y finalidad",
@@ -29,7 +29,7 @@ export function PolicyPage({ type }: { type: "privacy" | "cookies" | "terms" }) 
         ],
         [
           "6. Tus Derechos ARCO+",
-          "Puedes ejercer en cualquier momento tus derechos de acceso, rectificación, supresión (derecho al olvido), limitación del tratamiento, portabilidad y oposición enviando un correo electrónico a privacidad@celebramomentos.com acompañando copia de tu documento de identidad. Asimismo, tienes derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD) si consideras que tus derechos han sido vulnerados.",
+          "Puedes ejercer en cualquier momento tus derechos de acceso, rectificación, supresión (derecho al olvido), limitación del tratamiento, portabilidad y oposición enviando un correo electrónico a celebramomentos@outlook.com acompañando copia de tu documento de identidad. Asimismo, tienes derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD) si consideras que tus derechos han sido vulnerados.",
         ],
       ],
     },

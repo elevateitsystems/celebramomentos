@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { Icon } from "./icons";
 import { Price } from "./site";
-import { CardPreview } from "./card-preview";
+import { ShowcaseCard } from "./showcase-card";
 import type { Language, Template } from "@/lib/data";
 import { frames } from "@/lib/data";
 import { RootState, setBackText, setFrame, setFrontSubheadline, setInsideLeftText, setInsideRightText, setMessage, setPhotoSlots, setTemplate } from "@/lib/store";
@@ -18,34 +18,32 @@ export function TemplateCard({ template, language, featured = false }: { templat
   const description = language === "pt" ? template.descriptionPt || template.description : template.description;
 
   const choose = () => {
+    const portuguese = language === "pt";
     dispatch(setTemplate(template.id));
     dispatch(setFrame(template.requiresFrame ? frames[0].id : null));
     dispatch(setPhotoSlots(template.imageCount));
     if (template.magazineStyle) {
-      dispatch(setMessage(magazineHeadline));
-      dispatch(setFrontSubheadline(magazineSubheadline));
-      dispatch(setInsideLeftText(magazineInsideLeft));
-      dispatch(setInsideRightText(magazineInsideRight));
-      dispatch(setBackText("Una tarjeta creada especialmente para alguien especial."));
+      dispatch(setMessage(portuguese ? "Hoje celebra-se o 13.º aniversário do Roberto García" : magazineHeadline));
+      dispatch(setFrontSubheadline(portuguese ? "Que tenhas um dia tão incrível como tu, Roberto! 🎉 ⚽ 💙" : magazineSubheadline));
+      dispatch(setInsideLeftText(portuguese ? "Os teus avós, a tua irmã, o pai, a mãe e o Rocky gostam muito de ti." : magazineInsideLeft));
+      dispatch(setInsideRightText(portuguese ? "Continua assim, campeão!!" : magazineInsideRight));
+      dispatch(setBackText(portuguese ? "Um cartão criado especialmente para alguém especial." : "Una tarjeta creada especialmente para alguien especial."));
     } else {
-      dispatch(setMessage("Enhorabuena"));
+      dispatch(setMessage(portuguese ? "Parabéns" : "Enhorabuena"));
       dispatch(setFrontSubheadline(""));
-      dispatch(setInsideLeftText("Escribe aquí tu dedicatoria personal."));
-      dispatch(setInsideRightText("Con todo mi cariño."));
-      dispatch(setBackText("Hecha especialmente para ti."));
+      dispatch(setInsideLeftText(portuguese ? "Escreve aqui a tua dedicatória pessoal." : "Escribe aquí tu dedicatoria personal."));
+      dispatch(setInsideRightText(portuguese ? "Com todo o meu carinho." : "Con todo mi cariño."));
+      dispatch(setBackText(portuguese ? "Feito especialmente para ti." : "Hecha especialmente para ti."));
     }
     router.push("/customize");
   };
 
-  const sampleMessage = template.magazineStyle ? magazineHeadline : "Enhorabuena";
   const previewAspectClass = template.magazineStyle ? "aspect-square" : "aspect-[.82/1]";
-  const previewPhotos = ["/images/graduation-celebration.png", "/images/sticker-family.jpg", "/images/sticker-baby.jpg", "/images/sticker-lifestyle-dog.jpg"];
-  const templatePreviewPhotos = template.id === "template-3" ? ["/images/traditional-birthday-preview.png", ...previewPhotos.slice(1)] : previewPhotos;
 
   return <article className={`group overflow-hidden rounded-[24px] border bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#8a564c]/10 ${activeTemplate === template.id ? "border-[#ee5264]" : "border-[#eadbd3]"}`}>
     <div className="relative aspect-[1.12/1] overflow-hidden bg-[#fffaf5] p-3">
       <div className={`mx-auto h-full overflow-hidden rounded-lg shadow-lg transition duration-500 group-hover:scale-[1.02] ${previewAspectClass}`}>
-        {template.magazineStyle ? <img src={template.image} alt={`${name} preview`} className="h-full w-full bg-white object-contain object-center" /> : <CardPreview compact templateId={template.id} message={sampleMessage} emojiElements={[]} photoDataUrls={template.id === "template-2" ? Array(template.imageCount).fill(null) : Array.from({ length: template.imageCount }, (_, photoIndex) => templatePreviewPhotos[photoIndex % templatePreviewPhotos.length])} photoFit={template.id === "template-3" ? "fill" : undefined} />}
+        {template.magazineStyle ? <img src={template.image} alt={`${name} preview`} className="h-full w-full bg-white object-contain object-center" /> : <ShowcaseCard variant={template.id === "template-3" ? "graduation" : "romantic"} language={language} />}
       </div>
       <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
         <span className="rounded-full bg-white/95 px-3 py-1.5 text-[9px] font-black tracking-[.14em] text-[#182443]">{template.eyebrow}</span>

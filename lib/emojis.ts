@@ -38,6 +38,7 @@ export const emojiOptions: EmojiOption[] = [
   { id: "heart-ribbon", emoji: "💝", label: "Corazón con lazo" },
   { id: "paw", emoji: "🐾", label: "Huella de perro" },
   { id: "birthday-cake", emoji: "🎂", label: "Tarta de cumpleaños" },
+  { id: "graduation-cap", emoji: "🎓", label: "Birrete de graduación" },
   { id: "balloon-red", emoji: "🎈", label: "Globo rojo", tone: "natural" },
   { id: "balloon-pink", emoji: "🎈", label: "Globo rosa", tone: "pink" },
   { id: "balloon-blue", emoji: "🎈", label: "Globo azul", tone: "blue" },
@@ -53,6 +54,9 @@ export const emojiOptions: EmojiOption[] = [
   { id: "kiss", emoji: "💋", label: "Beso" },
   { id: "flower", emoji: "🌷", label: "Tulipán" },
   { id: "smile", emoji: "😊", label: "Sonrisa" },
+  { id: "hugging-face", emoji: "🤗", label: "Cara abrazando" },
+  { id: "rolling-laughing", emoji: "🤣", label: "Risa imparable" },
+  { id: "face-blowing-kiss", emoji: "😘", label: "Beso" },
 ];
 
 export const emojiToneFilters: Record<EmojiTone, string> = {
