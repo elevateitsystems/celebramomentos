@@ -51,6 +51,13 @@ export function frameOpeningStyle(frameId: string) {
   }
 }
 
+// These frame files have transparent decorative edges, so they must sit above
+// the photo to keep every part of the frame visible. Opaque frame files keep
+// their existing layer so their white inner opening is not painted over the photo.
+export function frameOverlayClass(frameId: string) {
+  return frameId === "geometric-heart" || frameId === "romantic-heart" ? "z-20" : "z-0";
+}
+
 export function CardPreview({ templateId, message, emoji = "✨", emojiTone, emojiSize, emojiPosition, emojiElements, onEmojiPositionChange, onEmojiElementPositionChange, onEmojiSelect, photoDataUrl, photoDataUrls, photoZoom = 1, photoPosition = "center", frameId, size = "A4", compact = false, className = "", photoFit = "cover" }: CardPreviewProps) {
   const savedCard = useSelector((state: RootState) => state.cart.card);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
@@ -95,17 +102,19 @@ export function CardPreview({ templateId, message, emoji = "✨", emojiTone, emo
 }
 
 function PhotoTile({ src, fallback, alt, className, photoZoom = 1, photoPosition = "center", photoFit = "cover", isPortuguese }: { src: string | null; fallback: string; alt: string; className: string; photoZoom?: number; photoPosition?: string; photoFit?: "cover" | "contain" | "fill"; isPortuguese: boolean }) {
-  const fitClass = photoFit === "contain" ? "object-contain" : photoFit === "fill" ? "object-fill" : "object-cover";
+  // A filled frame must use a proportional cover crop; object-fill distorts
+  // the uploaded photo and is never appropriate for a card preview.
+  const fitClass = photoFit === "contain" ? "object-contain" : "object-cover";
   return <div className={`relative overflow-hidden bg-[#eee5df] ${className}`}><img src={src || fallback} alt={alt} className={`h-full w-full ${fitClass} ${src ? "" : "opacity-75 saturate-[.8]"}`} style={{ objectPosition: photoPosition, transform: src && photoFit === "cover" ? `scale(${photoZoom})` : undefined }} />{!src && <span className="absolute inset-x-0 bottom-0 bg-[#182443]/70 px-2 py-1 text-center text-[clamp(5px,1vw,9px)] font-black uppercase tracking-wider text-white">{isPortuguese ? "Adiciona fotografia" : "Añade foto"}</span>}</div>;
 }
 
 function CollageFront({ compact, message, photos, frameId, frameImage, photoZoom, photoPosition, photoFit, isPortuguese }: { compact: boolean; message: string; photos: (string | null)[]; frameId: string; frameImage: string; photoZoom: number; photoPosition: string; photoFit: "cover" | "contain" | "fill"; isPortuguese: boolean }) {
-  return <div className="absolute inset-0"><img src={frameImage} alt="" className="absolute inset-0 z-0 h-full w-full object-fill" /><div style={frameOpeningStyle(frameId)} className="absolute z-10 flex flex-col p-[5%]"><div className="mb-[4%] rounded-[10px] bg-[#f8c75e] px-[4%] py-[3%] text-center shadow-sm"><p className={`line-clamp-2 font-serif font-bold leading-tight text-[#182443] ${compact ? "text-[9px]" : "text-[clamp(19px,3.2vw,32px)]"}`}>{message || (isPortuguese ? "Parabéns" : "Enhorabuena")}</p></div><PhotoTile src={photos[0]} fallback={samplePhotos[0]} alt={isPortuguese ? "Fotografia 1 · Capa" : "Foto 1 · Portada"} className="min-h-0 flex-1 rounded-md" photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} /></div></div>;
+  return <div className="absolute inset-0"><img src={frameImage} alt="" className={`absolute inset-0 ${frameOverlayClass(frameId)} h-full w-full object-fill`} /><div style={frameOpeningStyle(frameId)} className="absolute z-10 flex flex-col p-[5%]"><div className="mb-[3%] self-center rounded-[7px] bg-[#f8c75e] px-[3%] py-[2%] text-center shadow-sm"><p className={`line-clamp-2 font-serif font-bold leading-tight text-[#182443] ${compact ? "text-[8px]" : "text-[clamp(13px,2.5vw,25px)]"}`}>{message || (isPortuguese ? "Parabéns" : "Enhorabuena")}</p></div><PhotoTile src={photos[0]} fallback={samplePhotos[0]} alt={isPortuguese ? "Fotografia 1 · Capa" : "Foto 1 · Portada"} className="min-h-0 flex-1 rounded-md" photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} /></div></div>;
 }
 
 function StoryFront({ compact, message, photos, frameId, frameImage, photoZoom, photoPosition, photoFit, isPortuguese }: { compact: boolean; message: string; photos: (string | null)[]; frameId: string; frameImage: string; photoZoom: number; photoPosition: string; photoFit: "cover" | "contain" | "fill"; isPortuguese: boolean }) {
   return <div className="absolute inset-0">
-    <img src={frameImage} alt="" className="absolute inset-0 z-0 h-full w-full object-fill" />
+    <img src={frameImage} alt="" className={`absolute inset-0 ${frameOverlayClass(frameId)} h-full w-full object-fill`} />
     <div style={frameOpeningStyle(frameId)} className={`absolute z-10 flex flex-col items-center ${compact ? "p-[5%]" : "p-[5.5%]"}`}>
       <PhotoTile
         src={photos[0]}
@@ -117,8 +126,8 @@ function StoryFront({ compact, message, photos, frameId, frameImage, photoZoom, 
         photoFit={photoFit}
         isPortuguese={isPortuguese}
       />
-      <div className="mt-[6%] flex min-h-0 w-[92%] flex-1 flex-col items-center text-center">
-        <p className={`max-w-full rounded-[10px] bg-[#f8c75e] px-[5%] py-[4%] line-clamp-2 whitespace-pre-line break-words font-serif font-bold leading-[1.02] text-[#182443] shadow-sm ${compact ? "text-[10px]" : "text-[clamp(22px,4vw,40px)]"}`}>{message || (isPortuguese ? "Parabéns" : "Enhorabuena")}</p>
+      <div className="mt-[5%] flex min-h-0 w-[92%] flex-1 flex-col items-center text-center">
+        <p className={`max-w-[86%] rounded-[7px] bg-[#f8c75e] px-[4%] py-[2.5%] line-clamp-2 whitespace-pre-line break-words font-serif font-bold leading-[1.02] text-[#182443] shadow-sm ${compact ? "text-[8px]" : "text-[clamp(14px,2.8vw,28px)]"}`}>{message || (isPortuguese ? "Parabéns" : "Enhorabuena")}</p>
       </div>
     </div>
   </div>;

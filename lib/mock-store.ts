@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { templates, type Packaging } from "./data";
-import type { CartState } from "./store";
+import type { CartItem, CartState } from "./store";
 
 export const MOCK_DB_KEY = "celebra-momentos-mock-db-v1";
 export const CART_STORAGE_KEY = "celebra-momentos-cart-v1";
@@ -31,6 +31,7 @@ export type MockOrder = {
   delivery: "standard" | "express";
   packaging: Packaging;
   card: CartState["card"];
+  items: CartItem[];
   extras: { stickerQuantity: number; envelopeText: string; envelopeTextAdded: boolean };
   shipping: { name: string; phone: string; recipient: string; address: string; city: string; postalCode: string; country: "ES" | "PT"; billingAddress?: string };
 };
@@ -195,6 +196,7 @@ export function useMockDb(): MockDb {
       snapshot = null;
       setDb(getMockDb());
     };
+    refresh();
     window.addEventListener("celebra-mock-db-change", refresh);
     window.addEventListener("storage", refresh);
     return () => { window.removeEventListener("celebra-mock-db-change", refresh); window.removeEventListener("storage", refresh); };

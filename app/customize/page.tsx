@@ -1,20 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { ChangeEvent, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { CardPreview } from "@/components/card-preview";
 import { EmojiElementControls } from "@/components/emoji-element-controls";
 import { Icon } from "@/components/icons";
 import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/components/postcard-preview";
 import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
-import { PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
+import { AuthRequiredModal, PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
 import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, stickerGallery, templates } from "@/lib/data";
+import { getCurrentUser, useMockDb } from "@/lib/mock-store";
 import { type EmojiOption } from "@/lib/emojis";
 import {
   RootState,
   addEmojiElement,
   removeEmojiElement,
+  resetCurrentDraft,
+  saveCartItem,
+  loadCartItem,
   setEmoji,
   setEmojiElements,
   setEnvelopeText,
@@ -42,8 +46,11 @@ import {
 type FlowStep = "template" | "frame" | "customize" | "emojis" | "preview" | "extras";
 
 export default function CustomizePage() {
+  const router = useRouter();
   const dispatch = useDispatch();
   const cart = useSelector((state: RootState) => state.cart);
+  const db = useMockDb();
+  const user = getCurrentUser(db);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
   const cropPositions = isPortuguese
@@ -56,8 +63,18 @@ export default function CustomizePage() {
   const [uploadIndex, setUploadIndex] = useState(0);
   const [selectedEmojiId, setSelectedEmojiId] = useState<string | null>(cart.card.emojiElements[0]?.id || null);
   const [toast, setToast] = useState("");
+  const [authPrompt, setAuthPrompt] = useState(false);
+  const [autoAddHandled, setAutoAddHandled] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const stickerFileRef = useRef<HTMLInputElement>(null);
+  const [editItemId, setEditItemId] = useState<string | null>(null);
+  const [shouldAutoAdd, setShouldAutoAdd] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setEditItemId(params.get("edit"));
+    setShouldAutoAdd(params.get("autoAdd") === "1");
+  }, []);
 
   const template = templates.find((item) => item.id === (chosenTemplateId || cart.card.templateId)) || templates[0];
   const frame = frames.find((item) => item.id === (chosenFrameId || cart.card.frameId)) || frames[0];
@@ -69,10 +86,35 @@ export default function CustomizePage() {
     ? { headline: "Hoje celebra-se o 13.º aniversário do Roberto García", subheadline: "Que tenhas um dia tão incrível como tu, Roberto! 🎉 ⚽ 💙", insideLeft: "Os teus avós, a tua irmã, o pai, a mãe e o Rocky gostam muito de ti.", insideRight: "Continua assim, campeão!!" }
     : { headline: magazineHeadline, subheadline: magazineSubheadline, insideLeft: magazineInsideLeft, insideRight: magazineInsideRight };
 
+  useEffect(() => {
+    if (!editItemId) return;
+    const item = cart.items.find((current) => current.id === editItemId);
+    if (!item) return;
+    dispatch(loadCartItem(editItemId));
+    setChosenTemplateId(item.card.templateId);
+    setChosenFrameId(item.card.frameId);
+    setActiveSection("front");
+  }, [cart.items, dispatch, editItemId]);
+
+  useEffect(() => {
+    if (shouldAutoAdd && !chosenTemplateId) {
+      setChosenTemplateId(cart.card.templateId);
+      setChosenFrameId(cart.card.frameId);
+    }
+  }, [cart.card.frameId, cart.card.templateId, chosenTemplateId, shouldAutoAdd]);
+
+  useEffect(() => {
+    if (!shouldAutoAdd || !user || autoAddHandled || !chosenTemplateId) return;
+    dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
+    setAutoAddHandled(true);
+    router.replace("/cart");
+  }, [autoAddHandled, cart, chosenTemplateId, dispatch, editItemId, router, shouldAutoAdd, user]);
+
   const chooseTemplate = (templateId: string) => {
     const nextTemplate = templates.find((item) => item.id === templateId) || templates[0];
     setChosenTemplateId(nextTemplate.id);
     setChosenFrameId(null);
+    dispatch(resetCurrentDraft());
     dispatch(setTemplate(nextTemplate.id));
     dispatch(setFrame(nextTemplate.requiresFrame ? frames[0].id : null));
     dispatch(setPhotoSlots(nextTemplate.imageCount));
@@ -172,6 +214,15 @@ export default function CustomizePage() {
   const openEmojiStep = () => {
     setActiveSection("front");
     setStep("emojis");
+  };
+
+  const handleAddToCart = () => {
+    if (!user) {
+      setAuthPrompt(true);
+      return;
+    }
+    dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
+    router.push("/cart");
   };
 
   // 6-step progress steps (or 5 if frame skipped for Magazine)
@@ -350,22 +401,6 @@ export default function CustomizePage() {
                           {(cart.card.frontHeadline || cart.card.message).length}/240
                         </span>
                       </label>
-
-                      {isMagazine && (
-                        <label className="block text-sm font-black">
-                          {tx("Subtitular de Portada", "Subtítulo da capa")}
-                          <input
-                            type="text"
-                            value={cart.card.frontSubheadline}
-                            onChange={(e) => dispatch(setFrontSubheadline(e.target.value))}
-                            maxLength={160}
-                            className="focus-ring mt-2 w-full rounded-2xl border border-[#dfd3cc] bg-white p-3 text-sm text-[#182443]"
-                          />
-                          <span className="mt-1 block text-right text-[10px] text-[#9297a4]">
-                            {cart.card.frontSubheadline.length}/160
-                          </span>
-                        </label>
-                      )}
 
                       {/* Photo 1 Upload */}
                       <div>
@@ -860,6 +895,7 @@ export default function CustomizePage() {
               handleStickerPhoto={handleStickerPhoto}
               onBack={() => setStep("preview")}
               setToast={setToast}
+              onAddToCart={handleAddToCart}
               isPortuguese={isPortuguese}
             />
           )}
@@ -867,6 +903,7 @@ export default function CustomizePage() {
       </main>
       <SiteFooter />
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
+      {authPrompt && <AuthRequiredModal returnTo={editItemId ? "/customize?edit=" + editItemId + "&autoAdd=1" : "/customize?autoAdd=1"} onClose={() => setAuthPrompt(false)} isPortuguese={isPortuguese} />}
     </>
   );
 }
@@ -884,7 +921,7 @@ function TemplateStep({
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
   const previewPhotos = [
     "/images/graduation-celebration.png",
-    "/images/sticker-family.jpg",
+    "/images/vDyvv.jpg",
     "/images/sticker-baby.jpg",
     "/images/sticker-lifestyle-dog.jpg",
   ];
@@ -895,12 +932,12 @@ function TemplateStep({
       <PageIntro
         eyebrow={tx("PASO 1 · EMPIEZA AQUÍ", "PASSO 1 · COMEÇA AQUI")}
         title={tx("Elige tu Plantilla", "Escolhe o teu modelo")}
-        body={tx("Ve directamente a una de nuestras dos composiciones. Elige Tradicional o Collage y empieza a hacerla tuya.", "Escolhe diretamente uma das nossas duas composições. Escolhe Tradicional ou Colagem e começa a personalizá-la.")}
+        body={tx("Ve directamente a una de nuestras tres composiciones. Elige Tradicional, Collage o Magazine y empieza a hacerla tuya.", "Escolhe diretamente uma das nossas três composições. Escolhe Tradicional, Colagem ou Revista e começa a personalizá-la.")}
       />
       <div className="mb-5 mt-12 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[.17em] text-[#ee5264]">{tx("SELECCIONA EL DISEÑO", "SELECIONA O DESIGN")}</p>
-          <h2 className="mt-1 text-xl font-black text-[#182443]">{tx("Elige una de las 2 plantillas", "Escolhe um dos 2 modelos")}</h2>
+          <h2 className="mt-1 text-xl font-black text-[#182443]">{tx("Elige una de las 3 plantillas", "Escolhe um dos 3 modelos")}</h2>
         </div>
         <p className="max-w-[380px] text-xs leading-5 text-[#737b90]">
           {tx("Cada vista muestra el número de fotos y su posición real en la tarjeta.", "Cada vista mostra o número de fotografias e a sua posição real no cartão.")}
@@ -922,7 +959,7 @@ function TemplateStep({
             >
               <span className="relative block aspect-[1.12/1] overflow-hidden bg-[#fffaf5] p-3">
                 <span className={`mx-auto block h-full overflow-hidden rounded shadow-lg transition duration-300 group-hover:scale-[1.02] ${item.magazineStyle ? "aspect-square" : "aspect-[.82/1]"}`}>
-                  {item.magazineStyle ? <img src={item.image} alt={`${item.name} preview`} className="h-full w-full bg-white object-contain object-center" /> : <CardPreview compact templateId={item.id} message={isPortuguese ? "Parabéns" : "Enhorabuena"} emojiElements={[]} photoDataUrls={item.id === "template-2" ? Array(item.imageCount).fill(null) : Array.from({ length: item.imageCount }, (_, photoIndex) => (item.id === "template-3" ? traditionalPreviewPhotos : previewPhotos)[photoIndex % previewPhotos.length])} photoFit={item.id === "template-3" ? "fill" : undefined} />}
+                  <CardPreview compact templateId={item.id} message={item.magazineStyle ? (isPortuguese ? "Feliz aniversário" : "Feliz cumpleaños") : (isPortuguese ? "Parabéns" : "Enhorabuena")} emojiElements={[]} photoDataUrls={item.magazineStyle || item.id === "template-2" ? Array(item.imageCount).fill(null) : Array.from({ length: item.imageCount }, (_, photoIndex) => traditionalPreviewPhotos[photoIndex % traditionalPreviewPhotos.length])} photoFit={item.id === "template-3" ? "cover" : undefined} />
                 </span>
                 <span
                   className={`absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${
@@ -933,7 +970,7 @@ function TemplateStep({
                 </span>
                 {item.magazineStyle && (
                   <span className="absolute bottom-4 left-4 rounded-full bg-[#182443] px-3 py-1.5 text-[9px] font-black uppercase tracking-[.12em] text-white">
-                    {isPortuguese ? "1 + 3 fotografias · Revista" : "1 + 3 fotos · Revista"}
+                    {isPortuguese ? "1 + 3 fotografias · Magazine" : "1 + 3 fotos · Magazine"}
                   </span>
                 )}
               </span>
@@ -1044,6 +1081,7 @@ function ExtrasStep({
   handleStickerPhoto,
   onBack,
   setToast,
+  onAddToCart,
   isPortuguese,
 }: {
   cart: RootState["cart"];
@@ -1052,6 +1090,7 @@ function ExtrasStep({
   handleStickerPhoto: (e: ChangeEvent<HTMLInputElement>) => void;
   onBack: () => void;
   setToast: (msg: string) => void;
+  onAddToCart: () => void;
   isPortuguese: boolean;
 }) {
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
@@ -1278,12 +1317,13 @@ function ExtrasStep({
           </p>
 
           <div className="mt-6 space-y-3">
-            <Link
-              href="/cart"
+            <button
+              type="button"
+              onClick={onAddToCart}
               className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]"
             >
               {tx("Añadir a la cesta", "Adicionar ao carrinho")} <Icon name="bag" size={17} />
-            </Link>
+            </button>
             <button
               type="button"
               onClick={onBack}

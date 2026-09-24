@@ -50,6 +50,7 @@ export type AddOn = {
 export const templates: Template[] = [
   { id: "template-3", name: "Tradicional", namePt: "Tradicional", eyebrow: "CLÁSICA · 2 FOTOS", description: "Una portada atemporal, dedicatoria interior y dos fotografías colocadas exactamente donde esperas.", descriptionPt: "Uma capa intemporal, dedicatória interior e duas fotografias colocadas exatamente onde esperas.", image: "/images/short-template.png", price: 8.9, imageCount: 2, requiresFrame: true, longText: true },
   { id: "template-2", name: "Collage", namePt: "Colagem", eyebrow: "COLLAGE · 4 FOTOS", description: "Cuatro recuerdos repartidos entre portada y páginas interiores, con el marco que elijas.", descriptionPt: "Quatro memórias distribuídas pela capa e páginas interiores, com a moldura escolhida.", image: "/images/customizable-template.png", price: 8.9, imageCount: 4, requiresFrame: true },
+  { id: "template-magazine", name: "Magazine", namePt: "Magazine", eyebrow: "MAGAZINE · 4 FOTOS", description: "Una portada editorial con una fotografía protagonista y tres recuerdos en el interior.", descriptionPt: "Uma capa editorial com uma fotografia protagonista e três memórias no interior.", image: "/images/roberto-match-contact-sheet.png", price: 8.9, imageCount: 4, requiresFrame: false, magazineStyle: true },
 ];
 
 export const designCategories: DesignCategory[] = [

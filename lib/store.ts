@@ -4,8 +4,7 @@ import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import type { CardSize, DeliveryMethod, DesignCategoryId, Packaging, RecipientMode } from "./data";
 import { defaultEmojiPosition, type EmojiElement, type EmojiPosition, type EmojiTone } from "./emojis";
 
-export type CartState = {
-  card: {
+export type CardCustomization = {
     categoryId: DesignCategoryId;
     templateId: string;
     frameId: string | null;
@@ -28,7 +27,23 @@ export type CartState = {
     delivery: DeliveryMethod;
     packaging: Packaging;
     recipientMode: RecipientMode;
-  };
+};
+
+export type CartItem = {
+  id: string;
+  quantity: number;
+  card: CardCustomization;
+  stickerQuantity: 0 | 1 | 2 | 3;
+  stickerImage: string | null;
+  envelopeText: string;
+  envelopeTextAdded: boolean;
+};
+
+export type CartItemDraft = Omit<CartItem, "id" | "quantity"> & { id?: string; quantity?: number };
+
+export type CartState = {
+  card: CardCustomization;
+  items: CartItem[];
   stickerQuantity: 0 | 1 | 2 | 3;
   stickerImage: string | null;
   envelopeText: string;
@@ -63,12 +78,20 @@ const initialState: CartState = {
     packaging: "standard",
     recipientMode: "recipient",
   },
+  items: [],
   stickerQuantity: 0,
   stickerImage: null,
   envelopeText: "",
   envelopeTextAdded: false,
   discountCode: "",
 };
+
+const cloneCard = (card: CardCustomization): CardCustomization => ({
+  ...card,
+  emojiPosition: { ...(card.emojiPosition || defaultEmojiPosition) },
+  emojiElements: Array.isArray(card.emojiElements) ? card.emojiElements.map((item) => ({ ...item, position: { ...item.position } })) : [],
+  photoDataUrls: Array.isArray(card.photoDataUrls) ? [...card.photoDataUrls] : [],
+});
 
 const cartSlice = createSlice({
   name: "cart",
@@ -111,13 +134,61 @@ const cartSlice = createSlice({
     setEnvelopeText: (state, action: PayloadAction<string>) => { state.envelopeText = action.payload.slice(0, 80); },
     setEnvelopeTextAdded: (state, action: PayloadAction<boolean>) => { state.envelopeTextAdded = action.payload; },
     setDiscountCode: (state, action: PayloadAction<string>) => { state.discountCode = action.payload; },
+    resetCurrentDraft: (state) => {
+      state.card = cloneCard(initialState.card);
+      state.stickerQuantity = 0;
+      state.stickerImage = null;
+      state.envelopeText = "";
+      state.envelopeTextAdded = false;
+    },
+    saveCartItem: (state, action: PayloadAction<CartItemDraft>) => {
+      const id = action.payload.id || `cart-item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const item: CartItem = {
+        id,
+        quantity: Math.max(1, action.payload.quantity || 1),
+        card: cloneCard(action.payload.card),
+        stickerQuantity: action.payload.stickerQuantity,
+        stickerImage: action.payload.stickerImage,
+        envelopeText: action.payload.envelopeText,
+        envelopeTextAdded: action.payload.envelopeTextAdded,
+      };
+      const existingIndex = state.items.findIndex((current) => current.id === id);
+      if (existingIndex >= 0) state.items[existingIndex] = item;
+      else state.items.push(item);
+    },
+    loadCartItem: (state, action: PayloadAction<string>) => {
+      const item = state.items.find((current) => current.id === action.payload);
+      if (!item) return;
+      state.card = cloneCard(item.card);
+      state.stickerQuantity = item.stickerQuantity;
+      state.stickerImage = item.stickerImage;
+      state.envelopeText = item.envelopeText;
+      state.envelopeTextAdded = item.envelopeTextAdded;
+    },
+    setCartItemQuantity: (state, action: PayloadAction<{ id: string; quantity: number }>) => {
+      const item = state.items.find((current) => current.id === action.payload.id);
+      if (item) item.quantity = Math.max(1, Math.min(99, action.payload.quantity));
+    },
+    removeCartItem: (state, action: PayloadAction<string>) => {
+      state.items = state.items.filter((item) => item.id !== action.payload);
+    },
+    clearCartItems: (state) => { state.items = []; },
+    setAllItemsDelivery: (state, action: PayloadAction<DeliveryMethod>) => {
+      state.card.delivery = action.payload;
+      state.items.forEach((item) => { item.card.delivery = action.payload; });
+    },
     hydrateCart: (state, action: PayloadAction<CartState>) => {
-      const card = { ...state.card, ...action.payload.card, frameId: action.payload.card.frameId === "romantic-red" ? "geometric-heart" : action.payload.card.frameId, packaging: action.payload.card.packaging || "standard" };
+      const savedCard = action.payload?.card || state.card;
+      const card = { ...state.card, ...savedCard, frameId: savedCard.frameId === "romantic-red" ? "geometric-heart" : savedCard.frameId, packaging: savedCard.packaging || "standard" };
       // Remove the old built-in graduation-cap emoji from carts saved before
       // emojis became optional. User-added emojis remain untouched.
       if (card.emoji === "🎓") card.emoji = "";
-      card.emojiElements = card.emojiElements.filter((item) => !(item.id === "emoji-initial" && item.emoji === "🎓"));
-      return { ...state, ...action.payload, card };
+      card.emojiElements = (Array.isArray(card.emojiElements) ? card.emojiElements : []).filter((item) => !(item.id === "emoji-initial" && item.emoji === "🎓"));
+      card.photoDataUrls = Array.isArray(card.photoDataUrls) ? card.photoDataUrls : [card.photoDataUrl || null];
+      const items = Array.isArray(action.payload.items)
+        ? action.payload.items.filter((item) => item && item.card).map((item) => ({ ...item, quantity: Math.max(1, item.quantity || 1), card: cloneCard({ ...state.card, ...item.card, frameId: item.card.frameId === "romantic-red" ? "geometric-heart" : item.card.frameId, packaging: item.card.packaging || "standard" }) }))
+        : [];
+      return { ...state, ...action.payload, items, card };
     },
     resetCart: () => initialState,
   },
@@ -161,6 +232,13 @@ export const {
   setEnvelopeText,
   setEnvelopeTextAdded,
   setDiscountCode,
+  resetCurrentDraft,
+  saveCartItem,
+  loadCartItem,
+  setCartItemQuantity,
+  removeCartItem,
+  clearCartItems,
+  setAllItemsDelivery,
   hydrateCart,
   resetCart,
 } = cartSlice.actions;
