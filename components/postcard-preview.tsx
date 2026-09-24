@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSelector } from "react-redux";
-import { CardPreview, frameOpeningStyle } from "./card-preview";
+import { CardPreview, frameOpeningStyle, frameOverlayClass } from "./card-preview";
 import { Icon } from "./icons";
 import { designCategories, frames, templates } from "@/lib/data";
 import type { RootState } from "@/lib/store";
@@ -22,8 +22,8 @@ const sides = (isPortuguese: boolean): { id: PostcardSide; label: string; descri
   { id: "back", label: "Contraportada", description: "La parte posterior" },
 ];
 
-function SelectedFrameOverlay({ src }: { src: string }) {
-  return <img src={src} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 h-full w-full object-fill" />;
+function SelectedFrameOverlay({ src, frameId }: { src: string; frameId: string }) {
+  return <img src={src} alt="" aria-hidden="true" className={`pointer-events-none absolute inset-0 ${frameOverlayClass(frameId)} h-full w-full object-fill`} />;
 }
 
 export function PostcardPreviewWindow() {
@@ -81,13 +81,12 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
 
   if (side === "back") {
     return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
-      {!template.magazineStyle && <SelectedFrameOverlay src={frame.image} />}
-      {template.magazineStyle && <div className="absolute inset-x-0 top-0 h-[14%] bg-[#e51f2a]"><span className={`absolute left-[7%] top-1/2 -translate-y-1/2 font-black uppercase text-white ${compact ? "text-[6px]" : "text-sm"}`}>Últimas noticias</span></div>}
+      {!template.magazineStyle && <SelectedFrameOverlay src={frame.image} frameId={frame.id} />}
+      {template.magazineStyle && <div className="absolute inset-x-0 top-0 h-[14%] bg-[#e51f2a]" />}
       <div style={template.magazineStyle ? { top: "10%", right: "10%", bottom: "10%", left: "10%" } : frameOpeningStyle(frame.id)} className="absolute z-10 flex flex-col items-center justify-center text-center">
         <img src="/images/logo.png" alt="Celebra Momentos" className={compact ? "h-14 w-14 object-contain" : "h-32 w-32 object-contain sm:h-40 sm:w-40"} />
         <p className={`font-black text-[#182443] ${compact ? "mt-1 text-[7px]" : "mt-3 text-lg"}`}>Celebra Momentos</p>
-        <p className={`text-[#737b90] ${compact ? "mt-0.5 text-[5px]" : "mt-2 text-xs"}`}>{card.backText || (isPortuguese ? "Um cartão criado especialmente para alguém especial." : "Una tarjeta creada especialmente para alguien especial.")}</p>
-        <div className={`border-t border-[#e8ddd6] text-[#9297a4] ${compact ? "mt-2 pt-1 text-[5px]" : "mt-7 pt-4 text-[11px]"}`}>{isPortuguese ? template.namePt || template.name : template.name}{!template.magazineStyle ? ` · ${isPortuguese ? frame.namePt || frame.name : frame.name}` : isPortuguese ? " · Edição especial" : " · Edición especial"} · {card.size}</div>
+        <p className={`rounded-[7px] bg-[#f8c75e] px-[5%] py-[3%] font-serif font-bold text-[#182443] ${compact ? "mt-1 text-[7px]" : "mt-3 text-lg"}`}>{card.backText || (isPortuguese ? "Um cartão criado especialmente para alguém especial." : "Una tarjeta creada especialmente para alguien especial.")}</p>
       </div>
     </div>;
   }
@@ -104,7 +103,7 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
     const leftPhoto = card.photoDataUrls[1] || image;
     const leftText = card.insideLeftText || card.message || (isPortuguese ? "A tua mensagem aqui" : "Tu mensaje aquí");
     return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
-      <SelectedFrameOverlay src={frame.image} />
+      <SelectedFrameOverlay src={frame.image} frameId={frame.id} />
       <div style={frameOpeningStyle(frame.id)} className={`absolute z-10 flex flex-col justify-between ${compact ? "rounded-md p-[7%]" : "rounded-xl p-[8%]"}`}>
         {isTraditional ? <div><p className={`serif whitespace-pre-line break-words font-bold text-[#182443] ${messageClass}`}>{leftText}</p><div className={compact ? "mt-2 h-0.5 w-8" : "mt-5 h-1 w-16"} style={{ backgroundColor: accent }} /></div> : <>
           <div className={`grid min-h-0 gap-[3%] ${isCollage ? "grid-rows-2" : "grid-rows-1"} ${compact ? "my-1 flex-1" : "my-[6%] flex-1"}`}><div className="relative overflow-hidden rounded-lg bg-[#f4ebe5]"><img src={leftPhoto} alt={isPortuguese ? "A tua fotografia no interior esquerdo" : "Tu foto en el interior izquierdo"} className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>{isCollage && <div className="relative overflow-hidden rounded-lg bg-[#f4ebe5]"><img src={card.photoDataUrls[2] || "/images/sticker-baby.jpg"} alt={isPortuguese ? "A tua segunda fotografia no interior esquerdo" : "Tu segunda foto en el interior izquierdo"} className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>}</div>
@@ -117,7 +116,7 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
   const rightPhoto = card.photoDataUrls[isTraditional ? 1 : 3] || image;
   const rightText = card.insideRightText || card.message || (isPortuguese ? "A tua mensagem aqui" : "Tu mensaje aquí");
   return <div className={`relative overflow-hidden bg-[#fffdf9] ${surfaceClass}`}>
-    <SelectedFrameOverlay src={frame.image} />
+    <SelectedFrameOverlay src={frame.image} frameId={frame.id} />
     <div style={frameOpeningStyle(frame.id)} className={`absolute z-10 flex flex-col ${compact ? "gap-1 rounded-md p-[6%]" : "gap-[5%] rounded-xl p-[7%]"}`}>
       <div className={`relative overflow-hidden rounded-lg bg-[#f4ebe5] ${isTraditional ? "flex-[1.5]" : "flex-1"}`}><img src={rightPhoto} alt={isPortuguese ? "A tua fotografia no interior direito" : "Tu foto en el interior derecho"} className="absolute inset-0 h-full w-full object-cover" style={imageStyle} /></div>
       <div className="flex items-start gap-2"><p className={`serif flex-1 whitespace-pre-line break-words font-bold text-[#182443] ${compact ? "line-clamp-2 text-[7px] leading-tight" : "text-xl leading-tight sm:text-2xl"}`}>{rightText}</p></div>

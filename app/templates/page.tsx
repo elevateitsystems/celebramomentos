@@ -10,6 +10,33 @@ import { RootState } from "@/lib/store";
 
 export default function TemplatesPage() {
   const language = useSelector((state: RootState) => state.language.language);
-  const copy = language === "es" ? { eyebrow: "TARJETAS PERSONALIZADAS", body: "Ve directamente a nuestras dos composiciones y elige la que mejor cuenta tu historia.", note: "Dos diseños claros, pensados para hacerlos tuyos.", paper: "Papel premium", delivery: "Envío a España y Portugal", customize: "Empezar a personalizar" } : { eyebrow: "CARTÕES PERSONALIZADOS", body: "Vai diretamente aos nossos dois modelos e escolhe o que melhor conta a tua história.", note: "Dois designs claros, pensados para os tornares teus.", paper: "Papel premium", delivery: "Envio para Espanha e Portugal", customize: "Começar a personalizar" };
-  return <><SiteHeader active={language === "es" ? "Productos" : "Produtos"} /><main className="bg-[#fffaf5] py-16 md:py-24"><div className="container"><PageIntro eyebrow={copy.eyebrow} title={language === "es" ? "Elige tu plantilla" : "Escolhe o teu modelo"} body={copy.body} /><div className="mt-10 flex flex-col items-center justify-between gap-4 rounded-2xl border border-[#eadbd3] bg-white px-5 py-4 text-center sm:flex-row sm:text-left"><p className="flex items-center gap-2 text-sm font-black"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0e8] text-[#ee5264]"><Icon name="spark" size={15} /></span>{copy.note}</p><div className="flex gap-4 text-xs font-bold text-[#737b90]"><span>{copy.paper}</span><span className="text-[#dfd3cc">·</span><span>{copy.delivery}</span></div></div><section className="mx-auto mt-8 grid max-w-[860px] gap-5 md:grid-cols-2" aria-label={copy.eyebrow}>{templates.map((template, index) => <TemplateCard key={template.id} template={template} language={language} featured={index === 0} />)}</section><div className="mt-10 flex flex-col items-center justify-between gap-4 rounded-[24px] bg-[#182443] p-6 text-white sm:flex-row sm:px-8"><div><p className="text-lg font-black">{language === "es" ? "Tu foto y tus palabras, a tu manera." : "A tua fotografia e as tuas palavras, à tua maneira."}</p><p className="mt-1 text-sm text-white/60">{language === "es" ? "Elige Tradicional o Collage y revisa las cuatro caras antes de pedir." : "Escolhe Tradicional ou Colagem e revê as quatro faces antes de encomendar."}</p></div><Link href="/customize" className="focus-ring inline-flex items-center gap-2 rounded-full bg-[#ee5264] px-5 py-3 text-sm font-black hover:bg-[#d83d54]">{copy.customize}<Icon name="arrow" size={16} /></Link></div></div></main><SiteFooter /></>;
+  const copy = language === "es"
+    ? { eyebrow: "TARJETAS PERSONALIZADAS", body: "Ve directamente a nuestras tres composiciones y elige la que mejor cuenta tu historia.", note: "Tres diseños claros, pensados para hacerlos tuyos.", paper: "Papel premium", delivery: "Envío a España y Portugal", customize: "Empezar a personalizar" }
+    : { eyebrow: "CARTÕES PERSONALIZADOS", body: "Vai diretamente aos nossos três modelos e escolhe o que melhor conta a tua história.", note: "Três designs claros, pensados para os tornares teus.", paper: "Papel premium", delivery: "Envio para Espanha e Portugal", customize: "Começar a personalizar" };
+
+  return (
+    <>
+      <SiteHeader active={language === "es" ? "Productos" : "Produtos"} />
+      <main className="bg-[#fffaf5] py-16 md:py-24">
+        <div className="container">
+          <PageIntro eyebrow={copy.eyebrow} title={language === "es" ? "Elige tu plantilla" : "Escolhe o teu modelo"} body={copy.body} />
+          <div className="mt-10 flex flex-col items-center justify-between gap-4 rounded-2xl border border-[#eadbd3] bg-white px-5 py-4 text-center sm:flex-row sm:text-left">
+            <p className="flex items-center gap-2 text-sm font-black"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0e8] text-[#ee5264]"><Icon name="spark" size={15} /></span>{copy.note}</p>
+            <div className="flex gap-4 text-xs font-bold text-[#737b90]"><span>{copy.paper}</span><span className="text-[#dfd3cc]">·</span><span>{copy.delivery}</span></div>
+          </div>
+          <section className="mx-auto mt-8 grid max-w-[1180px] gap-5 md:grid-cols-2 lg:grid-cols-3" aria-label={copy.eyebrow}>
+            {templates.map((template, index) => <TemplateCard key={template.id} template={template} language={language} featured={index === 0} />)}
+          </section>
+          <div className="mt-10 flex flex-col items-center justify-between gap-4 rounded-[24px] bg-[#182443] p-6 text-white sm:flex-row sm:px-8">
+            <div>
+              <p className="text-lg font-black">{language === "es" ? "Tu foto y tus palabras, a tu manera." : "A tua fotografia e as tuas palavras, à tua maneira."}</p>
+              <p className="mt-1 text-sm text-white/60">{language === "es" ? "Elige Tradicional, Collage o Magazine y revisa las cuatro caras antes de pedir." : "Escolhe Tradicional, Colagem ou Magazine e revê as quatro faces antes de encomendar."}</p>
+            </div>
+            <Link href="/customize" className="focus-ring inline-flex items-center gap-2 rounded-full bg-[#ee5264] px-5 py-3 text-sm font-black hover:bg-[#d83d54]">{copy.customize}<Icon name="arrow" size={16} /></Link>
+          </div>
+        </div>
+      </main>
+      <SiteFooter />
+    </>
+  );
 }

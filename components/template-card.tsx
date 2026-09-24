@@ -5,9 +5,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { Icon } from "./icons";
 import { Price } from "./site";
 import { ShowcaseCard } from "./showcase-card";
+import { CardPreview } from "./card-preview";
 import type { Language, Template } from "@/lib/data";
 import { frames } from "@/lib/data";
-import { RootState, setBackText, setFrame, setFrontSubheadline, setInsideLeftText, setInsideRightText, setMessage, setPhotoSlots, setTemplate } from "@/lib/store";
+import { RootState, resetCurrentDraft, setBackText, setFrame, setFrontSubheadline, setInsideLeftText, setInsideRightText, setMessage, setPhotoSlots, setTemplate } from "@/lib/store";
 import { magazineHeadline, magazineInsideLeft, magazineInsideRight, magazineSubheadline } from "./magazine-card";
 
 export function TemplateCard({ template, language, featured = false }: { template: Template; language: Language; featured?: boolean }) {
@@ -19,6 +20,7 @@ export function TemplateCard({ template, language, featured = false }: { templat
 
   const choose = () => {
     const portuguese = language === "pt";
+    dispatch(resetCurrentDraft());
     dispatch(setTemplate(template.id));
     dispatch(setFrame(template.requiresFrame ? frames[0].id : null));
     dispatch(setPhotoSlots(template.imageCount));
@@ -43,7 +45,7 @@ export function TemplateCard({ template, language, featured = false }: { templat
   return <article className={`group overflow-hidden rounded-[24px] border bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#8a564c]/10 ${activeTemplate === template.id ? "border-[#ee5264]" : "border-[#eadbd3]"}`}>
     <div className="relative aspect-[1.12/1] overflow-hidden bg-[#fffaf5] p-3">
       <div className={`mx-auto h-full overflow-hidden rounded-lg shadow-lg transition duration-500 group-hover:scale-[1.02] ${previewAspectClass}`}>
-        {template.magazineStyle ? <img src={template.image} alt={`${name} preview`} className="h-full w-full bg-white object-contain object-center" /> : <ShowcaseCard variant={template.id === "template-3" ? "graduation" : "romantic"} language={language} />}
+        {template.magazineStyle ? <CardPreview compact templateId={template.id} message={language === "pt" ? "Feliz aniversário" : "Feliz cumpleaños"} emojiElements={[]} photoDataUrls={Array(template.imageCount).fill(null)} /> : <ShowcaseCard variant={template.id === "template-3" ? "graduation" : "romantic"} language={language} />}
       </div>
       <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
         <span className="rounded-full bg-white/95 px-3 py-1.5 text-[9px] font-black tracking-[.14em] text-[#182443]">{template.eyebrow}</span>
