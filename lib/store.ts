@@ -27,6 +27,11 @@ export type CardCustomization = {
     delivery: DeliveryMethod;
     packaging: Packaging;
     recipientMode: RecipientMode;
+    magazineDate?: string;
+    magazineCategory?: string;
+    magazineBadge?: string;
+    magazineHeadlineTag?: string;
+    magazineFooter?: string;
 };
 
 export type CartItem = {
@@ -77,6 +82,11 @@ const initialState: CartState = {
     delivery: "standard",
     packaging: "standard",
     recipientMode: "recipient",
+    magazineDate: "26 SEPTIEMBRE 2026 • Nº 01",
+    magazineCategory: "LA NOTICIA DEL DÍA",
+    magazineBadge: "¡FELIZ CUMPLEAÑOS!",
+    magazineHeadlineTag: "¡Atención!",
+    magazineFooter: "ROBERTO GARCÍA CELEBRA CON SU FAMILIA",
   },
   items: [],
   stickerQuantity: 0,
@@ -133,6 +143,11 @@ const cartSlice = createSlice({
     setStickerImage: (state, action: PayloadAction<string | null>) => { state.stickerImage = action.payload; },
     setEnvelopeText: (state, action: PayloadAction<string>) => { state.envelopeText = action.payload.slice(0, 80); },
     setEnvelopeTextAdded: (state, action: PayloadAction<boolean>) => { state.envelopeTextAdded = action.payload; },
+    setMagazineDate: (state, action: PayloadAction<string>) => { state.card.magazineDate = action.payload; },
+    setMagazineCategory: (state, action: PayloadAction<string>) => { state.card.magazineCategory = action.payload; },
+    setMagazineBadge: (state, action: PayloadAction<string>) => { state.card.magazineBadge = action.payload; },
+    setMagazineHeadlineTag: (state, action: PayloadAction<string>) => { state.card.magazineHeadlineTag = action.payload; },
+    setMagazineFooter: (state, action: PayloadAction<string>) => { state.card.magazineFooter = action.payload; },
     setDiscountCode: (state, action: PayloadAction<string>) => { state.discountCode = action.payload; },
     resetCurrentDraft: (state) => {
       state.card = cloneCard(initialState.card);
@@ -231,6 +246,11 @@ export const {
   setStickerImage,
   setEnvelopeText,
   setEnvelopeTextAdded,
+  setMagazineDate,
+  setMagazineCategory,
+  setMagazineBadge,
+  setMagazineHeadlineTag,
+  setMagazineFooter,
   setDiscountCode,
   resetCurrentDraft,
   saveCartItem,

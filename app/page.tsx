@@ -208,12 +208,54 @@ export default function Home() {
   const language = useSelector((state: RootState) => state.language.language);
   const es = language === "es";
   const categories: Category[] = [
-    { name: es ? "Tarjetas" : "Cartões", description: es ? "Añade fotos y tu propio mensaje" : "Adiciona fotografias e a tua mensagem", href: "/templates", image: "/images/ljVw4.jpg", accent: "bg-[#fbe7e1]", price: "8,90 €" },
-    { name: es ? "Arte de pared" : "Arte de parede", description: es ? "Convierte recuerdos en algo precioso" : "Transforma memórias em algo bonito", href: "/wall-art", image: "/images/1Q9OC.jpg", accent: "bg-[#e7f1eb]", price: "29,90 €" },
-    { name: es ? "Imanes" : "Ímanes", description: es ? "Pequeños recuerdos para tu nevera" : "Pequenas memórias para o frigorífico", href: "/magnets", image: "/images/magnets-product.png", accent: "bg-[#e8e7f6]", price: "9,90 €" },
-    { name: es ? "Calendarios" : "Calendários", description: es ? "Un año con tus fotos favoritas" : "Um ano com as tuas fotografias favoritas", href: "/calendars", image: "/images/calendar-product.png", accent: "bg-[#fff1c7]", price: "16,90 €" },
-    { name: es ? "Funda de móvil personalizada" : "Capa de telemóvel personalizada", description: es ? "Lleva tus mejores momentos contigo" : "Leva os teus melhores momentos contigo", href: "/phone-cases", image: "/images/personalised-phone-cases.png", accent: "bg-[#f4e8df]", price: "19,90 €" },
-    { name: es ? "Stickers" : "Autocolantes", description: es ? "Convierte tus fotos en pequeños recuerdos" : "Transforma as tuas fotografias em pequenas memórias", href: "/customize", image: "/images/sticker-cello.jpg", accent: "bg-[#eef5f6]", price: "1,50 €" },
+    {
+      name: es ? "Tarjetas" : "Cartões",
+      description: es ? "Tradicional, Collage y Magazine con tus fotos y mensaje" : "Tradicional, Colagem e Magazine com as tuas fotos e mensagem",
+      href: "/templates",
+      image: "/images/ljVw4.jpg",
+      accent: "bg-[#fbe7e1]",
+      price: "8,90 €",
+    },
+    {
+      name: es ? "Calendarios" : "Calendários",
+      description: es ? "Un año entero con tus fotos favoritas (A4 o A5)" : "Um ano inteiro com as tuas fotos favoritas (A4 ou A5)",
+      href: "/calendars",
+      image: "/images/calendar-product.png",
+      accent: "bg-[#fff1c7]",
+      price: "16,90 €",
+    },
+    {
+      name: es ? "Arte de pared" : "Arte de parede",
+      description: es ? "Pósters mate, enmarcados Fine Art y paneles de madera" : "Posters mate, emoldurados Fine Art e painéis de madeira",
+      href: "/wall-art",
+      image: "/images/1Q9OC.jpg",
+      accent: "bg-[#e7f1eb]",
+      price: "14,90 €",
+    },
+    {
+      name: es ? "Imanes" : "Ímanes",
+      description: es ? "Packs de 4 o 9 imanes cuadrados o redondos para tu nevera" : "Packs de 4 ou 9 ímanes quadrados ou redondos para o frigorífico",
+      href: "/magnets",
+      image: "/images/magnets-product.png",
+      accent: "bg-[#e8e7f6]",
+      price: "9,90 €",
+    },
+    {
+      name: es ? "Fundas Móvil" : "Capas de telemóvel",
+      description: es ? "Para Apple iPhone, Samsung Galaxy, Google Pixel y Xiaomi" : "Para Apple iPhone, Samsung Galaxy, Google Pixel e Xiaomi",
+      href: "/phone-cases",
+      image: "/images/personalised-phone-cases.png",
+      accent: "bg-[#f4e8df]",
+      price: "19,90 €",
+    },
+    {
+      name: es ? "Stickers" : "Autocolantes",
+      description: es ? "Lámina 4×3 pulgadas con diseño circular de 3\" prémium" : "Folha 4×3 polegadas com design circular de 3\" premium",
+      href: "/stickers",
+      image: "/images/sticker-lifestyle-sports.jpg",
+      accent: "bg-[#eef5f6]",
+      price: "1,50 €",
+    },
   ];
   const moments = [
     { icon: "gift", title: es ? "Cumpleaños" : "Aniversários", body: es ? "Una tarjeta o regalo que sí guardarán." : "Um cartão ou presente que vão guardar.", tile: "bg-[#fde8e4] text-[#ee5264]", glow: "bg-[#ee5264]/15", span: "lg:col-span-2" },
@@ -250,9 +292,10 @@ export default function Home() {
             <div className="relative overflow-hidden rounded-[28px] border-[10px] border-white shadow-2xl shadow-[#8a564c]/20">
               <img src="/images/home-personalised-gifts.png" alt={es ? "Tarjeta, cuadro, calendario, funda e imanes personalizados" : "Cartão, quadro, calendário, capa e ímanes personalizados"} className="aspect-[3/2] h-full w-full object-cover" />
               <div className="absolute right-4 top-4 z-10 rotate-[7deg] sm:right-6 sm:top-6">
-                <div className="relative h-[72px] w-[72px] overflow-hidden rounded-[18px] border-[4px] border-white shadow-xl shadow-black/25 ring-1 ring-black/5 sm:h-[92px] sm:w-[92px]">
-                  <img src="/images/sticker-cello.jpg" alt="" className="h-full w-full object-cover" />
+                <div className="relative h-[76px] w-[76px] overflow-hidden rounded-full border-[4px] border-white shadow-xl shadow-black/25 ring-2 ring-[#ee5264]/30 sm:h-[96px] sm:w-[96px]">
+                  <img src="/images/sticker-lifestyle-sports.jpg" alt="Sticker circular" className="h-full w-full object-cover" />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/35 via-transparent to-transparent" />
+                  <div className="absolute -right-1 -top-1 h-7 w-7 origin-top-right rotate-45 bg-gradient-to-br from-white to-[#c8c8c8] shadow-sm border-b border-l border-black/10" style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }} />
                 </div>
               </div>
             </div>
