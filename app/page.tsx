@@ -228,7 +228,7 @@ export default function Home() {
       name: es ? "Arte de pared" : "Arte de parede",
       description: es ? "Pósters mate, enmarcados Fine Art y paneles de madera" : "Posters mate, emoldurados Fine Art e painéis de madeira",
       href: "/wall-art",
-      image: "/images/1Q9OC.jpg",
+      image: "/images/client-wall-art-trio.jpg",
       accent: "bg-[#e7f1eb]",
       price: "14,90 €",
     },
@@ -290,7 +290,7 @@ export default function Home() {
           <div className="relative">
             <div className="absolute -inset-5 rotate-2 rounded-[34px] bg-[#f4d4c7]" />
             <div className="relative overflow-hidden rounded-[28px] border-[10px] border-white shadow-2xl shadow-[#8a564c]/20">
-              <img src="/images/home-personalised-gifts.png" alt={es ? "Tarjeta, cuadro, calendario, funda e imanes personalizados" : "Cartão, quadro, calendário, capa e ímanes personalizados"} className="aspect-[3/2] h-full w-full object-cover" />
+              <img src="/images/client-products-overview.jpg" alt={es ? "Tarjeta, cuadro, calendario, funda e imanes personalizados" : "Cartão, quadro, calendário, capa e ímanes personalizados"} className="aspect-[3/2] h-full w-full object-cover" />
               <div className="absolute right-4 top-4 z-10 rotate-[7deg] sm:right-6 sm:top-6">
                 <div className="relative h-[76px] w-[76px] overflow-hidden rounded-full border-[4px] border-white shadow-xl shadow-black/25 ring-2 ring-[#ee5264]/30 sm:h-[96px] sm:w-[96px]">
                   <img src="/images/sticker-lifestyle-sports.jpg" alt="Sticker circular" className="h-full w-full object-cover" />
@@ -403,6 +403,54 @@ export default function Home() {
                 <p className="relative mt-3 max-w-[380px] text-[15px] leading-6 text-[#68718a]">{moment.body}</p>
               </article>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 3 Visual Categories Section — client images */}
+      <section id="visual-categories" className="bg-[#fffaf5] py-16 md:py-24">
+        <div className="container">
+          <SectionHeading
+            eyebrow={es ? "INSPÍRATE" : "INSPIRA-TE"}
+            title={es ? "Ideas para tu próximo regalo" : "Ideias para o teu próximo presente"}
+            body={es ? "De la foto a algo que se puede tocar, colgar y recordar para siempre." : "Da fotografia a algo que se pode tocar, pendurar e recordar para sempre."}
+          />
+          <div className="mx-auto mt-14 grid max-w-[1180px] gap-6 sm:grid-cols-3 lg:gap-8">
+            <Link href="/wall-art" className="group focus-ring relative overflow-hidden rounded-[28px] shadow-sm transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-[#8a564c]/20">
+              <div className="relative aspect-[3/4] overflow-hidden">
+                <img src="/images/client-wall-art-single.jpg" alt={es ? "Arte de pared personalizada — póster enmarcado" : "Arte de parede personalizada — poster emoldurado"} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#182443]/80 via-[#182443]/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">{es ? "ARTE DE PARED" : "ARTE DE PAREDE"}</p>
+                  <h3 className="serif mt-2 text-2xl font-bold text-white">{es ? "Tus fotos, enmarcadas para siempre" : "As tuas fotos, emolduradas para sempre"}</h3>
+                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-white/80 transition group-hover:text-[#f8c75e]">{es ? "Personalizar" : "Personalizar"} <Icon name="arrow" size={13} /></span>
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/wall-art" className="group focus-ring relative overflow-hidden rounded-[28px] shadow-sm transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-[#8a564c]/20">
+              <div className="relative aspect-[3/4] overflow-hidden">
+                <img src="/images/client-wall-art-trio.jpg" alt={es ? "Galería de arte de pared con 3 pósters enmarcados" : "Galeria de arte de parede com 3 posters emoldurados"} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#182443]/80 via-[#182443]/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">{es ? "GALERÍA" : "GALERIA"}</p>
+                  <h3 className="serif mt-2 text-2xl font-bold text-white">{es ? "Una galería de recuerdos en tu pared" : "Uma galeria de memórias na tua parede"}</h3>
+                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-white/80 transition group-hover:text-[#f8c75e]">{es ? "Ver opciones" : "Ver opções"} <Icon name="arrow" size={13} /></span>
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/templates" className="group focus-ring relative overflow-hidden rounded-[28px] shadow-sm transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-[#8a564c]/20">
+              <div className="relative aspect-[3/4] overflow-hidden">
+                <img src="/images/client-products-overview.jpg" alt={es ? "Productos personalizados — tarjetas, calendarios, imanes, fundas" : "Produtos personalizados — cartões, calendários, ímanes, capas"} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#182443]/80 via-[#182443]/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">{es ? "REGALOS" : "PRESENTES"}</p>
+                  <h3 className="serif mt-2 text-2xl font-bold text-white">{es ? "Mucho más que una foto" : "Muito mais do que uma fotografia"}</h3>
+                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-white/80 transition group-hover:text-[#f8c75e]">{es ? "Explorar todo" : "Explorar tudo"} <Icon name="arrow" size={13} /></span>
+                </div>
+              </div>
+            </Link>
           </div>
         </div>
       </section>

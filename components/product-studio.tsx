@@ -74,7 +74,7 @@ export function WallArtStudio() {
 
   const product = products.find((item) => item.id === selectedProduct)!;
 
-  // Frame colors as requested by client: White, Wood, Dark Wood, Black
+  // Frame colors: White, Wood, Dark Wood, Black
   const frameStyles: Record<"white" | "wood" | "dark-wood" | "black", { nameEs: string; namePt: string; border: string; bg: string }> = {
     white: { nameEs: "Blanco", namePt: "Branco", border: "#f3f3f3", bg: "#ffffff" },
     wood: { nameEs: "Madera natural", namePt: "Madeira natural", border: "#caa57b", bg: "#caa57b" },
@@ -88,7 +88,7 @@ export function WallArtStudio() {
   const controls = (
     <div className="mt-6 space-y-6">
       <div>
-        <p className="text-sm font-black">{es ? "Tipo de producto Gelato" : "Tipo de produto Gelato"}</p>
+        <p className="text-sm font-black">{es ? "Tipo de producto" : "Tipo de produto"}</p>
         <div className="mt-3 grid gap-2.5">
           {products.map((item) => (
             <button
@@ -113,7 +113,7 @@ export function WallArtStudio() {
 
       {product.type === "framed" && (
         <div>
-          <p className="text-sm font-black">{es ? "Color del marco (4 opciones Gelato)" : "Cor da moldura (4 opções Gelato)"}</p>
+          <p className="text-sm font-black">{es ? "Color del marco" : "Cor da moldura"}</p>
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
             {(["white", "wood", "dark-wood", "black"] as const).map((colorKey) => (
               <button
@@ -151,7 +151,7 @@ export function WallArtStudio() {
             >
               <span className="block text-xs font-black">{opt.replace("x", " × ")} cm</span>
               <span className="block text-[10px] text-[#737b90] mt-0.5">
-                {opt === "21x30" ? "A4" : opt === "30x40" ? "Mediano" : "Grande"}
+                {opt === "21x30" ? "A4" : opt === "30x40" ? (es ? "Mediano" : "Médio") : (es ? "Grande" : "Grande")}
               </span>
             </button>
           ))}
@@ -183,7 +183,7 @@ export function WallArtStudio() {
     </div>
   );
 
-  const picture = <img src={photo || "/images/wall-art-product.png"} alt="Arte de pared" className="h-full w-full object-cover" />;
+  const picture = <img src={photo || "/images/client-wall-art-single.jpg"} alt="Arte de pared" className="h-full w-full object-cover" />;
 
   const preview = (
     <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] bg-[#ece2d6] p-6 sm:p-10 flex items-center justify-center">
@@ -231,7 +231,7 @@ export function WallArtStudio() {
 
   return (
     <StudioShell
-      eyebrow={es ? "ARTE DE PARED · CATÁLOGO GELATO" : "ARTE DE PAREDE · CATÁLOGO GELATO"}
+      eyebrow={es ? "ARTE DE PARED PERSONALIZADA" : "ARTE DE PAREDE PERSONALIZADA"}
       title={es ? "Tus recuerdos convertidos en arte" : "As tuas memórias transformadas em arte"}
       body={es ? "Elige póster enmarcado Fine Art (blanco, madera natural, madera oscura o negro), póster mate clásico o impresión sobre madera natural." : "Escolhe poster emoldurado Fine Art (branco, madeira natural, madeira escura ou preto), poster mate clássico ou impressão em madeira natural."}
       controls={controls}
