@@ -92,7 +92,7 @@ function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
     [es ? "Imanes" : "Ímanes", "/magnets"],
     [es ? "Calendarios" : "Calendários", "/calendars"],
     [es ? "Fundas de móvil" : "Capas de telemóvel", "/phone-cases"],
-    [es ? "Stickers" : "Autocolantes", "/customize"],
+    [es ? "Stickers" : "Autocolantes", "/stickers"],
   ];
   const norm = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const results = items.filter(([label]) => norm(label).includes(norm(query.trim())));
@@ -164,69 +164,324 @@ function LangSwitcher() {
   );
 }
 
+function ProductsMegaMenu({ active = false }: { active?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
+  const tx = (es: string, pt: string) => (isPortuguese ? pt : es);
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="relative flex h-12 items-center"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className={`group flex items-center gap-1.5 transition-colors hover:text-[#ee5264] ${
+          active || open ? "text-[#ee5264]" : "text-[#59627b]"
+        }`}
+      >
+        <span>{tx("Productos", "Produtos")}</span>
+        <Glyph name="chevron" size={13} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        <span
+          className={`absolute inset-x-0 bottom-0 h-[2px] origin-left rounded-full bg-[#ee5264] transition-transform duration-300 ${
+            active || open ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 w-[490px] -translate-x-10 pt-2 animate-in fade-in duration-150">
+          <div className="rounded-2xl border border-[#eadbd3] bg-white p-5 shadow-2xl shadow-[#8a564c]/20">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Tarjetas Section */}
+              <div className="rounded-2xl bg-[#fff7f3] p-4 border border-[#f5ded5]">
+                <div className="flex items-center justify-between">
+                  <Link
+                    href="/templates"
+                    onClick={() => setOpen(false)}
+                    className="text-xs font-black uppercase tracking-wider text-[#ee5264] hover:underline"
+                  >
+                    {tx("Tarjetas", "Cartões")} →
+                  </Link>
+                  <span className="rounded-full bg-[#ee5264]/10 px-2 py-0.5 text-[9px] font-black text-[#ee5264]">
+                    3 plantillas
+                  </span>
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  <Link
+                    href="/customize?template=template-3"
+                    onClick={() => setOpen(false)}
+                    className="flex flex-col rounded-xl p-2 transition hover:bg-white hover:shadow-xs group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-[#182443] group-hover:text-[#ee5264]">Tradicional</span>
+                      <span className="text-[10px] text-[#9297a4]">2 fotos</span>
+                    </div>
+                    <span className="text-[10px] text-[#737b90] leading-tight">Clásica con dedicatoria</span>
+                  </Link>
+
+                  <Link
+                    href="/customize?template=template-2"
+                    onClick={() => setOpen(false)}
+                    className="flex flex-col rounded-xl p-2 transition hover:bg-white hover:shadow-xs group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-[#182443] group-hover:text-[#ee5264]">Collage</span>
+                      <span className="text-[10px] text-[#9297a4]">4 fotos</span>
+                    </div>
+                    <span className="text-[10px] text-[#737b90] leading-tight">Múltiples recuerdos y marco</span>
+                  </Link>
+
+                  <Link
+                    href="/customize?template=template-magazine"
+                    onClick={() => setOpen(false)}
+                    className="flex flex-col rounded-xl p-2 transition hover:bg-white hover:shadow-xs group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-[#182443] group-hover:text-[#ee5264]">Magazine</span>
+                      <span className="rounded bg-[#ee5264] px-1.5 py-0.5 text-[8px] font-black text-white">Edición</span>
+                    </div>
+                    <span className="text-[10px] text-[#737b90] leading-tight">Estilo portada de revista</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Other Products Section */}
+              <div className="space-y-1">
+                {[
+                  { name: tx("Calendarios", "Calendários"), href: "/calendars", desc: tx("A4 y A5 con tus fotos", "A4 e A5 com as tuas fotos") },
+                  { name: tx("Arte de pared", "Arte de parede"), href: "/wall-art", desc: tx("Pósters, madera y marcos", "Posters, madeira e molduras") },
+                  { name: tx("Imanes", "Ímanes"), href: "/magnets", desc: tx("Packs de 4 y 9 para nevera", "Packs de 4 e 9 para frigorífico") },
+                  { name: tx("Fundas Móvil", "Capas de telemóvel"), href: "/phone-cases", desc: tx("iPhone, Galaxy, Pixel y más", "iPhone, Galaxy, Pixel e mais") },
+                  { name: tx("Stickers", "Autocolantes"), href: "/stickers", desc: tx("Lámina 4×3\" con diseño circular", "Folha 4×3\" com design circular") },
+                ].map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className="flex flex-col rounded-xl px-3 py-2 transition hover:bg-[#fff0e8] group"
+                  >
+                    <span className="text-xs font-black text-[#182443] group-hover:text-[#ee5264]">{item.name}</span>
+                    <span className="text-[10px] text-[#9297a4]">{item.desc}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3.5 border-t border-[#f0e4dc] pt-3 text-center">
+              <Link
+                href="/#categories"
+                onClick={() => setOpen(false)}
+                className="text-xs font-black text-[#ee5264] hover:underline"
+              >
+                {tx("Explorar toda la tienda →", "Explorar toda a loja →")}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SiteHeader({ active = "" }: { active?: string }) {
   const dispatch = useDispatch();
   const language = useSelector((state: RootState) => state.language.language);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [mobileSearch, setMobileSearch] = useState(false);
+  const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
   const t = translations[language];
   const es = language === "es";
   const links = es
-    ? [["Tienda", "/#categories"], ["Productos", "/templates"], ["Cómo funciona", "/#how"], ["Nosotros", "/#story"], ["Ayuda", "/contact"]]
-    : [["Loja", "/#categories"], ["Produtos", "/templates"], ["Como funciona", "/#how"], ["Sobre nós", "/#story"], ["Ajuda", "/contact"]];
-  const mobileLinks = links;
+    ? [["Tienda", "/#categories"], ["Cómo funciona", "/#how"], ["Nosotros", "/#story"], ["Ayuda", "/contact"]]
+    : [["Loja", "/#categories"], ["Como funciona", "/#how"], ["Sobre nós", "/#story"], ["Ajuda", "/contact"]];
   const db = useMockDb();
   const user = getCurrentUser(db);
   const cartCount = useSelector((state: RootState) => state.cart.items.reduce((total, item) => total + item.quantity, 0));
-  return <>
-    <div className="bg-[#182443] px-4 py-2 text-center text-[11px] font-bold tracking-[.08em] text-white/90">{es ? "Envío gratis en pedidos de 35€ o más · Entregamos en España y Portugal" : "Envio grátis em pedidos de 35€ ou mais · Entregamos em Espanha e Portugal"}</div>
-    <header className="sticky top-0 z-30 border-b border-[#ebdfd6]/80 bg-[#fffaf5]/95 backdrop-blur-md">
-      {/* Row 1: menu · logo · search · language · cart · account · CTA */}
-      <div className="container flex h-[80px] items-center gap-3 lg:gap-5">
-        <button onClick={() => setMobileMenu(!mobileMenu)} className="focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#182443] transition hover:bg-[#f3e6de] lg:hidden" aria-label={es ? "Abrir menú" : "Abrir menu"} aria-expanded={mobileMenu}><Icon name={mobileMenu ? "close" : "menu"} size={20} /></button>
 
-        <Link href="/" className="flex shrink-0 items-center gap-3 focus-ring rounded-xl py-1" aria-label="Celebra Momentos, inicio">
-          <img src="/images/logo.png" alt="Celebra Momentos" className="h-14 w-14 sm:h-16 sm:w-16 object-contain shrink-0 transition-transform hover:scale-105" />
-          <span className="text-[16px] font-black leading-tight tracking-[-.03em]">
-            Celebra<br />
-            <span className="text-[#ee5264]">Momentos</span>
-          </span>
-        </Link>
-
-        <div className="hidden min-w-0 flex-1 md:block lg:ml-4 lg:max-w-[460px]"><SearchBox /></div>
-
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <button onClick={() => setMobileSearch(!mobileSearch)} className="focus-ring flex h-10 w-10 items-center justify-center rounded-full text-[#182443] transition hover:bg-[#f3e6de] md:hidden" aria-label={es ? "Buscar" : "Pesquisar"}><Glyph name="search" size={20} /></button>
-          <LangSwitcher />
-          <Link href="/cart" className="focus-ring relative flex h-10 w-10 items-center justify-center rounded-full text-[#182443] transition hover:bg-[#f3e6de]" aria-label={t.selection + (cartCount ? " · " + cartCount : "")}><Icon name="bag" size={21} />{cartCount > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ee5264] px-1 text-[10px] font-black text-white shadow-sm">{cartCount > 99 ? "99+" : cartCount}</span>}</Link>
-          <Link href="/account" className="focus-ring hidden h-10 items-center gap-2 rounded-full border border-[#d9cbc4] bg-white px-4 text-[12px] font-black text-[#182443] transition hover:border-[#ee5264] hover:text-[#ee5264] lg:inline-flex"><Icon name="user" size={16} />{user ? user.name.split(" ")[0] : t.account}</Link>
-          <Link href="/templates" className="focus-ring hidden h-10 items-center rounded-full bg-[#ee5264] px-5 text-[12px] font-black text-white shadow-md shadow-[#ee5264]/20 transition hover:-translate-y-0.5 hover:bg-[#d83d54] md:inline-flex">{es ? "Crea el tuyo" : "Cria o teu"}</Link>
-        </div>
+  return (
+    <>
+      <div className="bg-[#182443] px-4 py-2 text-center text-[11px] font-bold tracking-[.08em] text-white/90">
+        {es ? "Envío gratis en pedidos de 35€ o más · Entregamos en España y Portugal" : "Envio grátis em pedidos de 35€ ou mais · Entregamos em Espanha e Portugal"}
       </div>
+      <header className="sticky top-0 z-30 border-b border-[#ebdfd6]/80 bg-[#fffaf5]/95 backdrop-blur-md">
+        {/* Row 1: menu · logo · search · language · cart · account · CTA */}
+        <div className="container flex h-[80px] items-center gap-3 lg:gap-5">
+          <button
+            onClick={() => setMobileMenu(!mobileMenu)}
+            className="focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#182443] transition hover:bg-[#f3e6de] lg:hidden"
+            aria-label={es ? "Abrir menú" : "Abrir menu"}
+            aria-expanded={mobileMenu}
+          >
+            <Icon name={mobileMenu ? "close" : "menu"} size={20} />
+          </button>
 
-      {mobileSearch && <div className="border-t border-[#ebdfd6] px-4 py-3 md:hidden"><SearchBox autoFocus /></div>}
+          <Link href="/" className="flex shrink-0 items-center gap-3 focus-ring rounded-xl py-1" aria-label="Celebra Momentos, inicio">
+            <img src="/images/logo.png" alt="Celebra Momentos" className="h-14 w-14 sm:h-16 sm:w-16 object-contain shrink-0 transition-transform hover:scale-105" />
+            <span className="text-[16px] font-black leading-tight tracking-[-.03em]">
+              Celebra<br />
+              <span className="text-[#ee5264]">Momentos</span>
+            </span>
+          </Link>
 
-      {/* Row 2: main navigation */}
-      <div className="hidden border-t border-[#ebdfd6]/80 lg:block">
-        <nav className="container flex h-12 items-center gap-9 text-[13px] font-bold text-[#59627b]">
-          {links.map(([label, href]) => (
-            <Link key={label} href={href} className={`group relative flex h-12 items-center transition-colors hover:text-[#ee5264] ${active === label ? "text-[#ee5264]" : ""}`}>
-              {label}
-              <span className={`absolute inset-x-0 bottom-0 h-[2px] origin-left rounded-full bg-[#ee5264] transition-transform duration-300 ${active === label ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
+          <div className="hidden min-w-0 flex-1 md:block lg:ml-4 lg:max-w-[460px]"><SearchBox /></div>
+
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+            <button onClick={() => setMobileSearch(!mobileSearch)} className="focus-ring flex h-10 w-10 items-center justify-center rounded-full text-[#182443] transition hover:bg-[#f3e6de] md:hidden" aria-label={es ? "Buscar" : "Pesquisar"}><Glyph name="search" size={20} /></button>
+            <LangSwitcher />
+            <Link href="/cart" className="focus-ring relative flex h-10 w-10 items-center justify-center rounded-full text-[#182443] transition hover:bg-[#f3e6de]" aria-label={t.selection + (cartCount ? " · " + cartCount : "")}>
+              <Icon name="bag" size={21} />
+              {cartCount > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ee5264] px-1 text-[10px] font-black text-white shadow-sm">{cartCount > 99 ? "99+" : cartCount}</span>}
             </Link>
-          ))}
-        </nav>
-      </div>
+            <Link href="/account" className="focus-ring hidden h-10 items-center gap-2 rounded-full border border-[#d9cbc4] bg-white px-4 text-[12px] font-black text-[#182443] transition hover:border-[#ee5264] hover:text-[#ee5264] lg:inline-flex">
+              <Icon name="user" size={16} />{user ? user.name.split(" ")[0] : t.account}
+            </Link>
+            <Link href="/templates" className="focus-ring hidden h-10 items-center rounded-full bg-[#ee5264] px-5 text-[12px] font-black text-white shadow-md shadow-[#ee5264]/20 transition hover:-translate-y-0.5 hover:bg-[#d83d54] md:inline-flex">
+              {es ? "Crea el tuyo" : "Cria o teu"}
+            </Link>
+          </div>
+        </div>
 
-      {mobileMenu && <div className="border-t border-[#ebdfd6] bg-white px-5 py-4 lg:hidden"><nav className="container flex flex-col gap-4 text-sm font-bold text-[#59627b]">{mobileLinks.map(([label, href]) => <Link key={label} href={href} onClick={() => setMobileMenu(false)}>{label}</Link>)}<Link href="/account" onClick={() => setMobileMenu(false)} className="flex items-center gap-2 text-[#182443]"><Icon name="user" size={16} />{user ? user.name : t.account}</Link><div className="flex gap-2 pt-1"><button onClick={() => dispatch(setLanguage("es"))} className={`rounded-full border px-3 py-1 text-xs ${language === "es" ? "border-[#182443] bg-[#182443] text-white" : "border-[#dfd3cc]"}`}>Español</button><button onClick={() => dispatch(setLanguage("pt"))} className={`rounded-full border px-3 py-1 text-xs ${language === "pt" ? "border-[#182443] bg-[#182443] text-white" : "border-[#dfd3cc]"}`}>Português</button></div></nav></div>}
-    </header>
-  </>;
+        {mobileSearch && <div className="border-t border-[#ebdfd6] px-4 py-3 md:hidden"><SearchBox autoFocus /></div>}
+
+        {/* Row 2: main navigation with Products dropdown */}
+        <div className="hidden border-t border-[#ebdfd6]/80 lg:block">
+          <nav className="container flex h-12 items-center gap-9 text-[13px] font-bold text-[#59627b]">
+            <Link href={links[0][1]} className={`group relative flex h-12 items-center transition-colors hover:text-[#ee5264] ${active === links[0][0] ? "text-[#ee5264]" : ""}`}>
+              {links[0][0]}
+              <span className={`absolute inset-x-0 bottom-0 h-[2px] origin-left rounded-full bg-[#ee5264] transition-transform duration-300 ${active === links[0][0] ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
+            </Link>
+
+            {/* Interactive Products Dropdown */}
+            <ProductsMegaMenu active={active === "Productos" || active === "Produtos"} />
+
+            {links.slice(1).map(([label, href]) => (
+              <Link key={label} href={href} className={`group relative flex h-12 items-center transition-colors hover:text-[#ee5264] ${active === label ? "text-[#ee5264]" : ""}`}>
+                {label}
+                <span className={`absolute inset-x-0 bottom-0 h-[2px] origin-left rounded-full bg-[#ee5264] transition-transform duration-300 ${active === label ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        {/* Mobile menu with expandable Products */}
+        {mobileMenu && (
+          <div className="border-t border-[#ebdfd6] bg-white px-5 py-4 lg:hidden">
+            <nav className="container flex flex-col gap-3 text-sm font-bold text-[#59627b]">
+              <Link href="/#categories" onClick={() => setMobileMenu(false)} className="py-1">
+                {es ? "Tienda" : "Loja"}
+              </Link>
+
+              {/* Mobile Products Accordion */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setMobileProductsOpen(!mobileProductsOpen)}
+                  className="flex w-full items-center justify-between py-1 text-left text-sm font-bold text-[#182443]"
+                >
+                  <span>{es ? "Productos" : "Produtos"}</span>
+                  <Glyph name="chevron" size={14} className={`transition-transform ${mobileProductsOpen ? "rotate-180" : ""}`} />
+                </button>
+                {mobileProductsOpen && (
+                  <div className="ml-3 mt-2 space-y-2 border-l-2 border-[#ee5264]/30 pl-3 text-xs">
+                    <p className="font-black text-[#ee5264]">{es ? "Tarjetas:" : "Cartões:"}</p>
+                    <div className="ml-2 space-y-1">
+                      <Link href="/customize?template=template-3" onClick={() => setMobileMenu(false)} className="block py-0.5 text-[#59627b]">· Tradicional (2 fotos)</Link>
+                      <Link href="/customize?template=template-2" onClick={() => setMobileMenu(false)} className="block py-0.5 text-[#59627b]">· Collage (4 fotos)</Link>
+                      <Link href="/customize?template=template-magazine" onClick={() => setMobileMenu(false)} className="block py-0.5 text-[#59627b]">· Magazine</Link>
+                    </div>
+                    <Link href="/calendars" onClick={() => setMobileMenu(false)} className="block pt-1 font-bold text-[#182443]">{es ? "Calendarios" : "Calendários"}</Link>
+                    <Link href="/wall-art" onClick={() => setMobileMenu(false)} className="block font-bold text-[#182443]">{es ? "Arte de pared" : "Arte de parede"}</Link>
+                    <Link href="/magnets" onClick={() => setMobileMenu(false)} className="block font-bold text-[#182443]">{es ? "Imanes" : "Ímanes"}</Link>
+                    <Link href="/phone-cases" onClick={() => setMobileMenu(false)} className="block font-bold text-[#182443]">{es ? "Fundas Móvil" : "Capas de telemóvel"}</Link>
+                    <Link href="/stickers" onClick={() => setMobileMenu(false)} className="block font-bold text-[#182443]">{es ? "Stickers" : "Autocolantes"}</Link>
+                  </div>
+                )}
+              </div>
+
+              <Link href="/#how" onClick={() => setMobileMenu(false)} className="py-1">
+                {es ? "Cómo funciona" : "Como funciona"}
+              </Link>
+              <Link href="/#story" onClick={() => setMobileMenu(false)} className="py-1">
+                {es ? "Nosotros" : "Sobre nós"}
+              </Link>
+              <Link href="/contact" onClick={() => setMobileMenu(false)} className="py-1">
+                {es ? "Ayuda" : "Ajuda"}
+              </Link>
+
+              <div className="border-t border-[#ebdfd6] pt-3">
+                <Link href="/account" onClick={() => setMobileMenu(false)} className="flex items-center gap-2 text-[#182443]">
+                  <Icon name="user" size={16} />{user ? user.name : t.account}
+                </Link>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => dispatch(setLanguage("es"))} className={`rounded-full border px-3 py-1 text-xs ${language === "es" ? "border-[#182443] bg-[#182443] text-white" : "border-[#dfd3cc]"}`}>Español</button>
+                <button onClick={() => dispatch(setLanguage("pt"))} className={`rounded-full border px-3 py-1 text-xs ${language === "pt" ? "border-[#182443] bg-[#182443] text-white" : "border-[#dfd3cc]"}`}>Português</button>
+              </div>
+            </nav>
+          </div>
+        )}
+      </header>
+    </>
+  );
 }
 
 export function SiteFooter() {
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
-  return <footer id="footer" className="border-t border-[#ebdfd6] bg-white py-12"><div className="container grid gap-10 md:grid-cols-[1.45fr_1fr_1fr] md:gap-16"><div><div className="flex items-center gap-3"><img src="/images/logo.png" alt="Celebra Momentos" className="h-14 w-14 object-contain" /><span className="text-[16px] font-black tracking-[-.03em]">Celebra<br /><span className="text-[#ee5264]">Momentos</span></span></div><p className="mt-5 max-w-[320px] text-sm leading-6 text-[#737b90]">{tx("Fotos que se convierten en detalles para regalar, compartir y recordar.", "Fotografias que se transformam em presentes para oferecer, partilhar e recordar.")}</p></div><div><p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{tx("Productos", "Produtos")}</p><div className="mt-5 grid grid-cols-2 gap-3 text-sm text-[#737b90] md:grid-cols-1"><Link href="/templates" className="hover:text-[#ee5264]">{tx("Tarjetas", "Cartões")}</Link><Link href="/calendars" className="hover:text-[#ee5264]">{tx("Calendarios", "Calendários")}</Link><Link href="/wall-art" className="hover:text-[#ee5264]">{tx("Arte de pared", "Arte de parede")}</Link><Link href="/magnets" className="hover:text-[#ee5264]">{tx("Imanes", "Ímanes")}</Link><Link href="/phone-cases" className="hover:text-[#ee5264]">{tx("Fundas de móvil", "Capas de telemóvel")}</Link></div></div><div><p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{tx("Información", "Informação")}</p><div className="mt-5 flex flex-col gap-3 text-sm text-[#737b90]"><Link href="/#story" className="hover:text-[#ee5264]">{tx("Nosotros", "Sobre nós")}</Link><Link href="/privacy" className="hover:text-[#ee5264]">{tx("Privacidad", "Privacidade")}</Link><Link href="/cookies" className="hover:text-[#ee5264]">Cookies</Link><Link href="/terms" className="hover:text-[#ee5264]">{tx("Términos", "Termos")}</Link><Link href="/contact" className="hover:text-[#ee5264]">{tx("Contacto", "Contacto")}</Link></div></div></div><div className="container mt-10 flex flex-col gap-3 border-t border-[#ebdfd6] pt-5 text-xs text-[#9297a4] sm:flex-row sm:items-center sm:justify-between"><span>© 2026 Celebra Momentos</span><span className="flex items-center gap-2"><Icon name="lock" size={13} /> {tx("Compra sencilla · Atención humana", "Compra simples · Atendimento humano")}</span></div></footer>;
+  return (
+    <footer id="footer" className="border-t border-[#ebdfd6] bg-white py-12">
+      <div className="container grid gap-10 md:grid-cols-[1.45fr_1fr_1fr] md:gap-16">
+        <div>
+          <div className="flex items-center gap-3">
+            <img src="/images/logo.png" alt="Celebra Momentos" className="h-14 w-14 object-contain" />
+            <span className="text-[16px] font-black tracking-[-.03em]">Celebra<br /><span className="text-[#ee5264]">Momentos</span></span>
+          </div>
+          <p className="mt-5 max-w-[320px] text-sm leading-6 text-[#737b90]">
+            {tx("Fotos que se convierten en detalles para regalar, compartir y recordar.", "Fotografias que se transformam em presentes para oferecer, partilhar e recordar.")}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{tx("Productos", "Produtos")}</p>
+          <div className="mt-5 grid grid-cols-2 gap-3 text-sm text-[#737b90] md:grid-cols-1">
+            <Link href="/templates" className="hover:text-[#ee5264]">{tx("Tarjetas", "Cartões")}</Link>
+            <Link href="/calendars" className="hover:text-[#ee5264]">{tx("Calendarios", "Calendários")}</Link>
+            <Link href="/wall-art" className="hover:text-[#ee5264]">{tx("Arte de pared", "Arte de parede")}</Link>
+            <Link href="/magnets" className="hover:text-[#ee5264]">{tx("Imanes", "Ímanes")}</Link>
+            <Link href="/phone-cases" className="hover:text-[#ee5264]">{tx("Fundas de móvil", "Capas de telemóvel")}</Link>
+            <Link href="/stickers" className="hover:text-[#ee5264]">{tx("Stickers", "Autocolantes")}</Link>
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{tx("Información", "Informação")}</p>
+          <div className="mt-5 flex flex-col gap-3 text-sm text-[#737b90]">
+            <Link href="/#story" className="hover:text-[#ee5264]">{tx("Nosotros", "Sobre nós")}</Link>
+            <Link href="/privacy" className="hover:text-[#ee5264]">{tx("Privacidad", "Privacidade")}</Link>
+            <Link href="/cookies" className="hover:text-[#ee5264]">Cookies</Link>
+            <Link href="/terms" className="hover:text-[#ee5264]">{tx("Términos", "Termos")}</Link>
+            <Link href="/contact" className="hover:text-[#ee5264]">{tx("Contacto", "Contacto")}</Link>
+          </div>
+        </div>
+      </div>
+      <div className="container mt-10 flex flex-col gap-3 border-t border-[#ebdfd6] pt-5 text-xs text-[#9297a4] sm:flex-row sm:items-center sm:justify-between">
+        <span>© 2026 Celebra Momentos</span>
+        <span className="flex items-center gap-2"><Icon name="lock" size={13} /> {tx("Compra sencilla · Atención humana", "Compra simples · Atendimento humano")}</span>
+      </div>
+    </footer>
+  );
 }
 
 export function PageIntro({ eyebrow, title, body }: { eyebrow: string; title: string; body?: string }) {

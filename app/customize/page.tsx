@@ -23,6 +23,11 @@ import {
   setEmojiElements,
   setEnvelopeText,
   setEnvelopeTextAdded,
+  setMagazineDate,
+  setMagazineCategory,
+  setMagazineBadge,
+  setMagazineHeadlineTag,
+  setMagazineFooter,
   setFrame,
   setFrontHeadline,
   setFrontSubheadline,
@@ -388,19 +393,109 @@ export default function CustomizePage() {
                   {/* Section 1: FRONT */}
                   {activeSection === "front" && (
                     <div className="space-y-6 pt-5">
-                      <label className="block text-sm font-black">
-                        {isMagazine ? tx("Titular de Portada (Noticia principal)", "Título da capa (Notícia principal)") : tx("Titular / Mensaje de Portada", "Título / Mensagem da capa")}
-                        <textarea
-                          value={cart.card.frontHeadline || cart.card.message}
-                          onChange={(e) => dispatch(setFrontHeadline(e.target.value))}
-                          rows={3}
-                          maxLength={240}
-                          className="focus-ring mt-2 w-full resize-none rounded-2xl border border-[#dfd3cc] bg-white p-3 text-sm leading-6 text-[#182443]"
-                        />
-                        <span className="mt-1 block text-right text-[10px] text-[#9297a4]">
-                          {(cart.card.frontHeadline || cart.card.message).length}/240
-                        </span>
-                      </label>
+                      {isMagazine ? (
+                        <div className="space-y-4">
+                          <label className="block text-sm font-black">
+                            {tx("Titular de Portada (Noticia principal)", "Título da capa (Notícia principal)")}
+                            <textarea
+                              value={cart.card.frontHeadline || cart.card.message}
+                              onChange={(e) => dispatch(setFrontHeadline(e.target.value))}
+                              rows={2}
+                              maxLength={120}
+                              placeholder="Hoy se celebra el 13 cumpleaños de Roberto García"
+                              className="focus-ring mt-1.5 w-full resize-none rounded-xl border border-[#dfd3cc] bg-white p-3 text-sm font-semibold text-[#182443]"
+                            />
+                            <span className="mt-1 block text-right text-[10px] text-[#9297a4]">
+                              {(cart.card.frontHeadline || cart.card.message).length}/120
+                            </span>
+                          </label>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label className="block text-xs font-black">
+                              {tx("Cartel amarillo sobre la foto", "Cartaz amarelo sobre a foto")}
+                              <input
+                                type="text"
+                                value={cart.card.magazineBadge ?? "¡FELIZ CUMPLEAÑOS!"}
+                                onChange={(e) => dispatch(setMagazineBadge(e.target.value))}
+                                maxLength={30}
+                                className="focus-ring mt-1.5 w-full rounded-xl border border-[#dfd3cc] bg-white px-3 py-2 text-xs font-semibold text-[#182443]"
+                              />
+                            </label>
+
+                            <label className="block text-xs font-black">
+                              {tx("Distintivo rojo (cinta)", "Distintivo vermelho (fita)")}
+                              <input
+                                type="text"
+                                value={cart.card.magazineHeadlineTag ?? "¡Atención!"}
+                                onChange={(e) => dispatch(setMagazineHeadlineTag(e.target.value))}
+                                maxLength={20}
+                                className="focus-ring mt-1.5 w-full rounded-xl border border-[#dfd3cc] bg-white px-3 py-2 text-xs font-semibold text-[#182443]"
+                              />
+                            </label>
+                          </div>
+
+                          <label className="block text-xs font-black">
+                            {tx("Mensaje / Frase destacada (cuadro estrella)", "Mensagem / Frase em destaque (quadro estrela)")}
+                            <textarea
+                              value={cart.card.frontSubheadline}
+                              onChange={(e) => dispatch(setFrontSubheadline(e.target.value))}
+                              rows={2}
+                              maxLength={140}
+                              placeholder="¡Que tengas un día tan increíble como tú, Roberto! 🎉⚽💙"
+                              className="focus-ring mt-1.5 w-full resize-none rounded-xl border border-[#dfd3cc] bg-white p-2.5 text-xs text-[#182443]"
+                            />
+                          </label>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label className="block text-xs font-black">
+                              {tx("Subcabecera (Categoría)", "Subtítulo (Categoria)")}
+                              <input
+                                type="text"
+                                value={cart.card.magazineCategory ?? "LA NOTICIA DEL DÍA"}
+                                onChange={(e) => dispatch(setMagazineCategory(e.target.value))}
+                                maxLength={30}
+                                className="focus-ring mt-1.5 w-full rounded-xl border border-[#dfd3cc] bg-white px-3 py-2 text-xs text-[#182443]"
+                              />
+                            </label>
+
+                            <label className="block text-xs font-black">
+                              {tx("Fecha y Número de Edición", "Data e Número de Edição")}
+                              <input
+                                type="text"
+                                value={cart.card.magazineDate ?? "26 SEPTIEMBRE 2026 • Nº 01"}
+                                onChange={(e) => dispatch(setMagazineDate(e.target.value))}
+                                maxLength={35}
+                                className="focus-ring mt-1.5 w-full rounded-xl border border-[#dfd3cc] bg-white px-3 py-2 text-xs text-[#182443]"
+                              />
+                            </label>
+                          </div>
+
+                          <label className="block text-xs font-black">
+                            {tx("Texto Exclusiva (Pie de página)", "Texto Exclusivo (Rodapé)")}
+                            <input
+                              type="text"
+                              value={cart.card.magazineFooter ?? "ROBERTO GARCÍA CELEBRA CON SU FAMILIA"}
+                              onChange={(e) => dispatch(setMagazineFooter(e.target.value))}
+                              maxLength={50}
+                              className="focus-ring mt-1.5 w-full rounded-xl border border-[#dfd3cc] bg-white px-3 py-2 text-xs text-[#182443]"
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <label className="block text-sm font-black">
+                          {tx("Titular / Mensaje de Portada", "Título / Mensagem da capa")}
+                          <textarea
+                            value={cart.card.frontHeadline || cart.card.message}
+                            onChange={(e) => dispatch(setFrontHeadline(e.target.value))}
+                            rows={3}
+                            maxLength={240}
+                            className="focus-ring mt-2 w-full resize-none rounded-2xl border border-[#dfd3cc] bg-white p-3 text-sm leading-6 text-[#182443]"
+                          />
+                          <span className="mt-1 block text-right text-[10px] text-[#9297a4]">
+                            {(cart.card.frontHeadline || cart.card.message).length}/240
+                          </span>
+                        </label>
+                      )}
 
                       {/* Photo 1 Upload */}
                       <div>

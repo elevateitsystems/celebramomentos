@@ -27,10 +27,17 @@ type CardPreviewProps = {
   compact?: boolean;
   className?: string;
   photoFit?: "cover" | "contain" | "fill";
+  headline?: string;
+  subheadline?: string;
+  category?: string;
+  date?: string;
+  badge?: string;
+  headlineTag?: string;
+  footerText?: string;
 };
 
 const clampPosition = (value: number) => Math.min(94, Math.max(6, value));
-const samplePhotos = ["/images/graduation-celebration.png", "/images/sticker-family.jpg", "/images/sticker-baby.jpg", "/images/sticker-lifestyle-dog.jpg", "/images/sticker-cello.jpg"];
+const samplePhotos = ["/images/graduation-celebration.png", "/images/sticker-family.jpg", "/images/sticker-baby.jpg", "/images/sticker-lifestyle-dog.jpg", "/images/sticker-lifestyle-sports.jpg"];
 
 // Each frame asset already contains the complete outside edge of the product.
 // Artwork is placed in the asset's opening so no second card/panel is rendered
@@ -58,7 +65,34 @@ export function frameOverlayClass(frameId: string) {
   return frameId === "geometric-heart" || frameId === "romantic-heart" ? "z-20" : "z-0";
 }
 
-export function CardPreview({ templateId, message, emoji = "✨", emojiTone, emojiSize, emojiPosition, emojiElements, onEmojiPositionChange, onEmojiElementPositionChange, onEmojiSelect, photoDataUrl, photoDataUrls, photoZoom = 1, photoPosition = "center", frameId, size = "A4", compact = false, className = "", photoFit = "cover" }: CardPreviewProps) {
+export function CardPreview({
+  templateId,
+  message,
+  emoji = "✨",
+  emojiTone,
+  emojiSize,
+  emojiPosition,
+  emojiElements,
+  onEmojiPositionChange,
+  onEmojiElementPositionChange,
+  onEmojiSelect,
+  photoDataUrl,
+  photoDataUrls,
+  photoZoom = 1,
+  photoPosition = "center",
+  frameId,
+  size = "A4",
+  compact = false,
+  className = "",
+  photoFit = "cover",
+  headline,
+  subheadline,
+  category,
+  date,
+  badge,
+  headlineTag,
+  footerText,
+}: CardPreviewProps) {
   const savedCard = useSelector((state: RootState) => state.cart.card);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const template = templates.find((item) => item.id === templateId) || templates[0];
@@ -96,7 +130,22 @@ export function CardPreview({ templateId, message, emoji = "✨", emojiTone, emo
   };
 
   return <div ref={designRef} className={`relative overflow-hidden rounded-[12px] bg-[#fffaf5] ${surfaceClass} ${className}`}>
-    {template.magazineStyle ? <MagazineFront compact={compact} message={message} photoDataUrl={photos[0]} photoZoom={photoZoom} photoPosition={photoPosition} /> : template.id === "template-2" ? <CollageFront compact={compact} message={message} photos={photos} frameId={frame.id} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} /> : <StoryFront compact={compact} message={message} photos={photos} frameId={frame.id} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} />}
+    {template.magazineStyle ? (
+      <MagazineFront
+        compact={compact}
+        message={message}
+        headline={headline ?? (savedCard.frontHeadline || message)}
+        subheadline={subheadline ?? savedCard.frontSubheadline}
+        category={category ?? savedCard.magazineCategory}
+        date={date ?? savedCard.magazineDate}
+        badge={badge ?? savedCard.magazineBadge}
+        headlineTag={headlineTag ?? savedCard.magazineHeadlineTag}
+        footerText={footerText ?? savedCard.magazineFooter}
+        photoDataUrl={photos[0]}
+        photoZoom={photoZoom}
+        photoPosition={photoPosition}
+      />
+    ) : template.id === "template-2" ? <CollageFront compact={compact} message={message} photos={photos} frameId={frame.id} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} /> : <StoryFront compact={compact} message={message} photos={photos} frameId={frame.id} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} />}
     {elements.map((item) => <span key={item.id} role={canMoveEmoji ? "button" : undefined} tabIndex={canMoveEmoji ? 0 : undefined} aria-label={canMoveEmoji ? (isPortuguese ? `Mover emoji ${item.emoji}. Arrasta ou usa as setas` : `Mover emoji ${item.emoji}. Arrastra o usa las flechas`) : undefined} title={canMoveEmoji ? (isPortuguese ? "Arrasta para mover; seleciona para alterar o tamanho" : "Arrastra para mover; selecciónalo para cambiar su tamaño") : undefined} onPointerDown={(event) => { if (!canMoveEmoji) return; onEmojiSelect?.(item.id); event.currentTarget.setPointerCapture(event.pointerId); moveEmoji(event, item.id); }} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) moveEmoji(event, item.id); }} onKeyDown={(event) => handleKeyDown(event, item)} onFocus={() => onEmojiSelect?.(item.id)} className={`absolute z-30 select-none leading-none outline-none ${canMoveEmoji ? "cursor-grab touch-none rounded-lg focus:ring-2 focus:ring-[#ee5264] focus:ring-offset-2 active:cursor-grabbing" : ""}`} style={{ left: `${item.position.x}%`, top: `${item.position.y}%`, fontSize: `${compact ? item.size * .5 : item.size}px`, filter: emojiToneFilters[item.tone], transform: "translate(-50%, -50%)" }}>{item.emoji}</span>)}
   </div>;
 }
