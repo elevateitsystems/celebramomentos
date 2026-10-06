@@ -178,6 +178,39 @@ function ProductsMegaMenu({ active = false }: { active?: boolean }) {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
+  const products = [
+    {
+      name: tx("Tarjetas", "Cartões"),
+      href: "/templates",
+      desc: tx("Personaliza con tus fotos y mensaje", "Personaliza com as tuas fotos e mensagem"),
+    },
+    {
+      name: tx("Calendarios", "Calendários"),
+      href: "/calendars",
+      desc: tx("A4 y A5 con tus fotos", "A4 e A5 com as tuas fotos"),
+    },
+    {
+      name: tx("Arte de pared", "Arte de parede"),
+      href: "/wall-art",
+      desc: tx("Pósters, madera y marcos", "Posters, madeira e molduras"),
+    },
+    {
+      name: tx("Imanes", "Ímanes"),
+      href: "/magnets",
+      desc: tx("Packs de 4 y 9 para nevera", "Packs de 4 e 9 para frigorífico"),
+    },
+    {
+      name: tx("Fundas Móvil", "Capas de telemóvel"),
+      href: "/phone-cases",
+      desc: tx("iPhone, Galaxy, Pixel y más", "iPhone, Galaxy, Pixel e mais"),
+    },
+    {
+      name: tx("Stickers", "Autocolantes"),
+      href: "/stickers",
+      desc: tx("Lámina 4×3\" con diseño circular", "Folha 4×3\" com design circular"),
+    },
+  ];
+
   return (
     <div
       ref={ref}
@@ -203,85 +236,27 @@ function ProductsMegaMenu({ active = false }: { active?: boolean }) {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 w-[490px] -translate-x-10 pt-2 animate-in fade-in duration-150">
-          <div className="rounded-2xl border border-[#eadbd3] bg-white p-5 shadow-2xl shadow-[#8a564c]/20">
-            <div className="grid grid-cols-2 gap-4">
-              {/* Tarjetas Section */}
-              <div className="rounded-2xl bg-[#fff7f3] p-4 border border-[#f5ded5]">
-                <div className="flex items-center justify-between">
-                  <Link
-                    href="/templates"
-                    onClick={() => setOpen(false)}
-                    className="text-xs font-black uppercase tracking-wider text-[#ee5264] hover:underline"
-                  >
-                    {tx("Tarjetas", "Cartões")} →
-                  </Link>
-                  <span className="rounded-full bg-[#ee5264]/10 px-2 py-0.5 text-[9px] font-black text-[#ee5264]">
-                    3 plantillas
+        <div className="absolute left-0 top-full z-50 w-[420px] -translate-x-6 pt-2 animate-in fade-in duration-150">
+          <div className="rounded-2xl border border-[#eadbd3] bg-white p-4 shadow-2xl shadow-[#8a564c]/20">
+            <div className="grid grid-cols-2 gap-2">
+              {products.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className="group flex flex-col rounded-xl p-3 transition hover:bg-[#fff0e8]"
+                >
+                  <span className="text-[13px] font-black text-[#182443] group-hover:text-[#ee5264]">
+                    {item.name}
                   </span>
-                </div>
-                <div className="mt-3 space-y-1.5">
-                  <Link
-                    href="/customize?template=template-3"
-                    onClick={() => setOpen(false)}
-                    className="flex flex-col rounded-xl p-2 transition hover:bg-white hover:shadow-xs group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-[#182443] group-hover:text-[#ee5264]">Tradicional</span>
-                      <span className="text-[10px] text-[#9297a4]">2 fotos</span>
-                    </div>
-                    <span className="text-[10px] text-[#737b90] leading-tight">Clásica con dedicatoria</span>
-                  </Link>
-
-                  <Link
-                    href="/customize?template=template-2"
-                    onClick={() => setOpen(false)}
-                    className="flex flex-col rounded-xl p-2 transition hover:bg-white hover:shadow-xs group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-[#182443] group-hover:text-[#ee5264]">Collage</span>
-                      <span className="text-[10px] text-[#9297a4]">4 fotos</span>
-                    </div>
-                    <span className="text-[10px] text-[#737b90] leading-tight">Múltiples recuerdos y marco</span>
-                  </Link>
-
-                  <Link
-                    href="/customize?template=template-magazine"
-                    onClick={() => setOpen(false)}
-                    className="flex flex-col rounded-xl p-2 transition hover:bg-white hover:shadow-xs group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-[#182443] group-hover:text-[#ee5264]">Magazine</span>
-                      <span className="rounded bg-[#ee5264] px-1.5 py-0.5 text-[8px] font-black text-white">Edición</span>
-                    </div>
-                    <span className="text-[10px] text-[#737b90] leading-tight">Estilo portada de revista</span>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Other Products Section */}
-              <div className="space-y-1">
-                {[
-                  { name: tx("Calendarios", "Calendários"), href: "/calendars", desc: tx("A4 y A5 con tus fotos", "A4 e A5 com as tuas fotos") },
-                  { name: tx("Arte de pared", "Arte de parede"), href: "/wall-art", desc: tx("Pósters, madera y marcos", "Posters, madeira e molduras") },
-                  { name: tx("Imanes", "Ímanes"), href: "/magnets", desc: tx("Packs de 4 y 9 para nevera", "Packs de 4 e 9 para frigorífico") },
-                  { name: tx("Fundas Móvil", "Capas de telemóvel"), href: "/phone-cases", desc: tx("iPhone, Galaxy, Pixel y más", "iPhone, Galaxy, Pixel e mais") },
-                  { name: tx("Stickers", "Autocolantes"), href: "/stickers", desc: tx("Lámina 4×3\" con diseño circular", "Folha 4×3\" com design circular") },
-                ].map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className="flex flex-col rounded-xl px-3 py-2 transition hover:bg-[#fff0e8] group"
-                  >
-                    <span className="text-xs font-black text-[#182443] group-hover:text-[#ee5264]">{item.name}</span>
-                    <span className="text-[10px] text-[#9297a4]">{item.desc}</span>
-                  </Link>
-                ))}
-              </div>
+                  <span className="mt-0.5 text-[11px] text-[#737b90] leading-snug">
+                    {item.desc}
+                  </span>
+                </Link>
+              ))}
             </div>
 
-            <div className="mt-3.5 border-t border-[#f0e4dc] pt-3 text-center">
+            <div className="mt-3 border-t border-[#f0e4dc] pt-3 text-center">
               <Link
                 href="/#categories"
                 onClick={() => setOpen(false)}
@@ -397,17 +372,12 @@ export function SiteHeader({ active = "" }: { active?: string }) {
                 </button>
                 {mobileProductsOpen && (
                   <div className="ml-3 mt-2 space-y-2 border-l-2 border-[#ee5264]/30 pl-3 text-xs">
-                    <p className="font-black text-[#ee5264]">{es ? "Tarjetas:" : "Cartões:"}</p>
-                    <div className="ml-2 space-y-1">
-                      <Link href="/customize?template=template-3" onClick={() => setMobileMenu(false)} className="block py-0.5 text-[#59627b]">· Tradicional (2 fotos)</Link>
-                      <Link href="/customize?template=template-2" onClick={() => setMobileMenu(false)} className="block py-0.5 text-[#59627b]">· Collage (4 fotos)</Link>
-                      <Link href="/customize?template=template-magazine" onClick={() => setMobileMenu(false)} className="block py-0.5 text-[#59627b]">· Magazine</Link>
-                    </div>
-                    <Link href="/calendars" onClick={() => setMobileMenu(false)} className="block pt-1 font-bold text-[#182443]">{es ? "Calendarios" : "Calendários"}</Link>
-                    <Link href="/wall-art" onClick={() => setMobileMenu(false)} className="block font-bold text-[#182443]">{es ? "Arte de pared" : "Arte de parede"}</Link>
-                    <Link href="/magnets" onClick={() => setMobileMenu(false)} className="block font-bold text-[#182443]">{es ? "Imanes" : "Ímanes"}</Link>
-                    <Link href="/phone-cases" onClick={() => setMobileMenu(false)} className="block font-bold text-[#182443]">{es ? "Fundas Móvil" : "Capas de telemóvel"}</Link>
-                    <Link href="/stickers" onClick={() => setMobileMenu(false)} className="block font-bold text-[#182443]">{es ? "Stickers" : "Autocolantes"}</Link>
+                    <Link href="/templates" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Tarjetas" : "Cartões"}</Link>
+                    <Link href="/calendars" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Calendarios" : "Calendários"}</Link>
+                    <Link href="/wall-art" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Arte de pared" : "Arte de parede"}</Link>
+                    <Link href="/magnets" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Imanes" : "Ímanes"}</Link>
+                    <Link href="/phone-cases" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Fundas Móvil" : "Capas de telemóvel"}</Link>
+                    <Link href="/stickers" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Stickers" : "Autocolantes"}</Link>
                   </div>
                 )}
               </div>
