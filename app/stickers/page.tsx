@@ -1,5 +1,5 @@
-import { StickerStudio } from "@/components/product-studio";
+import { redirect } from "next/navigation";
 
 export default function StickersPage() {
-  return <StickerStudio />;
+  redirect("/mugs");
 }

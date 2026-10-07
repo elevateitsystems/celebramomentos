@@ -249,20 +249,65 @@ export default function Home() {
       price: "19,90 €",
     },
     {
-      name: es ? "Stickers" : "Autocolantes",
-      description: es ? "Lámina 4×3 pulgadas con diseño circular de 3\" prémium" : "Folha 4×3 polegadas com design circular de 3\" premium",
-      href: "/stickers",
-      image: "/images/sticker-lifestyle-sports.jpg",
-      accent: "bg-[#eef5f6]",
-      price: "1,50 €",
+      name: es ? "Tazas" : "Canecas",
+      description: es ? "Taza de cerámica prémium con tus fotos favoritas" : "Caneca de cerâmica premium com as tuas fotos favoritas",
+      href: "/mugs",
+      image: "/images/mug-child-beach.jpg",
+      accent: "bg-[#fff2e8]",
+      price: "11,90 €",
     },
   ];
   const moments = [
-    { icon: "gift", title: es ? "Cumpleaños" : "Aniversários", body: es ? "Una tarjeta o regalo que sí guardarán." : "Um cartão ou presente que vão guardar.", tile: "bg-[#fde8e4] text-[#ee5264]", glow: "bg-[#ee5264]/15", span: "lg:col-span-2" },
-    { icon: "users", title: es ? "Recuerdos familiares" : "Memórias de família", body: es ? "Tus personas favoritas, siempre cerca." : "As tuas pessoas favoritas, sempre por perto.", tile: "bg-[#e3f1e9] text-[#2f7d57]", glow: "bg-[#2f7d57]/15", span: "lg:col-span-2" },
-    { icon: "heart", title: es ? "Aniversarios" : "Datas especiais", body: es ? "Celebra vuestra historia a vuestra manera." : "Celebra a vossa história à vossa maneira.", tile: "bg-[#efe7f9] text-[#7a52c7]", glow: "bg-[#7a52c7]/15", span: "lg:col-span-2" },
-    { icon: "tree", title: es ? "Navidad y celebraciones" : "Natal e celebrações", body: es ? "Regalos hechos con los recuerdos que amas." : "Presentes feitos com as memórias que amas.", tile: "bg-[#fff1c7] text-[#b7791f]", glow: "bg-[#f2af27]/20", span: "lg:col-span-3" },
-    { icon: "home", title: es ? "Para tu hogar" : "Para a tua casa", body: es ? "Llena tus paredes de vida y significado." : "Enche as tuas paredes de vida e significado.", tile: "bg-[#e4e6f7] text-[#4b52b8]", glow: "bg-[#4b52b8]/15", span: "sm:col-span-2 lg:col-span-3" },
+    {
+      icon: "gift",
+      title: es ? "Cumpleaños" : "Aniversários",
+      body: es ? "Una tarjeta o regalo que sí guardarán." : "Um cartão ou presente que vão guardar.",
+      tile: "bg-[#fde8e4] text-[#ee5264]",
+      glow: "bg-[#ee5264]/15",
+      span: "lg:col-span-2",
+      image: "/images/birthday-family-celebration.jpg",
+      tint: "from-[#fff7f5]/92 via-[#fffaf5]/82 to-[#fff7f5]/92",
+    },
+    {
+      icon: "users",
+      title: es ? "Recuerdos familiares" : "Memórias de família",
+      body: es ? "Tus personas favoritas, siempre cerca." : "As tuas pessoas favoritas, sempre por perto.",
+      tile: "bg-[#e3f1e9] text-[#2f7d57]",
+      glow: "bg-[#2f7d57]/15",
+      span: "lg:col-span-2",
+      image: "/images/moment-family-memories.jpg",
+      tint: "from-[#f4faf6]/92 via-[#f6fbf7]/82 to-[#f4faf6]/92",
+    },
+    {
+      icon: "heart",
+      title: es ? "Aniversarios" : "Datas especiais",
+      body: es ? "Celebra vuestra historia a vuestra manera." : "Celebra a vossa história à vossa maneira.",
+      tile: "bg-[#efe7f9] text-[#7a52c7]",
+      glow: "bg-[#7a52c7]/15",
+      span: "lg:col-span-2",
+      image: "/images/romantic-couple.png",
+      tint: "from-[#faf7fd]/92 via-[#fbf8fe]/82 to-[#faf7fd]/92",
+    },
+    {
+      icon: "tree",
+      title: es ? "Navidad y celebraciones" : "Natal e celebrações",
+      body: es ? "Regalos hechos con los recuerdos que amas." : "Presentes feitos com as memórias que amas.",
+      tile: "bg-[#fff1c7] text-[#b7791f]",
+      glow: "bg-[#f2af27]/20",
+      span: "lg:col-span-3",
+      image: "/images/moment-celebration-holidays.jpg",
+      tint: "from-[#fffdf4]/92 via-[#fffef6]/82 to-[#fffdf4]/92",
+    },
+    {
+      icon: "home",
+      title: es ? "Para tu hogar" : "Para a tua casa",
+      body: es ? "Llena tus paredes de vida y significado." : "Enche as tuas paredes de vida e significado.",
+      tile: "bg-[#e4e6f7] text-[#4b52b8]",
+      glow: "bg-[#4b52b8]/15",
+      span: "sm:col-span-2 lg:col-span-3",
+      image: "/images/client-wall-art-trio.jpg",
+      tint: "from-[#f4f5fd]/92 via-[#f6f7fe]/82 to-[#f4f5fd]/92",
+    },
   ];
 
   return <>
@@ -290,14 +335,7 @@ export default function Home() {
           <div className="relative">
             <div className="absolute -inset-5 rotate-2 rounded-[34px] bg-[#f4d4c7]" />
             <div className="relative overflow-hidden rounded-[28px] border-[10px] border-white shadow-2xl shadow-[#8a564c]/20">
-              <img src="/images/client-products-overview.jpg" alt={es ? "Tarjeta, cuadro, calendario, funda e imanes personalizados" : "Cartão, quadro, calendário, capa e ímanes personalizados"} className="aspect-[3/2] h-full w-full object-cover" />
-              <div className="absolute right-4 top-4 z-10 rotate-[7deg] sm:right-6 sm:top-6">
-                <div className="relative h-[76px] w-[76px] overflow-hidden rounded-full border-[4px] border-white shadow-xl shadow-black/25 ring-2 ring-[#ee5264]/30 sm:h-[96px] sm:w-[96px]">
-                  <img src="/images/sticker-lifestyle-sports.jpg" alt="Sticker circular" className="h-full w-full object-cover" />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/35 via-transparent to-transparent" />
-                  <div className="absolute -right-1 -top-1 h-7 w-7 origin-top-right rotate-45 bg-gradient-to-br from-white to-[#c8c8c8] shadow-sm border-b border-l border-black/10" style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }} />
-                </div>
-              </div>
+              <img src="/images/hero-products-overview.jpg" alt={es ? "Tarjeta, cuadro, calendario, funda, taza e imanes personalizados" : "Cartão, quadro, calendário, capa, caneca e ímanes personalizados"} className="aspect-[3/2] h-full w-full object-cover" />
             </div>
             <div className="float absolute -bottom-5 -left-3 rounded-2xl bg-white px-5 py-3.5 card-shadow sm:left-6"><p className="text-[10px] font-black uppercase tracking-wider text-[#ee5264]">{es ? "CREADO POR TI" : "CRIADO POR TI"}</p><p className="mt-1 flex items-center gap-1.5 text-sm font-black">{es ? "Único, como ellos" : "Único, como eles"}<span className="text-[#ee5264]"><MomentIcon name="heart" size={15} filled /></span></p></div>
           </div>
@@ -360,18 +398,60 @@ export default function Home() {
           <ol className="relative mx-auto mt-14 grid max-w-[1180px] gap-6 md:grid-cols-3 lg:gap-8">
             <div className="pointer-events-none absolute left-[17%] right-[17%] top-[72px] hidden border-t-2 border-dashed border-[#e6b8ac] md:block" />
             {[
-              { number: "01", icon: "grid", title: es ? "Elige tu producto" : "Escolhe o produto", body: es ? "Empieza por una tarjeta, arte de pared, imanes, calendario o funda." : "Começa por um cartão, arte de parede, ímanes, calendário ou capa.", tile: "bg-[#fde8e4] text-[#ee5264]", glow: "bg-[#ee5264]/15" },
-              { number: "02", icon: "image", title: es ? "Añade fotos y palabras" : "Adiciona fotos e palavras", body: es ? "Sube tus imágenes favoritas y escribe tu propio mensaje." : "Carrega as imagens favoritas e escreve a tua mensagem.", tile: "bg-[#e3f1e9] text-[#2f7d57]", glow: "bg-[#2f7d57]/15" },
-              { number: "03", icon: "package", title: es ? "Previsualiza y pide" : "Vê e encomenda", body: es ? "Comprueba tu creación y nosotros nos encargamos del resto." : "Confere a tua criação e nós tratamos do resto.", tile: "bg-[#efe7f9] text-[#7a52c7]", glow: "bg-[#7a52c7]/15" },
+              {
+                number: "01",
+                icon: "grid",
+                title: es ? "Elige tu producto" : "Escolhe o produto",
+                body: es ? "Empieza por una tarjeta, arte de pared, imanes, calendario, taza o funda." : "Começa por um cartão, arte de parede, ímanes, calendário, caneca ou capa.",
+                tile: "bg-[#fde8e4] text-[#ee5264]",
+                glow: "bg-[#ee5264]/15",
+                image: "/images/hero-products-overview.jpg",
+                tint: "from-[#fff9f6]/92 via-[#fffaf7]/82 to-[#fff9f6]/92",
+                watermark: "text-[#ee5264]/20",
+              },
+              {
+                number: "02",
+                icon: "image",
+                title: es ? "Añade fotos y palabras" : "Adiciona fotos e palavras",
+                body: es ? "Sube tus imágenes favoritas y escribe tu propio mensaje." : "Carrega as imagens favoritas e escreve a tua mensagem.",
+                tile: "bg-[#e3f1e9] text-[#2f7d57]",
+                glow: "bg-[#2f7d57]/15",
+                image: "/images/step-add-photos.jpg",
+                tint: "from-[#f3f9f5]/92 via-[#f5fbf7]/82 to-[#f3f9f5]/92",
+                watermark: "text-[#2f7d57]/20",
+              },
+              {
+                number: "03",
+                icon: "package",
+                title: es ? "Previsualiza y pide" : "Vê e encomenda",
+                body: es ? "Comprueba tu creación y nosotros nos encargamos del resto." : "Confere a tua criação e nós tratamos do resto.",
+                tile: "bg-[#efe7f9] text-[#7a52c7]",
+                glow: "bg-[#7a52c7]/15",
+                image: "/images/step-preview-delivery.jpg",
+                tint: "from-[#f9f5fd]/92 via-[#fbf8fe]/82 to-[#f9f5fd]/92",
+                watermark: "text-[#7a52c7]/20",
+              },
             ].map((step) => (
-              <li key={step.number} className="group relative z-10 flex min-h-[290px] flex-col overflow-hidden rounded-[28px] border border-[#eadbd3] bg-gradient-to-b from-white to-[#fffaf5] p-8 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#8a564c]/10 lg:p-10">
+              <li key={step.number} className="group relative z-10 flex min-h-[300px] flex-col overflow-hidden rounded-[28px] border border-[#eadbd3] p-8 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#8a564c]/15 lg:p-10">
+                {/* Visual lifestyle background with frosted tint overlay matching reference screenshot */}
+                <div className="absolute inset-0 overflow-hidden">
+                  <img
+                    src={step.image}
+                    alt=""
+                    className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                  />
+                  <div className={`absolute inset-0 bg-gradient-to-b ${step.tint} backdrop-blur-[1.5px] transition duration-500 group-hover:backdrop-blur-[0.5px]`} />
+                </div>
+
                 <div className={`pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full blur-3xl transition duration-500 group-hover:scale-125 ${step.glow}`} />
-                <span className="serif pointer-events-none absolute right-7 top-5 text-[84px] font-bold leading-none tracking-[-.05em] text-[#182443]/[.06]">{step.number}</span>
+                <span className={`serif pointer-events-none absolute right-7 top-5 text-[84px] font-bold leading-none tracking-[-.05em] ${step.watermark}`}>{step.number}</span>
 
-                <span className={`relative flex h-[72px] w-[72px] items-center justify-center rounded-[22px] shadow-sm ring-1 ring-black/5 transition duration-300 group-hover:scale-105 ${step.tile}`}><MomentIcon name={step.icon} size={34} /></span>
+                <span className={`relative z-10 flex h-[72px] w-[72px] items-center justify-center rounded-[22px] shadow-sm ring-1 ring-black/5 transition duration-300 group-hover:scale-105 ${step.tile}`}>
+                  <MomentIcon name={step.icon} size={34} />
+                </span>
 
-                <h3 className="serif relative mt-8 text-2xl font-bold tracking-[-.02em] text-[#182443] lg:text-[28px]">{step.title}</h3>
-                <p className="relative mt-3 max-w-[340px] text-[15px] leading-6 text-[#68718a]">{step.body}</p>
+                <h3 className="serif relative z-10 mt-8 text-2xl font-bold tracking-[-.02em] text-[#182443] lg:text-[28px]">{step.title}</h3>
+                <p className="relative z-10 mt-3 max-w-[340px] text-[15px] font-medium leading-6 text-[#59627b]">{step.body}</p>
               </li>
             ))}
           </ol>
@@ -392,15 +472,33 @@ export default function Home() {
             {moments.map((moment) => (
               <article
                 key={moment.title}
-                className={`group relative flex min-h-[260px] flex-col overflow-hidden rounded-[28px] border border-[#eadbd3] bg-gradient-to-b from-white to-[#fffaf5] p-8 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#8a564c]/10 lg:p-10 ${moment.span}`}
+                className={`group relative flex min-h-[280px] flex-col overflow-hidden rounded-[28px] border border-[#eadbd3] p-8 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#8a564c]/15 lg:p-10 ${moment.span}`}
               >
+                {/* Visual lifestyle background with soft tint overlay matching reference screenshot */}
+                <div className="absolute inset-0 overflow-hidden">
+                  <img
+                    src={moment.image}
+                    alt=""
+                    className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                  />
+                  <div className={`absolute inset-0 bg-gradient-to-b ${moment.tint} backdrop-blur-[1.5px] transition duration-500 group-hover:backdrop-blur-[0.5px]`} />
+                </div>
+
                 <div className={`pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full blur-3xl transition duration-500 group-hover:scale-125 ${moment.glow}`} />
-                <div className="pointer-events-none absolute -bottom-8 -right-6 opacity-[.045] transition duration-500 group-hover:opacity-[.08] group-hover:-rotate-6"><MomentIcon name={moment.icon} size={190} stroke={1.2} /></div>
+                <div className="pointer-events-none absolute -bottom-8 -right-6 opacity-[.06] transition duration-500 group-hover:opacity-[.1] group-hover:-rotate-6">
+                  <MomentIcon name={moment.icon} size={190} stroke={1.2} />
+                </div>
 
-                <span className={`relative flex h-[68px] w-[68px] items-center justify-center rounded-[20px] shadow-sm ring-1 ring-black/5 transition duration-300 group-hover:scale-105 ${moment.tile}`}><MomentIcon name={moment.icon} size={32} /></span>
+                <span className={`relative z-10 flex h-[68px] w-[68px] items-center justify-center rounded-[20px] shadow-sm ring-1 ring-black/5 transition duration-300 group-hover:scale-105 ${moment.tile}`}>
+                  <MomentIcon name={moment.icon} size={32} />
+                </span>
 
-                <h3 className="serif relative mt-8 text-2xl font-bold tracking-[-.02em] text-[#182443] lg:text-[28px]">{moment.title}</h3>
-                <p className="relative mt-3 max-w-[380px] text-[15px] leading-6 text-[#68718a]">{moment.body}</p>
+                <h3 className="serif relative z-10 mt-8 text-2xl font-bold tracking-[-.02em] text-[#182443] lg:text-[28px]">
+                  {moment.title}
+                </h3>
+                <p className="relative z-10 mt-3 max-w-[380px] text-[15px] font-medium leading-6 text-[#59627b]">
+                  {moment.body}
+                </p>
               </article>
             ))}
           </div>
@@ -442,7 +540,7 @@ export default function Home() {
 
             <Link href="/templates" className="group focus-ring relative overflow-hidden rounded-[28px] shadow-sm transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-[#8a564c]/20">
               <div className="relative aspect-[3/4] overflow-hidden">
-                <img src="/images/client-products-overview.jpg" alt={es ? "Productos personalizados — tarjetas, calendarios, imanes, fundas" : "Produtos personalizados — cartões, calendários, ímanes, capas"} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+                <img src="/images/hero-products-overview.jpg" alt={es ? "Productos personalizados — tarjetas, tazas, calendarios, imanes, fundas" : "Produtos personalizados — cartões, canecas, calendários, ímanes, capas"} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#182443]/80 via-[#182443]/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-6">
                   <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">{es ? "REGALOS" : "PRESENTES"}</p>
@@ -475,7 +573,7 @@ export default function Home() {
           <div className="mx-auto mt-10 max-w-[760px] space-y-5 text-center text-base leading-8 text-[#68718a]">
             <p>{es ? <>En <strong className="font-black text-[#182443]">Celebra Momentos</strong> creemos que los momentos especiales merecen ser recordados de una forma especial.</> : <>Na <strong className="font-black text-[#182443]">Celebra Momentos</strong> acreditamos que os momentos especiais merecem ser recordados de forma especial.</>}</p>
             <p>{es ? <>Una sonrisa, un cumpleaños, una fecha importante, una persona que quieres o simplemente ese recuerdo que te hace feliz. Transformamos tus fotos, tus palabras y tus ideas en productos personalizados para <strong className="font-black text-[#182443]">regalar, decorar y conservar</strong>.</> : <>Um sorriso, um aniversário, uma data importante, uma pessoa de quem gostas ou simplesmente aquela memória que te faz feliz. Transformamos as tuas fotografias, as tuas palavras e as tuas ideias em produtos personalizados para <strong className="font-black text-[#182443]">oferecer, decorar e guardar</strong>.</>}</p>
-            <p>{es ? <>Creamos <strong className="font-black text-[#182443]">tarjetas personalizadas, fotos con marcos, imanes y pegatinas</strong>, diseñados por ti y hechos para cada ocasión.</> : <>Criamos <strong className="font-black text-[#182443]">cartões personalizados, fotografias com molduras, ímanes e autocolantes</strong>, desenhados por ti e feitos para cada ocasião.</>}</p>
+            <p>{es ? <>Creamos <strong className="font-black text-[#182443]">tarjetas personalizadas, fotos con marcos, imanes y tazas</strong>, diseñados por ti y hechos para cada ocasión.</> : <>Criamos <strong className="font-black text-[#182443]">cartões personalizados, fotografias com molduras, ímanes e canecas</strong>, desenhados por ti e feitos para cada ocasião.</>}</p>
           </div>
 
           <div className="mx-auto mt-12 grid max-w-[1000px] gap-6 md:grid-cols-2 lg:gap-8">

@@ -21,7 +21,7 @@ export function PolicyPage({ type }: { type: "privacy" | "cookies" | "terms" }) 
         ],
         [
           "4. Conservación de imágenes y datos personales",
-          "Las fotografías y textos proporcionados para la personalización de las postales y stickers se conservan únicamente durante el tiempo estrictamente necesario para la producción, envío y atención a posibles incidencias o reclamaciones posventa (un plazo máximo de 30 días tras la entrega), transcurrido el cual son eliminados de forma segura de nuestros servidores de producción.",
+          "Las fotografías y textos proporcionados para la personalización de las postales, tazas y detalles personalizados se conservan únicamente durante el tiempo estrictamente necesario para la producción, envío y atención a posibles incidencias o reclamaciones posventa (un plazo máximo de 30 días tras la entrega), transcurrido el cual son eliminados de forma segura de nuestros servidores de producción.",
         ],
         [
           "5. Destinatarios y cesión a terceros",
@@ -63,7 +63,7 @@ export function PolicyPage({ type }: { type: "privacy" | "cookies" | "terms" }) 
       sections: [
         [
           "1. Identidad y Objeto del Servicio",
-          "Celebra Momentos presta servicios de diseño interactivo, impresión personalizada de alta calidad en papeles prémium y envío de tarjetas, calendarios, arte de pared e imanes, así como complementos opcionales (stickers personalizados y mensajes impresos en sobres).",
+          "Celebra Momentos presta servicios de diseño interactivo, impresión personalizada de alta calidad en papeles prémium y envío de tarjetas, calendarios, arte de pared, fundas de móvil, imanes y tazas personalizadas, así como mensajes impresos en sobres.",
         ],
         [
           "2. Responsabilidad sobre los Contenidos del Cliente",
