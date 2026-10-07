@@ -792,3 +792,218 @@ export function StickerStudio() {
     />
   );
 }
+
+export function MugStudio() {
+  const es = useSelector((state: RootState) => state.language.language) === "es";
+  const [size, setSize] = useState<"11oz" | "15oz">("11oz");
+  const [colorScheme, setColorScheme] = useState<"white" | "red" | "blue" | "black">("white");
+  const [photo, setPhoto] = useState<string | null>("/images/mug-couple-travel.jpg");
+
+  const mugPrices = {
+    "11oz": 11.9,
+    "15oz": 14.9,
+  };
+
+  const currentPrice = mugPrices[size].toFixed(2).replace(".", ",") + " €";
+
+  const colorOptions = [
+    { id: "white" as const, name: es ? "Blanco clásico" : "Branco clássico", hex: "#ffffff", border: "#dfd3cc" },
+    { id: "red" as const, name: es ? "Interior y asa rojo" : "Interior e asa vermelho", hex: "#dc2626", border: "#dc2626" },
+    { id: "blue" as const, name: es ? "Interior y asa azul" : "Interior e asa azul", hex: "#1e3a8a", border: "#1e3a8a" },
+    { id: "black" as const, name: es ? "Interior y asa negro" : "Interior e asa preto", hex: "#18181b", border: "#18181b" },
+  ];
+
+  const presets = [
+    { id: "travel", image: "/images/mug-couple-travel.jpg", title: es ? "Aventura & Pareja" : "Aventura & Casal" },
+    { id: "family", image: "/images/mug-couple-garden.jpg", title: es ? "Familia & Abuelos" : "Família & Avós" },
+    { id: "beach", image: "/images/mug-child-beach.jpg", title: es ? "Alegría infantil" : "Alegria infantil" },
+  ];
+
+  const controls = (
+    <div className="mt-6 space-y-6">
+      {/* Ceramic quality notice */}
+      <div className="rounded-2xl border border-[#e8d5cc] bg-[#fff6f0] p-4 text-xs leading-5 text-[#6c584c]">
+        <p className="font-black text-[#ee5264] flex items-center gap-1.5 uppercase tracking-wide text-[10px]">
+          <Icon name="check" size={13} />
+          {es ? "Cerámica prémium de alta resistencia" : "Cerâmica premium de alta resistência"}
+        </p>
+        <p className="mt-1">
+          {es
+            ? "Apta para microondas y lavavajillas. Impresión de alta definición a todo color que conserva la nitidez y el brillo lavado tras lavado."
+            : "Apta para micro-ondas e máquina de lavar loiça. Impressão de alta definição que preserva as cores e o brilho lavagem após lavagem."}
+        </p>
+      </div>
+
+      {/* Mug Size */}
+      <div>
+        <p className="text-sm font-black">{es ? "Tamaño y capacidad" : "Tamanho e capacidade"}</p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setSize("11oz")}
+            className={`focus-ring flex flex-col items-start rounded-2xl border p-3.5 text-left transition ${
+              size === "11oz" ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-sm font-black">11 oz (325 ml)</span>
+              <span className="text-xs font-black text-[#ee5264]">11,90 €</span>
+            </div>
+            <span className="mt-1 block text-[11px] text-[#737b90]">
+              {es ? "Tamaño estándar favorito para café y té diario" : "Tamanho padrão favorito para café e chá diário"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSize("15oz")}
+            className={`focus-ring flex flex-col items-start rounded-2xl border p-3.5 text-left transition ${
+              size === "15oz" ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-sm font-black">15 oz (450 ml)</span>
+              <span className="text-xs font-black text-[#ee5264]">14,90 €</span>
+            </div>
+            <span className="mt-1 block text-[11px] text-[#737b90]">
+              {es ? "Taza grande para los amantes del extra café" : "Caneca grande para quem adora café extra"}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Color Accent */}
+      <div>
+        <p className="text-sm font-black">{es ? "Color del asa e interior" : "Cor da asa e interior"}</p>
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {colorOptions.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setColorScheme(opt.id)}
+              className={`focus-ring flex items-center gap-2 rounded-xl border p-2.5 text-left text-xs font-black transition ${
+                colorScheme === opt.id ? "border-[#ee5264] bg-[#fff0e8] text-[#ee5264]" : "border-[#dfd3cc] hover:border-[#ee5264]"
+              }`}
+            >
+              <span className="h-4 w-4 shrink-0 rounded-full border shadow-sm" style={{ backgroundColor: opt.hex, borderColor: opt.border }} />
+              <span className="truncate">{opt.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Photo Presets & Inspiration */}
+      <div>
+        <p className="text-sm font-black">{es ? "Elige una foto de ejemplo o sube la tuya" : "Escolhe uma foto de exemplo ou carrega a tua"}</p>
+        <div className="mt-3 grid grid-cols-3 gap-2.5">
+          {presets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => setPhoto(preset.image)}
+              className={`group relative overflow-hidden rounded-xl border-2 transition ${
+                photo === preset.image ? "border-[#ee5264] ring-2 ring-[#ee5264]/20" : "border-[#e0d6cf] hover:border-[#ee5264]"
+              }`}
+            >
+              <div className="aspect-[4/3] w-full overflow-hidden bg-white">
+                <img src={preset.image} alt={preset.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+              </div>
+              <span className="block bg-white p-1 text-center text-[10px] font-black text-[#182443] truncate">
+                {preset.title}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Custom upload */}
+      <div>
+        <p className="text-sm font-black">{es ? "Tu propia fotografía" : "A tua própria fotografia"}</p>
+        <UploadButton photo={photo} onPhoto={setPhoto} es={es} />
+      </div>
+    </div>
+  );
+
+  const selectedColor = colorOptions.find((c) => c.id === colorScheme) || colorOptions[0];
+
+  const preview = (
+    <div className="flex min-h-[500px] flex-col items-center justify-center rounded-[22px] bg-gradient-to-b from-[#fbf5f0] to-[#f4ebe3] p-6 sm:p-10">
+      {/* Real mug preview using client's mug photos or 3D mock */}
+      {photo && (photo.startsWith("/images/mug-") || photo.includes("mug")) ? (
+        <div className="relative mx-auto flex max-w-[380px] flex-col items-center">
+          <div className="overflow-hidden rounded-[24px] border-[6px] border-white bg-white shadow-2xl shadow-[#8a564c]/25">
+            <img
+              src={photo}
+              alt={es ? "Vista previa de la taza personalizada" : "Pré-visualização da caneca personalizada"}
+              className="aspect-[3/4] w-full max-h-[420px] object-cover"
+            />
+          </div>
+          <div className="mt-4 flex items-center gap-2 rounded-full bg-white/90 px-4 py-1.5 text-xs font-black text-[#182443] shadow-md backdrop-blur">
+            <span>✨ {es ? `Taza de cerámica ${size === "11oz" ? "11 oz" : "15 oz"}` : `Caneca de cerâmica ${size === "11oz" ? "11 oz" : "15 oz"}`}</span>
+          </div>
+        </div>
+      ) : (
+        /* Custom uploaded photo 3D styled mug */
+        <div className="relative mx-auto flex w-full max-w-[340px] flex-col items-center">
+          <div className="relative flex items-center justify-center">
+            {/* Mug Body */}
+            <div className={`relative ${size === "15oz" ? "h-[320px] w-[230px]" : "h-[290px] w-[215px]"} overflow-hidden rounded-[28px] border-4 border-white bg-white shadow-2xl shadow-[#8a564c]/30`}>
+              {/* Inside rim / color accent */}
+              <div
+                className="h-7 w-full border-b border-black/10"
+                style={{ backgroundColor: selectedColor.id === "white" ? "#f3f4f6" : selectedColor.hex }}
+              />
+              
+              {/* Photo on mug body */}
+              <div className="relative h-[calc(100%-28px)] w-full overflow-hidden p-3 bg-white">
+                <div className="h-full w-full overflow-hidden rounded-xl border border-gray-100 bg-[#f9f5f1]">
+                  <img
+                    src={photo || "/images/mug-couple-travel.jpg"}
+                    alt={es ? "Fotografía en la taza" : "Fotografia na caneca"}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                {/* Cylindrical lighting gloss reflection */}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-white/40" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-black/15 to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-black/15 to-transparent" />
+              </div>
+            </div>
+
+            {/* Mug Handle on the right */}
+            <div
+              className={`absolute -right-10 top-16 ${size === "15oz" ? "h-44 w-14" : "h-36 w-12"} rounded-r-[32px] border-[14px] shadow-lg`}
+              style={{
+                borderColor: selectedColor.id === "white" ? "#ffffff" : selectedColor.hex,
+                boxShadow: "4px 8px 18px rgba(0,0,0,0.12)",
+              }}
+            />
+          </div>
+
+          <div className="mt-6 flex items-center gap-2 rounded-full bg-white/90 px-4 py-1.5 text-xs font-black text-[#182443] shadow-md backdrop-blur">
+            <span>✨ {es ? `Taza personalizada ${size} · ${selectedColor.name}` : `Caneca personalizada ${size} · ${selectedColor.name}`}</span>
+          </div>
+        </div>
+      )}
+
+      <p className="mt-5 text-center text-xs font-bold text-[#737b90]">
+        {es
+          ? "Cerámica blanca prémium · Apta para lavavajillas y microondas · Impresión fotográfica brillante"
+          : "Cerâmica branca premium · Apta para máquina e micro-ondas · Impressão fotográfica brilhante"}
+      </p>
+    </div>
+  );
+
+  return (
+    <StudioShell
+      eyebrow={es ? "TAZAS PERSONALIZADAS · CERÁMICA PRÉMIUM" : "CANECAS PERSONALIZADAS · CERÂMICA PREMIUM"}
+      title={es ? "Empieza cada mañana con tus mejores recuerdos" : "Começa cada manhã com as tuas melhores memórias"}
+      body={es ? "Taza de cerámica de alta calidad. Elige capacidad de 11 oz o 15 oz, añade tu foto favorita y haz de cada café un momento único." : "Caneca de cerâmica de alta qualidade. Escolhe 11 oz ou 15 oz, adiciona a tua foto favorita e torna cada café num momento único."}
+      controls={controls}
+      preview={preview}
+      price={currentPrice}
+      es={es}
+    />
+  );
+}
+

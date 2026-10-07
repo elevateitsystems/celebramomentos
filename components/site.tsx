@@ -92,7 +92,7 @@ function SearchBox({ autoFocus = false }: { autoFocus?: boolean }) {
     [es ? "Imanes" : "Ímanes", "/magnets"],
     [es ? "Calendarios" : "Calendários", "/calendars"],
     [es ? "Fundas de móvil" : "Capas de telemóvel", "/phone-cases"],
-    [es ? "Stickers" : "Autocolantes", "/stickers"],
+    [es ? "Tazas" : "Canecas", "/mugs"],
   ];
   const norm = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const results = items.filter(([label]) => norm(label).includes(norm(query.trim())));
@@ -205,9 +205,9 @@ function ProductsMegaMenu({ active = false }: { active?: boolean }) {
       desc: tx("iPhone, Galaxy, Pixel y más", "iPhone, Galaxy, Pixel e mais"),
     },
     {
-      name: tx("Stickers", "Autocolantes"),
-      href: "/stickers",
-      desc: tx("Lámina 4×3\" con diseño circular", "Folha 4×3\" com design circular"),
+      name: tx("Tazas", "Canecas"),
+      href: "/mugs",
+      desc: tx("Taza de cerámica con tu foto", "Caneca de cerâmica com a tua foto"),
     },
   ];
 
@@ -377,7 +377,7 @@ export function SiteHeader({ active = "" }: { active?: string }) {
                     <Link href="/wall-art" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Arte de pared" : "Arte de parede"}</Link>
                     <Link href="/magnets" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Imanes" : "Ímanes"}</Link>
                     <Link href="/phone-cases" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Fundas Móvil" : "Capas de telemóvel"}</Link>
-                    <Link href="/stickers" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Stickers" : "Autocolantes"}</Link>
+                    <Link href="/mugs" onClick={() => setMobileMenu(false)} className="block py-1 font-bold text-[#182443] hover:text-[#ee5264]">{es ? "Tazas" : "Canecas"}</Link>
                   </div>
                 )}
               </div>
@@ -432,7 +432,7 @@ export function SiteFooter() {
             <Link href="/wall-art" className="hover:text-[#ee5264]">{tx("Arte de pared", "Arte de parede")}</Link>
             <Link href="/magnets" className="hover:text-[#ee5264]">{tx("Imanes", "Ímanes")}</Link>
             <Link href="/phone-cases" className="hover:text-[#ee5264]">{tx("Fundas de móvil", "Capas de telemóvel")}</Link>
-            <Link href="/stickers" className="hover:text-[#ee5264]">{tx("Stickers", "Autocolantes")}</Link>
+            <Link href="/mugs" className="hover:text-[#ee5264]">{tx("Tazas", "Canecas")}</Link>
           </div>
         </div>
         <div>
