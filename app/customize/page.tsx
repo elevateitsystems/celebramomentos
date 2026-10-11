@@ -911,7 +911,7 @@ export default function CustomizePage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setStep("preview")}
+                      onClick={() => setStep("extras")}
                       className="focus-ring inline-flex items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3 text-xs font-black text-white hover:bg-[#d83d54]"
                     >
                       {tx("Continuar a Vista previa", "Continuar para a pré-visualização")} <Icon name="arrow" size={15} />
@@ -988,7 +988,7 @@ export default function CustomizePage() {
               dispatch={dispatch}
               stickerFileRef={stickerFileRef}
               handleStickerPhoto={handleStickerPhoto}
-              onBack={() => setStep("preview")}
+              onBack={() => setStep("emojis")}
               setToast={setToast}
               onAddToCart={handleAddToCart}
               isPortuguese={isPortuguese}

@@ -191,14 +191,11 @@ export function WallArtStudio() {
 
       {product.type === "framed" ? (
         <div
-          className={`relative z-10 transition-all shadow-2xl ${
+          className={`relative z-10 overflow-hidden transition-all ${
             orientation === "vertical" ? "h-[78%] aspect-[3/4]" : "w-[78%] aspect-[4/3]"
-          } p-3 rounded-sm`}
-          style={{ backgroundColor: frameStyles[frame].bg }}
+          }`}
         >
-          <div className="h-full w-full overflow-hidden bg-white p-2.5 shadow-inner">
-            {picture}
-          </div>
+          {picture}
         </div>
       ) : product.type === "wood" ? (
         <div
@@ -249,15 +246,9 @@ export function MagnetsStudio() {
   const [photos, setPhotos] = useState<(string | null)[]>(Array(9).fill(null));
   const [selectedPhoto, setSelectedPhoto] = useState(0);
   const price = quantity === 4 ? "9,90 €" : "14,90 €";
-  // Removed sticker-cello.jpg per client requirement
-  const samplePhotos = [
-    "/images/sticker-family.jpg",
-    "/images/sticker-lifestyle-dog.jpg",
-    "/images/sticker-baby.jpg",
-    "/images/sticker-lifestyle-sports.jpg",
-    "/images/sticker-dog.jpg",
-  ];
-  const photoFor = (index: number) => photos[index] || samplePhotos[index % samplePhotos.length];
+  const defaultProductImage = "/images/magnets-product.png";
+  const photoFor = (index: number) => photos[index] || defaultProductImage;
+  const hasCustomPhotos = photos.some(Boolean);
   const updatePhoto = (value: string) => setPhotos((current) => current.map((photo, index) => (index === selectedPhoto ? value : photo)));
   const controls = (
     <div className="mt-6 space-y-6">
@@ -330,6 +321,7 @@ export function MagnetsStudio() {
     </div>
   );
   const preview = (
+    hasCustomPhotos ? (
     <div className={`grid gap-3 rounded-[20px] bg-[#fdfaf5] p-5 shadow-inner sm:gap-4 sm:p-8 ${quantity === 4 ? "mx-auto max-w-[460px] grid-cols-2" : "grid-cols-3"}`}>
       {Array.from({ length: quantity }).map((_, index) => (
         <div
@@ -340,6 +332,11 @@ export function MagnetsStudio() {
         </div>
       ))}
     </div>
+    ) : (
+      <div className="overflow-hidden rounded-[20px] bg-[#fdfaf5] shadow-inner">
+        <img src={defaultProductImage} alt={es ? "Ejemplo real de imanes personalizados" : "Exemplo real de ímanes personalizados"} className="h-auto w-full object-cover" />
+      </div>
+    )
   );
   return (
     <StudioShell
