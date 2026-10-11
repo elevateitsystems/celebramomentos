@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSelector } from "react-redux";
 import { Icon } from "@/components/icons";
@@ -10,6 +11,7 @@ import { templates } from "@/lib/data";
 import { RootState } from "@/lib/store";
 
 export default function TemplatesPage() {
+  const router = useRouter();
   const language = useSelector((state: RootState) => state.language.language);
   const [activeType, setActiveType] = useState<"all" | "traditional" | "collage" | "magazine">("all");
   const es = language === "es";
@@ -61,6 +63,12 @@ export default function TemplatesPage() {
     },
   ];
 
+  const templateIdForType = {
+    traditional: "template-3",
+    collage: "template-2",
+    magazine: "template-magazine",
+  } as const;
+
   const filteredTemplates = activeType === "all"
     ? templates
     : templates.filter((t) => {
@@ -83,7 +91,7 @@ export default function TemplatesPage() {
               <button
                 key={type.id}
                 type="button"
-                onClick={() => setActiveType(activeType === type.id ? "all" : type.id)}
+                onClick={() => router.push(`/customize?template=${templateIdForType[type.id]}`)}
                 className={`group relative flex flex-col overflow-hidden rounded-[22px] border-2 p-6 text-left transition duration-300 hover:-translate-y-1 hover:shadow-xl ${
                   activeType === type.id
                     ? "border-[#ee5264] bg-white shadow-xl shadow-[#ee5264]/15"
