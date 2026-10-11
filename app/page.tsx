@@ -352,7 +352,9 @@ export default function Home() {
                       <img
                         src={category.image}
                         alt=""
-                        className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                        className={`h-full w-full object-cover transition duration-700 group-hover:scale-105 ${
+                          category.href === "/phone-cases" ? "scale-[2.15]" : ""
+                        }`}
                         style={{ objectPosition: category.position }}
                       />
                     )}
