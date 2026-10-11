@@ -74,11 +74,13 @@ export default function CustomizePage() {
   const stickerFileRef = useRef<HTMLInputElement>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [shouldAutoAdd, setShouldAutoAdd] = useState(false);
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setEditItemId(params.get("edit"));
     setShouldAutoAdd(params.get("autoAdd") === "1");
+    setPendingTemplateId(params.get("template"));
   }, []);
 
   const template = templates.find((item) => item.id === (chosenTemplateId || cart.card.templateId)) || templates[0];
@@ -139,6 +141,15 @@ export default function CustomizePage() {
       dispatch(setBackText(isPortuguese ? "Feito especialmente para ti." : "Hecha especialmente para ti."));
     }
   };
+
+  useEffect(() => {
+    if (!pendingTemplateId || editItemId) return;
+    const nextTemplate = templates.find((item) => item.id === pendingTemplateId);
+    if (!nextTemplate) return;
+    chooseTemplate(nextTemplate.id);
+    setStep(nextTemplate.requiresFrame ? "frame" : "customize");
+    setPendingTemplateId(null);
+  }, [editItemId, pendingTemplateId]);
 
   const continueFromTemplate = () => {
     if (!chosenTemplateId) return;
