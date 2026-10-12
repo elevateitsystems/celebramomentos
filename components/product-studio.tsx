@@ -576,7 +576,7 @@ export function PhoneCaseStudio() {
         }`}
       >
         <img
-          src={photo || "/images/sticker-lifestyle-dog.jpg"}
+          src={photo || "/images/romantic-couple.png"}
           alt="Vista previa de la funda"
           className={`h-full w-full object-cover ${caseType === "clear" ? "opacity-85" : ""} ${
             finish === "glossy" ? "contrast-[1.05]" : ""
