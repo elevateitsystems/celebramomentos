@@ -57,6 +57,14 @@ export type MockTemplate = {
   active: boolean;
 };
 
+export type MockProduct = {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  active: boolean;
+};
+
 export type MockDb = {
   users: MockUser[];
   currentUserId: string | null;
@@ -65,6 +73,7 @@ export type MockDb = {
   templates: MockTemplate[];
   templatePrices: Record<string, number>;
   packagingPrices: Record<Packaging, number>;
+  products: MockProduct[];
 };
 
 const now = () => new Date().toISOString();
@@ -78,6 +87,7 @@ function defaultDb(): MockDb {
     templates: templates.map((item) => ({ id: item.id, name: item.name, eyebrow: item.eyebrow, description: item.description, price: item.price, imageCount: item.imageCount, active: true })),
     templatePrices: Object.fromEntries(templates.map((item) => [item.id, item.price])),
     packagingPrices: { standard: 0, gift: 2.5 },
+    products: [],
   };
 }
 
@@ -94,6 +104,7 @@ function normalizeDb(value: Partial<MockDb>): MockDb {
     templates: value.templates || base.templates,
     templatePrices: { ...base.templatePrices, ...(value.templatePrices || {}) },
     packagingPrices: { ...base.packagingPrices, ...(value.packagingPrices || {}) },
+    products: value.products || base.products,
   };
 }
 

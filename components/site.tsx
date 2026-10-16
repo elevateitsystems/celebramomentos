@@ -464,8 +464,26 @@ export function AuthRequiredModal({ returnTo, onClose, isPortuguese = false }: {
 }
 
 export function Toast({ message, tone = "success", onClose }: { message: string; tone?: "success" | "error" | "warning"; onClose: () => void }) {
-  const colors = { success: "bg-[#182443]", error: "bg-[#b9384d]", warning: "bg-[#806723]" };
-  return <div className={`fixed right-4 top-24 z-[70] flex max-w-[340px] items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-white shadow-2xl ${colors[tone]}`} role="status"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-[#f8c75e]"><Icon name={tone === "success" ? "check" : "spark"} size={15} /></span><span className="flex-1">{message}</span><button onClick={onClose} aria-label="Cerrar notificación" className="text-white/60 hover:text-white"><Icon name="close" size={15} /></button></div>;
+  const inferredTone = tone === "success" && /unable|error|failed|rejected|no se pudo|rechazado|escribe|introduce|add a /i.test(message) ? "error" : tone;
+  const styles = {
+    success: { title: "Éxito", shell: "border-[#bfe6cf] bg-white", icon: "bg-[#e8f5ed] text-[#24714b]", bar: "bg-[#24714b]" },
+    error: { title: "Algo salió mal", shell: "border-[#f1c7c7] bg-white", icon: "bg-[#fff0e8] text-[#c94758]", bar: "bg-[#c94758]" },
+    warning: { title: "Aviso", shell: "border-[#f0dfaa] bg-white", icon: "bg-[#fff7d8] text-[#896816]", bar: "bg-[#d2a72d]" },
+  }[inferredTone];
+
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 4200);
+    return () => window.clearTimeout(timer);
+  }, [message, onClose]);
+
+  return <div className={`fixed right-4 top-24 z-[100] w-[calc(100vw-2rem)] max-w-[380px] overflow-hidden rounded-2xl border p-4 text-[#182443] shadow-[0_18px_50px_rgba(24,36,67,.16)] ${styles.shell}`} role="status" aria-live="polite">
+    <div className="flex items-start gap-3">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${styles.icon}`}><Icon name={inferredTone === "success" ? "check" : inferredTone === "error" ? "close" : "spark"} size={17} /></span>
+      <span className="min-w-0 flex-1"><strong className="block text-sm font-black">{styles.title}</strong><span className="mt-1 block text-xs font-semibold leading-5 text-[#737b90]">{message}</span></span>
+      <button type="button" onClick={onClose} aria-label="Cerrar notificación" className="rounded-lg p-1 text-[#9297a4] transition hover:bg-[#f7f1ec] hover:text-[#182443]"><Icon name="close" size={15} /></button>
+    </div>
+    <span className={`absolute bottom-0 left-0 h-1 w-full origin-left ${styles.bar} animate-[toast-progress_4.2s_linear_forwards]`} />
+  </div>;
 }
 
 export function Price({ value }: { value: number }) { return <span>{value.toFixed(2).replace(".", ",")} €</span>; }

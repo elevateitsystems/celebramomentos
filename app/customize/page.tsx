@@ -8,9 +8,8 @@ import { EmojiElementControls } from "@/components/emoji-element-controls";
 import { Icon } from "@/components/icons";
 import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/components/postcard-preview";
 import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
-import { AuthRequiredModal, PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
+import { PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
 import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, stickerGallery, templates } from "@/lib/data";
-import { getCurrentUser, useMockDb } from "@/lib/mock-store";
 import { type EmojiOption } from "@/lib/emojis";
 import {
   RootState,
@@ -54,8 +53,6 @@ export default function CustomizePage() {
   const router = useRouter();
   const dispatch = useDispatch();
   const cart = useSelector((state: RootState) => state.cart);
-  const db = useMockDb();
-  const user = getCurrentUser(db);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
   const cropPositions = isPortuguese
@@ -68,18 +65,14 @@ export default function CustomizePage() {
   const [uploadIndex, setUploadIndex] = useState(0);
   const [selectedEmojiId, setSelectedEmojiId] = useState<string | null>(cart.card.emojiElements[0]?.id || null);
   const [toast, setToast] = useState("");
-  const [authPrompt, setAuthPrompt] = useState(false);
-  const [autoAddHandled, setAutoAddHandled] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const stickerFileRef = useRef<HTMLInputElement>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
-  const [shouldAutoAdd, setShouldAutoAdd] = useState(false);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setEditItemId(params.get("edit"));
-    setShouldAutoAdd(params.get("autoAdd") === "1");
     setPendingTemplateId(params.get("template"));
   }, []);
 
@@ -102,20 +95,6 @@ export default function CustomizePage() {
     setChosenFrameId(item.card.frameId);
     setActiveSection("front");
   }, [cart.items, dispatch, editItemId]);
-
-  useEffect(() => {
-    if (shouldAutoAdd && !chosenTemplateId) {
-      setChosenTemplateId(cart.card.templateId);
-      setChosenFrameId(cart.card.frameId);
-    }
-  }, [cart.card.frameId, cart.card.templateId, chosenTemplateId, shouldAutoAdd]);
-
-  useEffect(() => {
-    if (!shouldAutoAdd || !user || autoAddHandled || !chosenTemplateId) return;
-    dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
-    setAutoAddHandled(true);
-    router.replace("/cart");
-  }, [autoAddHandled, cart, chosenTemplateId, dispatch, editItemId, router, shouldAutoAdd, user]);
 
   const chooseTemplate = (templateId: string) => {
     const nextTemplate = templates.find((item) => item.id === templateId) || templates[0];
@@ -233,10 +212,6 @@ export default function CustomizePage() {
   };
 
   const handleAddToCart = () => {
-    if (!user) {
-      setAuthPrompt(true);
-      return;
-    }
     dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
     router.push("/cart");
   };
@@ -922,7 +897,7 @@ export default function CustomizePage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setStep("extras")}
+                      onClick={() => setStep("preview")}
                       className="focus-ring inline-flex items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3 text-xs font-black text-white hover:bg-[#d83d54]"
                     >
                       {tx("Continuar a Vista previa", "Continuar para a pré-visualização")} <Icon name="arrow" size={15} />
@@ -999,7 +974,7 @@ export default function CustomizePage() {
               dispatch={dispatch}
               stickerFileRef={stickerFileRef}
               handleStickerPhoto={handleStickerPhoto}
-              onBack={() => setStep("emojis")}
+              onBack={() => setStep("preview")}
               setToast={setToast}
               onAddToCart={handleAddToCart}
               isPortuguese={isPortuguese}
@@ -1009,7 +984,6 @@ export default function CustomizePage() {
       </main>
       <SiteFooter />
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
-      {authPrompt && <AuthRequiredModal returnTo={editItemId ? "/customize?edit=" + editItemId + "&autoAdd=1" : "/customize?autoAdd=1"} onClose={() => setAuthPrompt(false)} isPortuguese={isPortuguese} />}
     </>
   );
 }
