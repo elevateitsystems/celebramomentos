@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 
 export const ADMIN_COOKIE = "celebra_admin_session";
+export const CUSTOMER_COOKIE = "celebra_customer_session";
+export const CUSTOMER_SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
 function secret() {
   const value = process.env.AUTH_SECRET;
@@ -59,4 +61,41 @@ export function setAdminCookie(response: NextResponse, token: string) {
 
 export function clearAdminCookie(response: NextResponse) {
   response.cookies.set(ADMIN_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 0 });
+}
+
+export async function createCustomerSession(customerId: string) {
+  return new SignJWT({ typ: "customer" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(customerId)
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(secret());
+}
+
+export async function getCustomerSession() {
+  const token = (await cookies()).get(CUSTOMER_COOKIE)?.value;
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, secret());
+    if (!payload.sub || payload.typ !== "customer") return null;
+    return prisma.customer.findUnique({ where: { id: payload.sub }, select: { id: true, email: true, name: true, phone: true, createdAt: true, passwordHash: true } });
+  } catch {
+    return null;
+  }
+}
+
+export async function requireCustomer() {
+  const customer = await getCustomerSession();
+  if (!customer) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }), customer: null };
+  }
+  return { error: null, customer };
+}
+
+export function setCustomerCookie(response: NextResponse, token: string) {
+  response.cookies.set(CUSTOMER_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: CUSTOMER_SESSION_MAX_AGE });
+}
+
+export function clearCustomerCookie(response: NextResponse) {
+  response.cookies.set(CUSTOMER_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 0 });
 }

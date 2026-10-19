@@ -25,7 +25,6 @@ const sides = (isPortuguese: boolean): { id: PostcardSide; label: string; descri
 function SelectedFrameOverlay({ src, frameId }: { src: string; frameId: string }) {
   return <img src={src} alt="" aria-hidden="true" className={`pointer-events-none absolute inset-0 ${frameOverlayClass(frameId)} h-full w-full object-fill`} />;
 }
-
 export function PostcardPreviewWindow() {
   const card = useSelector((state: RootState) => state.cart.card);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
@@ -61,7 +60,6 @@ export function PostcardPreviewWindow() {
     </div>
   </div>;
 }
-
 export function PostcardSideView({ side, compact }: { side: PostcardSide; compact: boolean }) {
   const card = useSelector((state: RootState) => state.cart.card);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
@@ -123,3 +121,4 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
     </div>
   </div>;
 }
+// End of postcard preview component.

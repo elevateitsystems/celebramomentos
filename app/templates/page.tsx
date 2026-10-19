@@ -7,29 +7,36 @@ import { useSelector } from "react-redux";
 import { Icon } from "@/components/icons";
 import { PageIntro, SiteFooter, SiteHeader } from "@/components/site";
 import { TemplateCard } from "@/components/template-card";
-import { templates } from "@/lib/data";
+import { getProductPreviewImage, type Template } from "@/lib/data";
 import { RootState } from "@/lib/store";
-import { useMockDb } from "@/lib/mock-store";
 
-type PublishedProduct = { id: string; name: string; description: string | null; basePriceCents: number; kind: string; images: { asset: { url: string | null } }[] };
+type PublishedProduct = { id: string; name: string; description: string | null; basePriceCents: number; kind: string; category?: { name?: string | null } | null; images: { asset: { url: string | null } }[] };
 
 export default function TemplatesPage() {
   const router = useRouter();
   const language = useSelector((state: RootState) => state.language.language);
   const [activeType, setActiveType] = useState<"all" | "traditional" | "collage" | "magazine">("all");
   const [publishedProducts, setPublishedProducts] = useState<PublishedProduct[]>([]);
+  const [storedTemplates, setStoredTemplates] = useState<Template[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
   const es = language === "es";
-  const db = useMockDb();
 
   useEffect(() => {
     let active = true;
-    fetch("/api/products", { cache: "no-store" }).then((response) => response.ok ? response.json() : null).then((body) => {
+    let pending = 2;
+    const done = () => { pending -= 1; if (active && pending === 0) setLoadingCatalog(false); };
+    fetch("/api/products?kind=POSTCARD", { cache: "no-store" }).then((response) => response.ok ? response.json() : null).then((body) => {
       if (active && body?.products) setPublishedProducts(body.products);
-    }).catch(() => undefined);
+    }).catch(() => undefined).finally(done);
+    fetch("/api/templates", { cache: "no-store" }).then((response) => response.ok ? response.json() : null).then((body) => {
+      if (!active || !body?.templates?.length) return;
+      setStoredTemplates(body.templates.map((item: { slug: string; name: string; type: string; description: string | null; imageCount: number; priceCents: number; metadata?: { eyebrow?: string; layoutId?: string } | null }) => ({ id: item.slug, name: item.name, eyebrow: item.metadata?.eyebrow || item.type.toUpperCase(), description: item.description || "", image: item.metadata?.layoutId === "template-magazine" ? "/images/roberto-match-contact-sheet.png" : "/images/customizable-template.png", price: item.priceCents / 100, imageCount: item.imageCount, requiresFrame: item.type !== "magazine", longText: item.type === "traditional", magazineStyle: item.type === "magazine" })));
+    }).catch(() => undefined).finally(done);
     return () => { active = false; };
   }, []);
-  const localProducts: PublishedProduct[] = db.products.filter((product) => product.active).map((product) => ({ id: product.id, name: product.name, description: null, basePriceCents: Math.round(product.price * 100), kind: "POSTCARD", images: [] }));
-  const allPublishedProducts = [...localProducts, ...publishedProducts.filter((product) => !localProducts.some((localProduct) => localProduct.id === product.id))];
+  if (loadingCatalog) return <><SiteHeader active={language === "es" ? "Productos" : "Produtos"} /><main className="min-h-[60vh] bg-[#fffaf5]" /><SiteFooter /></>;
+
+  const allPublishedProducts = publishedProducts;
 
   const copy = es
     ? {
@@ -84,9 +91,10 @@ export default function TemplatesPage() {
     magazine: "template-magazine",
   } as const;
 
+  const displayTemplates = storedTemplates;
   const filteredTemplates = activeType === "all"
-    ? templates
-    : templates.filter((t) => {
+    ? displayTemplates
+    : displayTemplates.filter((t) => {
         if (activeType === "magazine") return t.magazineStyle;
         if (activeType === "collage") return !t.magazineStyle && t.imageCount >= 4;
         if (activeType === "traditional") return !t.magazineStyle && t.imageCount < 4;
@@ -144,7 +152,7 @@ export default function TemplatesPage() {
               )}
           </section>
 
-          {allPublishedProducts.length > 0 && <section className="mx-auto mt-16 max-w-[1180px]" aria-label={es ? "Productos disponibles" : "Produtos disponíveis"}><div className="mb-5"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ee5264]">{es ? "NUEVO EN LA TIENDA" : "NOVO NA LOJA"}</p><h2 className="mt-2 text-2xl font-black text-[#182443]">{es ? "Más productos para tus momentos" : "Mais produtos para os teus momentos"}</h2></div><div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">{allPublishedProducts.map((product) => <article key={product.id} className="overflow-hidden rounded-[22px] border border-[#eadbd3] bg-white shadow-sm"><div className="aspect-[4/3] bg-[#f8efe8]">{product.images[0]?.asset.url ? <img src={product.images[0].asset.url} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-5xl">✨</div>}</div><div className="p-5"><div className="flex items-start justify-between gap-3"><h3 className="text-lg font-black text-[#182443]">{product.name}</h3><span className="shrink-0 text-sm font-black text-[#ee5264]">{(product.basePriceCents / 100).toFixed(2).replace(".", ",")} €</span></div>{product.description && <p className="mt-2 text-sm leading-6 text-[#737b90]">{product.description}</p>}<Link href={`/customize?product=${encodeURIComponent(product.id)}`} className="mt-4 inline-flex rounded-full bg-[#182443] px-4 py-2.5 text-xs font-black text-white hover:bg-[#ee5264]">Personalizar</Link></div></article>)}</div></section>}
+          {allPublishedProducts.length > 0 && <section className="mx-auto mt-16 max-w-[1180px]" aria-label={es ? "Productos disponibles" : "Produtos disponíveis"}><div className="mb-5"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ee5264]">{es ? "NUEVO EN LA TIENDA" : "NOVO NA LOJA"}</p><h2 className="mt-2 text-2xl font-black text-[#182443]">{es ? "Más productos para tus momentos" : "Mais produtos para os teus momentos"}</h2></div><div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">{allPublishedProducts.map((product) => { const image = product.images[0]?.asset.url || getProductPreviewImage(product.kind, product.category?.name); return <article key={product.id} className="overflow-hidden rounded-[22px] border border-[#eadbd3] bg-white shadow-sm"><div className="aspect-[4/3] bg-[#f8efe8]"><img src={image} alt={product.name} className="h-full w-full object-cover" /></div><div className="p-5"><div className="flex items-start justify-between gap-3"><h3 className="text-lg font-black text-[#182443]">{product.name}</h3><span className="shrink-0 text-sm font-black text-[#ee5264]">{(product.basePriceCents / 100).toFixed(2).replace(".", ",")} €</span></div>{product.description && <p className="mt-2 text-sm leading-6 text-[#737b90]">{product.description}</p>}<Link href={`/customize?template=template-3&product=${encodeURIComponent(product.id)}`} className="mt-4 inline-flex rounded-full bg-[#182443] px-4 py-2.5 text-xs font-black text-white hover:bg-[#ee5264]">Personalizar</Link></div></article>; })}</div></section>}
 
           <div className="mt-10 flex flex-col items-center justify-between gap-4 rounded-[24px] bg-[#182443] p-6 text-white sm:flex-row sm:px-8">
             <div>

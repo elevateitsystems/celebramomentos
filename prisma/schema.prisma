@@ -84,6 +84,7 @@ model Product {
   images          ProductImage[]
   options         PersonalizationOption[]
   orderItems      OrderItem[]
+  cartLines       CartLine[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   @@index([kind, active])
@@ -180,15 +181,32 @@ model Asset {
 }
 
 model Customer {
-  id          String       @id @default(cuid())
-  email       String       @unique
-  name        String
-  phone       String?
-  addresses   Address[]
-  orders      Order[]
-  messages    ContactMessage[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id           String           @id @default(cuid())
+  email        String           @unique
+  name         String
+  phone        String?
+  passwordHash String?
+  addresses    Address[]
+  orders       Order[]
+  messages     ContactMessage[]
+  cartLines    CartLine[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model CartLine {
+  id             String    @id @default(cuid())
+  customerId     String
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  templateSlug   String?
+  productId      String?
+  product        Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  quantity       Int       @default(1)
+  unitPriceCents Int
+  payload        Json
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  @@index([customerId])
 }
 
 model Address {
@@ -219,6 +237,7 @@ model Order {
   totalCents            Int
   shippingAddress       Json
   billingAddress        Json?
+  checkoutIdempotencyKey String?       @unique
   items                 OrderItem[]
   payments              Payment[]
   assets                OrderAsset[]
@@ -228,6 +247,12 @@ model Order {
   @@index([status, createdAt])
   @@index([email])
   @@index([customerId])
+}
+
+model StripeEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
 }
 
 model OrderItem {
@@ -322,6 +347,7 @@ model ContactMessage {
   subject    String
   message    String
   status     String    @default("OPEN")
+  replies    Json?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   @@index([status, createdAt])

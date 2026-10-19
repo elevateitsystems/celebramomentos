@@ -9,7 +9,6 @@ import { Icon } from "@/components/icons";
 import { PageIntro, Price, SiteFooter, SiteHeader, StatusBadge, Toast } from "@/components/site";
 import { amountUntilFreeShipping, getDeliveryPrice, qualifiesForFreeShipping } from "@/lib/shipping";
 import { getCartItemUnitTotal } from "@/lib/cart";
-import { getTemplatePrice, useMockDb } from "@/lib/mock-store";
 import { RootState, loadCartItem, removeCartItem, setCartItemQuantity, setDiscountCode } from "@/lib/store";
 import { templates } from "@/lib/data";
 
@@ -17,13 +16,12 @@ export default function CartPage() {
   const router = useRouter();
   const dispatch = useDispatch();
   const cart = useSelector((state: RootState) => state.cart);
-  const db = useMockDb();
   const [toast, setToast] = useState("");
   const [discount, setDiscount] = useState(cart.discountCode);
   const items = cart.items;
   const rows = items.map((item) => {
     const template = templates.find((current) => current.id === item.card.templateId) || templates[0];
-    const templatePrice = getTemplatePrice(template.id, db);
+    const templatePrice = template.price;
     return { item, template, unitTotal: getCartItemUnitTotal(item, templatePrice) };
   });
   const merchandiseSubtotal = rows.reduce((sum, row) => sum + row.unitTotal * row.item.quantity, 0);

@@ -6,6 +6,7 @@ import { useSelector } from "react-redux";
 import { Icon } from "@/components/icons";
 import { PageIntro, SiteFooter, SiteHeader, Toast } from "@/components/site";
 import { RootState } from "@/lib/store";
+import { PublishedProducts, type PublishedProductKind } from "@/components/published-products";
 
 function readPhoto(event: ChangeEvent<HTMLInputElement>, onRead: (value: string) => void) {
   const file = event.target.files?.[0];
@@ -23,9 +24,9 @@ function UploadButton({ photo, onPhoto, es }: { photo: string | null; onPhoto: (
   </>;
 }
 
-function StudioShell({ eyebrow, title, body, controls, preview, price, es }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; price: string; es: boolean }) {
+function StudioShell({ eyebrow, title, body, controls, preview, price, es, catalogKind, catalogTitle }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; price: string; es: boolean; catalogKind: PublishedProductKind; catalogTitle: string }) {
   const [notice, setNotice] = useState("");
-  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{price}</span></div>{controls}<div className="mt-7 border-t border-[#eadfd8] pt-5"><button type="button" onClick={() => setNotice(es ? "Tu vista está guardada en esta demo. Para un pedido completo, elige una tarjeta personalizada." : "A tua vista está guardada nesta demo. Para uma encomenda completa, escolhe um cartão personalizado.")} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{es ? "Continuar" : "Continuar"} <Icon name="arrow" size={16} /></button><p className="mt-3 text-center text-[11px] text-[#9297a4]">{es ? "Vista de demostración · no se realizará ningún pedido" : "Vista de demonstração · nenhuma encomenda será realizada"}</p></div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main><SiteFooter />{notice && <Toast message={notice} onClose={() => setNotice("")} />}</>;
+  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{price}</span></div>{controls}<div className="mt-7 border-t border-[#eadfd8] pt-5"><button type="button" onClick={() => setNotice(es ? "Tu vista está guardada en esta demo. Para un pedido completo, elige una tarjeta personalizada." : "A tua vista está guardada nesta demo. Para uma encomenda completa, escolhe um cartão personalizado.")} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{es ? "Continuar" : "Continuar"} <Icon name="arrow" size={16} /></button><p className="mt-3 text-center text-[11px] text-[#9297a4]">{es ? "Vista de demostración · no se realizará ningún pedido" : "Vista de demonstração · nenhuma encomenda será realizada"}</p></div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main><PublishedProducts kind={catalogKind} title={catalogTitle} /><SiteFooter />{notice && <Toast message={notice} onClose={() => setNotice("")} />}</>;
 }
 
 export function CalendarStudio() {
@@ -37,7 +38,7 @@ export function CalendarStudio() {
   const price = size === "A4" ? "18,90 €" : "16,90 €";
   const controls = <div className="mt-6 space-y-6"><div><p className="text-sm font-black">{es ? "Tamaño" : "Tamanho"}</p><div className="mt-3 grid grid-cols-2 gap-3">{(["A4", "A5"] as const).map((option) => <button key={option} type="button" onClick={() => setSize(option)} className={`focus-ring rounded-2xl border p-4 text-left transition ${size === option ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}><span className="flex items-center justify-between"><span className="text-base font-black">{option}</span><span className={`h-4 w-4 rounded-full border ${size === option ? "border-[5px] border-[#ee5264]" : "border-[#b7b0ac]"}`} /></span><span className="mt-2 block text-xs text-[#737b90]">{option === "A4" ? "21 × 29,7 cm" : "14,8 × 21 cm"}</span></button>)}</div></div><div><p className="text-sm font-black">{es ? "Tipo de calendario" : "Tipo de calendário"}</p><button type="button" onClick={() => setDated(!dated)} className={`focus-ring mt-3 flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${dated ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc]"}`}><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${dated ? "bg-[#ee5264] text-white" : "bg-[#f4eee9]"}`}><Icon name="check" size={18} /></span><span className="flex-1"><span className="block text-sm font-black">{es ? "Con fechas" : "Com datas"}</span><span className="mt-1 block text-xs leading-5 text-[#737b90]">{es ? "12 meses listos para empezar en enero." : "12 meses prontos para começar em janeiro."}</span></span></button></div><div><p className="text-sm font-black">{es ? "Foto de portada" : "Fotografia de capa"}</p><UploadButton photo={photo} onPhoto={setPhoto} es={es} /></div></div>;
   const preview = <div className="mx-auto max-w-[560px]"><div className={`mx-auto overflow-hidden bg-white shadow-2xl shadow-[#8a564c]/15 transition-all ${size === "A5" ? "w-[70%] rounded-[14px]" : "w-full rounded-[18px]"}`}><div className="flex h-5 items-center justify-center gap-3 bg-[#182443]">{Array.from({ length: 13 }).map((_, index) => <span key={index} className="h-2.5 w-1 rounded-full bg-white/70" />)}</div><img src={photo || "/images/calendar-product.png"} alt={es ? "Vista previa del calendario" : "Pré-visualização do calendário"} className="aspect-[1.65/1] w-full object-cover" /><div className="p-4 sm:p-6"><div className="flex items-end justify-between border-b border-[#182443] pb-3"><h3 className="serif text-3xl font-bold">{dated ? (es ? "ENERO" : "JANEIRO") : (es ? "TU MES" : "O TEU MÊS")}</h3><span className="text-[10px] font-black">2027</span></div><div className="mt-3 grid grid-cols-7 gap-px bg-[#eadfd8]">{Array.from({ length: 35 }).map((_, index) => <span key={index} className="flex aspect-square items-start justify-end bg-white p-1 text-[7px] text-[#59627b]">{dated && index > 2 && index < 34 ? index - 2 : ""}</span>)}</div></div></div><div className="mt-4 flex flex-wrap justify-center gap-1.5">{months.map((month, index) => <span key={month} className={`rounded-full px-2.5 py-1 text-[9px] font-black ${index === 0 ? "bg-[#182443] text-white" : "bg-white text-[#9297a4]"}`}>{month}</span>)}</div></div>;
-  return <StudioShell eyebrow={es ? "CALENDARIOS PERSONALIZADOS" : "CALENDÁRIOS PERSONALIZADOS"} title={es ? "Un año lleno de los tuyos" : "Um ano cheio dos teus"} body={es ? "Elige A4 o A5, añade tu foto y revisa cómo quedará tu calendario con fechas." : "Escolhe A4 ou A5, adiciona a tua fotografia e vê como ficará o calendário com datas."} controls={controls} preview={preview} price={price} es={es} />;
+  return <StudioShell eyebrow={es ? "CALENDARIOS PERSONALIZADOS" : "CALENDÁRIOS PERSONALIZADOS"} title={es ? "Un año lleno de los tuyos" : "Um ano cheio dos teus"} body={es ? "Elige A4 o A5, añade tu foto y revisa cómo quedará tu calendario con fechas." : "Escolhe A4 ou A5, adiciona a tua fotografia e vê como ficará o calendário com datas."} controls={controls} preview={preview} price={price} es={es} catalogKind="CALENDAR" catalogTitle={es ? "Más calendarios disponibles" : "Mais calendários disponíveis"} />;
 }
 
 export function WallArtStudio() {
@@ -235,6 +236,8 @@ export function WallArtStudio() {
       preview={preview}
       price={currentPrice}
       es={es}
+      catalogKind="WALL_ART"
+      catalogTitle={es ? "Más arte de pared disponible" : "Mais arte de parede disponível"}
     />
   );
 }
@@ -347,6 +350,8 @@ export function MagnetsStudio() {
       preview={preview}
       price={price}
       es={es}
+      catalogKind="MAGNET"
+      catalogTitle={es ? "Más imanes disponibles" : "Mais ímanes disponíveis"}
     />
   );
 }
@@ -608,6 +613,8 @@ export function PhoneCaseStudio() {
       preview={preview}
       price={price}
       es={es}
+      catalogKind="PHONE_CASE"
+      catalogTitle={es ? "Más fundas disponibles" : "Mais capas disponíveis"}
     />
   );
 }
@@ -786,6 +793,8 @@ export function StickerStudio() {
       preview={preview}
       price={currentPrice}
       es={es}
+      catalogKind="STICKER"
+      catalogTitle={es ? "Más stickers disponibles" : "Mais autocolantes disponíveis"}
     />
   );
 }
@@ -1000,6 +1009,8 @@ export function MugStudio() {
       preview={preview}
       price={currentPrice}
       es={es}
+      catalogKind="MUG"
+      catalogTitle={es ? "Más tazas disponibles" : "Mais canecas disponíveis"}
     />
   );
 }

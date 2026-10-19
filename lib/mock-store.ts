@@ -63,6 +63,7 @@ export type MockProduct = {
   category: string;
   price: number;
   active: boolean;
+  image?: string;
 };
 
 export type MockDb = {

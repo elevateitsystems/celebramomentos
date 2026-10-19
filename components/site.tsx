@@ -67,7 +67,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { Icon } from "./icons";
 import { translations } from "@/lib/data";
 import { RootState, setLanguage } from "@/lib/store";
-import { getCurrentUser, useMockDb } from "@/lib/mock-store";
 
 function Glyph({ name, size = 18, className = "" }: { name: "search" | "globe" | "chevron"; size?: number; className?: string }) {
   const paths = {
@@ -283,8 +282,8 @@ export function SiteHeader({ active = "" }: { active?: string }) {
   const links = es
     ? [["Tienda", "/#categories"], ["Cómo funciona", "/#how"], ["Nosotros", "/#story"], ["Ayuda", "/contact"]]
     : [["Loja", "/#categories"], ["Como funciona", "/#how"], ["Sobre nós", "/#story"], ["Ajuda", "/contact"]];
-  const db = useMockDb();
-  const user = getCurrentUser(db);
+  const [user, setUser] = useState<{ name: string } | null>(null);
+  useEffect(() => { fetch("/api/auth/me", { cache: "no-store" }).then((response) => response.json()).then((body) => setUser(body.user || null)).catch(() => setUser(null)); }, []);
   const cartCount = useSelector((state: RootState) => state.cart.items.reduce((total, item) => total + item.quantity, 0));
 
   return (
@@ -458,13 +457,17 @@ export function PageIntro({ eyebrow, title, body }: { eyebrow: string; title: st
   return <div className="mx-auto max-w-[710px] text-center"><p className="text-[10px] font-black tracking-[.2em] text-[#ee5264]">{eyebrow}</p><h1 className="serif mt-3 text-4xl font-bold tracking-[-.04em] sm:text-6xl">{title}</h1>{body && <p className="mx-auto mt-5 max-w-[560px] text-sm leading-7 text-[#737b90]">{body}</p>}</div>;
 }
 
+export function Spinner({ size = 16, className = "" }: { size?: number; className?: string }) {
+  return <span aria-hidden="true" className={`inline-block animate-spin rounded-full border-2 border-current/25 border-t-current ${className}`} style={{ width: size, height: size }} />;
+}
+
 export function AuthRequiredModal({ returnTo, onClose, isPortuguese = false }: { returnTo: string; onClose: () => void; isPortuguese?: boolean }) {
   const href = "/account?returnTo=" + encodeURIComponent(returnTo);
   return <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#182443]/45 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="auth-required-title"><button className="absolute inset-0" onClick={onClose} aria-label={isPortuguese ? "Fechar" : "Cerrar"} /><section className="relative w-full rounded-t-[28px] bg-white p-6 shadow-2xl sm:max-w-[480px] sm:rounded-[28px] sm:p-8"><button type="button" onClick={onClose} className="absolute right-5 top-5 rounded-full bg-[#fff5ef] p-2 text-[#737b90]" aria-label={isPortuguese ? "Fechar" : "Cerrar"}><Icon name="close" size={16} /></button><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff0e8] text-[#ee5264]"><Icon name="user" size={22} /></div><p className="mt-6 text-[10px] font-black uppercase tracking-[.18em] text-[#ee5264]">{isPortuguese ? "UM ÚLTIMO PASSO" : "UN ÚLTIMO PASO"}</p><h2 id="auth-required-title" className="serif mt-2 text-3xl font-bold tracking-[-.03em] text-[#182443]">{isPortuguese ? "Guarda o teu design" : "Guarda tu diseño"}</h2><p className="mt-3 text-sm leading-6 text-[#737b90]">{isPortuguese ? "Cria uma conta ou inicia sessão para manter a tua personalização e adicioná-la ao carrinho." : "Crea una cuenta o inicia sesión para guardar tu personalización y añadirla a la cesta."}</p><div className="mt-7 flex flex-col gap-3 sm:flex-row"><Link href={href} onClick={onClose} className="focus-ring inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white hover:bg-[#d83d54]">{isPortuguese ? "Entrar ou criar conta" : "Iniciar sesión o registrarme"}<Icon name="arrow" size={16} /></Link><button type="button" onClick={onClose} className="focus-ring rounded-full border border-[#d9cbc4] bg-white px-5 py-3.5 text-sm font-black text-[#182443]">{isPortuguese ? "Agora não" : "Ahora no"}</button></div><p className="mt-5 text-center text-[11px] text-[#9297a4]">{isPortuguese ? "É uma demonstração segura: nada é enviado para um servidor real." : "Es una demo segura: nada se envía a un servidor real."}</p></section></div>;
 }
 
 export function Toast({ message, tone = "success", onClose }: { message: string; tone?: "success" | "error" | "warning"; onClose: () => void }) {
-  const inferredTone = tone === "success" && /unable|error|failed|rejected|no se pudo|rechazado|escribe|introduce|add a /i.test(message) ? "error" : tone;
+  const inferredTone = tone === "success" && /unable|error|failed|rejected|no se pudo|no se puede|não é possível|rechazado|escribe|introduce|iniciar sesión|inicia sessão|add a /i.test(message) ? "error" : tone;
   const styles = {
     success: { title: "Éxito", shell: "border-[#bfe6cf] bg-white", icon: "bg-[#e8f5ed] text-[#24714b]", bar: "bg-[#24714b]" },
     error: { title: "Algo salió mal", shell: "border-[#f1c7c7] bg-white", icon: "bg-[#fff0e8] text-[#c94758]", bar: "bg-[#c94758]" },

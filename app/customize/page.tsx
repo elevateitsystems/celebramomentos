@@ -8,7 +8,7 @@ import { EmojiElementControls } from "@/components/emoji-element-controls";
 import { Icon } from "@/components/icons";
 import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/components/postcard-preview";
 import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
-import { PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
+import { PageIntro, Price, SiteFooter, SiteHeader, Spinner, Toast } from "@/components/site";
 import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, stickerGallery, templates } from "@/lib/data";
 import { type EmojiOption } from "@/lib/emojis";
 import {
@@ -69,11 +69,24 @@ export default function CustomizePage() {
   const stickerFileRef = useRef<HTMLInputElement>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setEditItemId(params.get("edit"));
     setPendingTemplateId(params.get("template"));
+    setSelectedProductId(params.get("product"));
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => response.json())
+      .then(() => { if (active) setAuthChecked(true); })
+      .catch(() => { if (active) setAuthChecked(true); });
+    return () => { active = false; };
   }, []);
 
   const template = templates.find((item) => item.id === (chosenTemplateId || cart.card.templateId)) || templates[0];
@@ -93,6 +106,7 @@ export default function CustomizePage() {
     dispatch(loadCartItem(editItemId));
     setChosenTemplateId(item.card.templateId);
     setChosenFrameId(item.card.frameId);
+    setSelectedProductId(item.productId || null);
     setActiveSection("front");
   }, [cart.items, dispatch, editItemId]);
 
@@ -211,9 +225,24 @@ export default function CustomizePage() {
     setStep("emojis");
   };
 
-  const handleAddToCart = () => {
-    dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
-    router.push("/cart");
+  const handleAddToCart = async () => {
+    setAddingToCart(true);
+    try {
+      const response = await fetch("/api/auth/me", { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok || !body.user) {
+        setAuthChecked(true);
+        setToast(tx("No se puede añadir el diseño a la cesta sin iniciar sesión. Inicia sesión o crea una cuenta para continuar.", "Não é possível adicionar o design ao carrinho sem iniciar sessão. Inicia sessão ou cria uma conta para continuar."));
+        return;
+      }
+      setAuthChecked(true);
+      dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, productId: selectedProductId, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
+      router.push("/cart");
+    } catch {
+      setToast(tx("No hemos podido verificar tu sesión. Inténtalo de nuevo.", "Não foi possível verificar a tua sessão. Tenta novamente."));
+    } finally {
+      setAddingToCart(false);
+    }
   };
 
   // 6-step progress steps (or 5 if frame skipped for Magazine)
@@ -977,6 +1006,7 @@ export default function CustomizePage() {
               onBack={() => setStep("preview")}
               setToast={setToast}
               onAddToCart={handleAddToCart}
+              addingToCart={addingToCart || !authChecked}
               isPortuguese={isPortuguese}
             />
           )}
@@ -1162,6 +1192,7 @@ function ExtrasStep({
   onBack,
   setToast,
   onAddToCart,
+  addingToCart,
   isPortuguese,
 }: {
   cart: RootState["cart"];
@@ -1171,6 +1202,7 @@ function ExtrasStep({
   onBack: () => void;
   setToast: (msg: string) => void;
   onAddToCart: () => void;
+  addingToCart: boolean;
   isPortuguese: boolean;
 }) {
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
@@ -1399,10 +1431,11 @@ function ExtrasStep({
           <div className="mt-6 space-y-3">
             <button
               type="button"
+              disabled={addingToCart}
               onClick={onAddToCart}
-              className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]"
+              className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-wait disabled:opacity-70"
             >
-              {tx("Añadir a la cesta", "Adicionar ao carrinho")} <Icon name="bag" size={17} />
+              {addingToCart ? <><Spinner size={16} />{tx("Verificando sesión…", "A verificar a sessão…")}</> : <>{tx("Añadir a la cesta", "Adicionar ao carrinho")} <Icon name="bag" size={17} /></>}
             </button>
             <button
               type="button"

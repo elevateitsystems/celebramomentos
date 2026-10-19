@@ -18,7 +18,7 @@ The schema covers admin roles, catalog products and variants, postcard templates
 - `POST /api/admin/logout` clears the session.
 - `GET /api/admin/me` returns the current admin without the password hash.
 - `GET|POST|PATCH|DELETE /api/admin/products` provides authenticated catalog CRUD. DELETE archives instead of deleting records.
-- `POST /api/uploads/presign` creates a controlled MinIO upload URL and records asset metadata.
+- `POST /api/uploads/presign` creates a signed Cloudinary upload request; `/api/uploads/complete` verifies the returned Cloudinary signature and records asset metadata.
 
 ## Payments
 
@@ -26,9 +26,9 @@ The schema covers admin roles, catalog products and variants, postcard templates
 
 Configure Stripe to send Checkout events to `/api/stripe/webhook` and set `STRIPE_WEBHOOK_SECRET`. The webhook verifies signatures and updates orders idempotently.
 
-## MinIO
+## Cloudinary
 
-The upload endpoint creates the configured bucket if it is absent, stores only object metadata in PostgreSQL, and returns a short-lived presigned PUT URL. Verify the bucket and existing objects with the storage owner before production changes.
+Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` in the deployment secret manager. The upload endpoint sends image bytes to Cloudinary, stores the returned secure URL and provider metadata in PostgreSQL, and never uses local filesystem storage.
 
 ## Security notes
 
