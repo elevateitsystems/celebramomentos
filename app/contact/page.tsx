@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Icon } from "@/components/icons";
 import { SiteFooter, SiteHeader } from "@/components/site";
-import { createMockMessage, getCurrentUser, useMockDb } from "@/lib/mock-store";
 
 const schema = z.object({
   name: z.string().min(2, "Escribe tu nombre"),
@@ -26,8 +25,7 @@ const topics = [
 ];
 
 export default function ContactPage() {
-  const db = useMockDb();
-  const user = getCurrentUser(db);
+  const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null);
   const [sent, setSent] = useState(false);
   const [sentName, setSentName] = useState("");
   const {
@@ -45,14 +43,12 @@ export default function ContactPage() {
   const subject = watch("subject") || "";
   const messageLength = (watch("message") || "").length;
 
-  const submit = (data: Form) => {
-    createMockMessage({
-      userId: user?.id || null,
-      name: data.name,
-      email: data.email,
-      subject: data.subject,
-      text: data.message,
-    });
+  useEffect(() => { fetch("/api/auth/me", { cache: "no-store" }).then((response) => response.json()).then((body) => { if (body.user) { setUser(body.user); reset({ name: body.user.name, email: body.user.email }); } }).catch(() => undefined); }, [reset]);
+
+  const submit = async (data: Form) => {
+    const response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "No se pudo enviar el mensaje");
     setSentName(data.name.split(" ")[0]);
     setSent(true);
     reset({ name: data.name, email: data.email, subject: "", message: "" });

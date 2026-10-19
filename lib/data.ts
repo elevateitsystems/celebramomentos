@@ -74,6 +74,20 @@ export const addOns: AddOn[] = [
   { id: "sticker", name: "Sticker personalizado", namePt: "Sticker personalizado", description: "Círculo de 7,62 cm (3 pulgadas) con tu fotografía favorita.", descriptionPt: "Círculo de 7,62 cm (3 polegadas) com a tua fotografia favorita.", price: 1.5, image: "/images/sticker-dog.jpg", kind: "sticker" },
 ];
 
+// Products created from the admin catalog do not necessarily have an uploaded
+// ProductImage yet. Keep their storefront cards visual and consistent with the
+// built-in catalog until a product-specific image is assigned.
+export function getProductPreviewImage(kind?: string | null, category?: string | null) {
+  const value = `${kind || ""} ${category || ""}`.toLowerCase();
+  if (value.includes("sticker")) return "/images/sticker-dog.jpg";
+  if (value.includes("calendar")) return "/images/calendar-product.png";
+  if (value.includes("wall")) return "/images/client-wall-art-single.jpg";
+  if (value.includes("magnet")) return "/images/magnets-product.png";
+  if (value.includes("phone")) return "/images/personalised-phone-cases.png";
+  if (value.includes("mug")) return "/images/mug-child-beach.jpg";
+  return "/images/customizable-template.png";
+}
+
 export const STICKER_PRICES = [0, 1.5, 2.5, 3.5] as const;
 export const ENVELOPE_TEXT_PRICE = 1;
 export const PACKAGING_PRICES: Record<Packaging, number> = { standard: 0, gift: 2.5 };

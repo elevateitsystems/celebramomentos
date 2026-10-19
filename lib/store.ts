@@ -37,6 +37,7 @@ export type CardCustomization = {
 export type CartItem = {
   id: string;
   quantity: number;
+  productId?: string | null;
   card: CardCustomization;
   stickerQuantity: 0 | 1 | 2 | 3;
   stickerImage: string | null;
@@ -161,6 +162,7 @@ const cartSlice = createSlice({
       const item: CartItem = {
         id,
         quantity: Math.max(1, action.payload.quantity || 1),
+        productId: action.payload.productId || null,
         card: cloneCard(action.payload.card),
         stickerQuantity: action.payload.stickerQuantity,
         stickerImage: action.payload.stickerImage,
