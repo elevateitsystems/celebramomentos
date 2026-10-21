@@ -193,7 +193,10 @@ export function getTemplatePrice(templateId: string, db = getMockDb()): number {
 }
 
 export function persistCart(cart: CartState) {
-  if (typeof window !== "undefined") window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+  if (typeof window === "undefined") return;
+  // Uploaded photos are kept as data URLs, which can exceed the storage quota.
+  // The in-memory cart keeps working if persisting fails.
+  try { window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart)); } catch { /* quota exceeded or storage blocked */ }
 }
 
 export function readPersistedCart(): CartState | null {

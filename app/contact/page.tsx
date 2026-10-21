@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Icon } from "@/components/icons";
-import { SiteFooter, SiteHeader } from "@/components/site";
+import { SiteFooter, SiteHeader, Spinner } from "@/components/site";
+import { getSessionUser } from "@/lib/client-session";
 
 const schema = z.object({
   name: z.string().min(2, "Escribe tu nombre"),
@@ -26,6 +27,7 @@ const topics = [
 
 export default function ContactPage() {
   const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [sendError, setSendError] = useState("");
   const [sent, setSent] = useState(false);
   const [sentName, setSentName] = useState("");
   const {
@@ -43,12 +45,14 @@ export default function ContactPage() {
   const subject = watch("subject") || "";
   const messageLength = (watch("message") || "").length;
 
-  useEffect(() => { fetch("/api/auth/me", { cache: "no-store" }).then((response) => response.json()).then((body) => { if (body.user) { setUser(body.user); reset({ name: body.user.name, email: body.user.email }); } }).catch(() => undefined); }, [reset]);
+  useEffect(() => { let active = true; void getSessionUser().then((sessionUser) => { if (active && sessionUser) { setUser(sessionUser); reset({ name: sessionUser.name, email: sessionUser.email }); } }); return () => { active = false; }; }, [reset]);
 
   const submit = async (data: Form) => {
-    const response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.error || "No se pudo enviar el mensaje");
+    setSendError("");
+    // A failed request used to throw inside handleSubmit and fail silently.
+    const response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).catch(() => null);
+    const body = response ? await response.json().catch(() => ({})) : {};
+    if (!response?.ok) { setSendError(body.error === "Validation failed" ? "Revisa los campos del formulario." : "No se pudo enviar el mensaje. Inténtalo de nuevo."); return; }
     setSentName(data.name.split(" ")[0]);
     setSent(true);
     reset({ name: data.name, email: data.email, subject: "", message: "" });
@@ -269,11 +273,13 @@ export default function ContactPage() {
                   </p>
                   <button
                     disabled={isSubmitting}
+                    aria-busy={isSubmitting}
                     className="focus-ring inline-flex items-center justify-center gap-3 rounded-full bg-[#ee5264] px-8 py-4 text-sm font-black text-white shadow-lg shadow-[#ee5264]/25 transition hover:-translate-y-0.5 hover:bg-[#d83d54] disabled:opacity-60 disabled:hover:translate-y-0"
                   >
-                    Enviar mensaje <Icon name="arrow" size={16} />
+                    {isSubmitting ? <><Spinner size={16} /> Enviando…</> : <>Enviar mensaje <Icon name="arrow" size={16} /></>}
                   </button>
                 </div>
+                {sendError && <p role="alert" className="mt-4 rounded-xl bg-[#fff0e8] px-3 py-2.5 text-xs font-bold text-[#c94758]">{sendError}</p>}
               </form>
             )}
           </div>

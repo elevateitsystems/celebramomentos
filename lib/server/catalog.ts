@@ -1,7 +1,8 @@
-import { templates, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, ENVELOPE_TEXT_PRICE } from "@/lib/data";
+import { templates, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, ENVELOPE_TEXT_PRICE, MAGNET_PACK_PRICES_CENTS } from "@/lib/data";
 import { getDeliveryPrice } from "@/lib/shipping";
 import type { CartItem } from "@/lib/store";
 import { prisma } from "./prisma";
+import { getWallArtPrices } from "./settings";
 
 export async function ensureCatalog() {
   await Promise.all(templates.map((template) => prisma.postcardTemplate.upsert({
@@ -27,6 +28,10 @@ export async function ensureCatalog() {
 }
 
 export async function resolveUnitPriceCents(input: { templateSlug?: string | null; productId?: string | null; item: CartItem }) {
+  // Studio products are priced from server-side tables only; client snapshots are ignored.
+  const product = input.item.product;
+  if (product?.kind === "WALL_ART") return (await getWallArtPrices())[product.sizeId];
+  if (product?.kind === "MAGNET") return MAGNET_PACK_PRICES_CENTS[product.packSize];
   let baseCents = Math.round((templates.find((template) => template.id === input.templateSlug)?.price ?? templates[0].price) * 100);
   if (input.productId) {
     const product = await prisma.product.findFirst({ where: { id: input.productId, active: true }, select: { basePriceCents: true } });

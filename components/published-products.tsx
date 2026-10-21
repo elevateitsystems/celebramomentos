@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ProductGridSkeleton } from "@/components/loading";
 import { getProductPreviewImage } from "@/lib/data";
 
 export type PublishedProductKind = "POSTCARD" | "CALENDAR" | "WALL_ART" | "MAGNET" | "PHONE_CASE" | "MUG" | "STICKER";
@@ -29,9 +30,15 @@ const categoryPath: Record<PublishedProductKind, string> = {
 export function PublishedProducts({ kind, title }: { kind: PublishedProductKind; title: string }) {
   const [products, setProducts] = useState<PublishedProduct[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [showSkeleton, setShowSkeleton] = useState(false);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError("");
+    // Fast responses render straight away; the skeleton only appears for slow ones.
+    const skeletonTimer = window.setTimeout(() => { if (active) setShowSkeleton(true); }, 300);
     fetch(`/api/products?kind=${kind}`, { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json();
@@ -41,13 +48,15 @@ export function PublishedProducts({ kind, title }: { kind: PublishedProductKind;
       .then((body) => {
         if (active) setProducts(Array.isArray(body.products) ? body.products : []);
       })
-      .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Unable to load products");
+      .catch(() => {
+        if (active) setError("No hemos podido cargar más productos ahora mismo.");
       })
-    return () => { active = false; };
+      .finally(() => { window.clearTimeout(skeletonTimer); if (active) { setLoading(false); setShowSkeleton(false); } });
+    return () => { active = false; window.clearTimeout(skeletonTimer); };
   }, [kind]);
 
-  if (error) return <section className="bg-[#fffaf5] pb-16"><div className="container"><p className="rounded-xl border border-[#f3c6c2] bg-[#fff0e8] p-4 text-sm font-bold text-[#c94758]">{error}</p></div></section>;
+  if (loading) return showSkeleton ? <section className="bg-[#fffaf5] pb-16" aria-label={title}><div className="container"><ProductGridSkeleton /></div></section> : null;
+  if (error) return <section className="bg-[#fffaf5] pb-16"><div className="container"><p role="alert" className="rounded-xl border border-[#f3c6c2] bg-[#fff0e8] p-4 text-sm font-bold text-[#c94758]">{error}</p></div></section>;
   if (products.length === 0) return null;
 
   return (

@@ -82,11 +82,52 @@ export function getProductPreviewImage(kind?: string | null, category?: string |
   if (value.includes("sticker")) return "/images/sticker-dog.jpg";
   if (value.includes("calendar")) return "/images/calendar-product.png";
   if (value.includes("wall")) return "/images/client-wall-art-single.jpg";
-  if (value.includes("magnet")) return "/images/magnets-product.png";
+  if (value.includes("magnet")) return "/images/magnet-single.jpg";
   if (value.includes("phone")) return "/images/personalised-phone-cases.png";
   if (value.includes("mug")) return "/images/mug-child-beach.jpg";
   return "/images/customizable-template.png";
 }
+
+// Official client profiles. These are the fallbacks used until an admin
+// overrides them in Settings (stored in SiteSetting under the same keys).
+export const SOCIAL_LINK_DEFAULTS = {
+  social_facebook: "https://www.facebook.com/profile.php?id=61594739557187",
+  social_instagram: "https://www.instagram.com/celebramomentos2026",
+  social_google_business: "https://maps.app.goo.gl/oQbnJJoXMmoRDdKh8",
+} as const;
+export type SocialLinkKey = keyof typeof SOCIAL_LINK_DEFAULTS;
+export const SOCIAL_LINK_KEYS = Object.keys(SOCIAL_LINK_DEFAULTS) as SocialLinkKey[];
+
+// Wall Art is a single framed product; customers only choose the size.
+// Default prices are in cents and can be overridden from admin Settings
+// (SiteSetting "wall_art_prices", a JSON map of size id → cents).
+export const WALL_ART_SIZES = [
+  { id: "6x4", label: "6 × 4\"", dimensions: "10 × 15 cm", widthCm: 10, heightCm: 15, defaultPriceCents: 1590 },
+  { id: "7x5", label: "7 × 5\"", dimensions: "13 × 18 cm", widthCm: 13, heightCm: 18, defaultPriceCents: 1890 },
+  { id: "A5", label: "A5", dimensions: "14,8 × 21 cm", widthCm: 14.8, heightCm: 21, defaultPriceCents: 2190 },
+  { id: "8x10", label: "8 × 10\"", dimensions: "20 × 25 cm", widthCm: 20, heightCm: 25, defaultPriceCents: 2690 },
+  { id: "A4", label: "A4", dimensions: "21 × 29,7 cm", widthCm: 21, heightCm: 29.7, defaultPriceCents: 2990 },
+  { id: "30x40", label: "30 × 40", dimensions: "30 × 40 cm", widthCm: 30, heightCm: 40, defaultPriceCents: 4037 },
+  { id: "A3", label: "A3", dimensions: "29,7 × 42 cm", widthCm: 29.7, heightCm: 42, defaultPriceCents: 4090 },
+  { id: "40x50", label: "40 × 50", dimensions: "40 × 50 cm", widthCm: 40, heightCm: 50, defaultPriceCents: 4690 },
+  { id: "A2", label: "A2", dimensions: "42 × 59,4 cm", widthCm: 42, heightCm: 59.4, defaultPriceCents: 4990 },
+  { id: "50x70", label: "50 × 70", dimensions: "50 × 70 cm", widthCm: 50, heightCm: 70, defaultPriceCents: 5532 },
+  { id: "A1", label: "A1", dimensions: "59,4 × 84,1 cm", widthCm: 59.4, heightCm: 84.1, defaultPriceCents: 6290 },
+] as const;
+export type WallArtSizeId = (typeof WALL_ART_SIZES)[number]["id"];
+export const WALL_ART_SIZE_IDS = WALL_ART_SIZES.map((size) => size.id) as [WallArtSizeId, ...WallArtSizeId[]];
+export const DEFAULT_WALL_ART_PRICES = Object.fromEntries(WALL_ART_SIZES.map((size) => [size.id, size.defaultPriceCents])) as Record<WallArtSizeId, number>;
+export const WALL_ART_IMAGE = "/images/client-wall-art-single.jpg";
+// Sample photo placed inside the frame preview until the customer uploads one.
+export const WALL_ART_SAMPLE_PHOTO = "/images/moment-family-memories.jpg";
+export function wallArtSizeText(size: { label: string; dimensions: string }) {
+  return size.dimensions.startsWith(size.label) ? size.dimensions : `${size.label} · ${size.dimensions}`;
+}
+
+export const MAGNET_PACK_PRICES_CENTS: Record<4 | 9, number> = { 4: 990, 9: 1490 };
+// One photo per magnet, cut from the client's pack photo, used until the
+// customer uploads their own.
+export const MAGNET_SAMPLE_PHOTOS = Array.from({ length: 9 }, (_, index) => `/images/magnet-photo-${index + 1}.jpg`);
 
 export const STICKER_PRICES = [0, 1.5, 2.5, 3.5] as const;
 export const ENVELOPE_TEXT_PRICE = 1;

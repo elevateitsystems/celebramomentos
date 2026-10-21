@@ -1,5 +1,6 @@
 "use client";
 
+import { getSessionUser } from "@/lib/client-session";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -82,10 +83,7 @@ export default function CustomizePage() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then((response) => response.json())
-      .then(() => { if (active) setAuthChecked(true); })
-      .catch(() => { if (active) setAuthChecked(true); });
+    void getSessionUser().then(() => { if (active) setAuthChecked(true); });
     return () => { active = false; };
   }, []);
 
@@ -228,9 +226,8 @@ export default function CustomizePage() {
   const handleAddToCart = async () => {
     setAddingToCart(true);
     try {
-      const response = await fetch("/api/auth/me", { cache: "no-store" });
-      const body = await response.json();
-      if (!response.ok || !body.user) {
+      const user = await getSessionUser({ refresh: true });
+      if (!user) {
         setAuthChecked(true);
         setToast(tx("No se puede añadir el diseño a la cesta sin iniciar sesión. Inicia sesión o crea una cuenta para continuar.", "Não é possível adicionar o design ao carrinho sem iniciar sessão. Inicia sessão ou cria uma conta para continuar."));
         return;

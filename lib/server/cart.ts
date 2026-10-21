@@ -13,6 +13,7 @@ export function toCartItem(line: { id: string; quantity: number; productId?: str
     id: line.id,
     quantity: line.quantity,
     productId: line.productId || null,
+    product: payload.product ?? null,
     card: payload.card as CartItem["card"],
     stickerQuantity: payload.stickerQuantity ?? 0,
     stickerImage: payload.stickerImage ?? null,
@@ -29,8 +30,10 @@ export async function getCustomerCart(customerId: string) {
 
 export async function upsertCartLine(customerId: string, item: CartItem, productId?: string | null) {
   await ensureCatalog();
-  const unitPriceCents = await resolveUnitPriceCents({ templateSlug: item.card.templateId, productId, item });
+  const templateSlug = item.product ? null : item.card.templateId;
+  const unitPriceCents = await resolveUnitPriceCents({ templateSlug, productId, item });
   const payload = {
+    product: item.product ? { ...item.product, priceCents: unitPriceCents } : null,
     card: item.card,
     stickerQuantity: item.stickerQuantity,
     stickerImage: item.stickerImage,
@@ -39,7 +42,7 @@ export async function upsertCartLine(customerId: string, item: CartItem, product
   } satisfies Omit<CartItem, "id" | "quantity">;
   const data = {
     customerId,
-    templateSlug: item.card.templateId,
+    templateSlug,
     productId: productId || null,
     quantity: item.quantity,
     unitPriceCents,
