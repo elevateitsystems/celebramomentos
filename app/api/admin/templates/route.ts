@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const input = templateSchema.parse(await request.json());
     const template = await prisma.$transaction(async (tx) => {
       const created = await tx.postcardTemplate.create({ data: { ...input, metadata: input.metadata as Prisma.InputJsonValue } });
-      await tx.auditLog.create({ data: { adminUserId: admin!.id, action: "CREATE", entity: "PostcardTemplate", entityId: created.id, metadata: { slug: created.slug } } });
+      await tx.auditLog.create({ data: { adminUserId: admin!.id.startsWith("local") ? null : admin!.id, action: "CREATE", entity: "PostcardTemplate", entityId: created.id, metadata: { slug: created.slug } } });
       return created;
     });
     return NextResponse.json({ template }, { status: 201 });
@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest) {
     };
     const template = await prisma.$transaction(async (tx) => {
       const updated = await tx.postcardTemplate.update({ where: { id }, data });
-      await tx.auditLog.create({ data: { adminUserId: admin!.id, action: "UPDATE", entity: "PostcardTemplate", entityId: id } });
+      await tx.auditLog.create({ data: { adminUserId: admin!.id.startsWith("local") ? null : admin!.id, action: "UPDATE", entity: "PostcardTemplate", entityId: id } });
       return updated;
     });
     return NextResponse.json({ template });
@@ -59,6 +59,6 @@ export async function DELETE(request: NextRequest) {
   if (error) return error;
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return jsonError("Template id is required");
-  try { await prisma.$transaction([prisma.postcardTemplate.update({ where: { id }, data: { active: false } }), prisma.auditLog.create({ data: { adminUserId: admin!.id, action: "ARCHIVE", entity: "PostcardTemplate", entityId: id } })]); return NextResponse.json({ ok: true }); }
+  try { await prisma.$transaction([prisma.postcardTemplate.update({ where: { id }, data: { active: false } }), prisma.auditLog.create({ data: { adminUserId: admin!.id.startsWith("local") ? null : admin!.id, action: "ARCHIVE", entity: "PostcardTemplate", entityId: id } })]); return NextResponse.json({ ok: true }); }
   catch (reason) { return handleApiError(reason); }
 }

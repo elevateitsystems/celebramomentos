@@ -1,5 +1,6 @@
 "use client";
 
+import { usePublicSettings } from "@/lib/public-settings";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useSelector } from "react-redux";
@@ -72,6 +73,8 @@ const reviews = [
 export default function Home() {
   const language = useSelector((state: RootState) => state.language.language);
   const es = language === "es";
+  const { settings } = usePublicSettings();
+  const wallArtFrom = (Math.min(...Object.values(settings.wallArtPrices)) / 100).toFixed(2).replace(".", ",") + " €";
   const categories: Category[] = [
     {
       name: es ? "Tarjetas" : "Cartões",
@@ -96,12 +99,12 @@ export default function Home() {
     {
       name: es ? "Arte de pared" : "Arte de parede",
       description: es
-        ? "Pósters mate, enmarcados Fine Art y paneles de madera"
-        : "Posters mate, emoldurados Fine Art e painéis de madeira",
+        ? "Tu foto enmarcada en madera natural, en 11 tamaños"
+        : "A tua fotografia emoldurada em madeira natural, em 11 tamanhos",
       href: "/wall-art",
       image: "/images/client-wall-art-trio.jpg",
       accent: "bg-[#e7f1eb]",
-      price: "14,90 €",
+      price: wallArtFrom,
     },
     {
       name: es ? "Imanes" : "Ímanes",
@@ -109,7 +112,7 @@ export default function Home() {
         ? "Packs de 4 o 9 imanes cuadrados o redondos para tu nevera"
         : "Packs de 4 ou 9 ímanes quadrados ou redondos para o frigorífico",
       href: "/magnets",
-      image: "/images/magnets-product.png",
+      image: "/images/magnet-single.jpg",
       accent: "bg-[#e8e7f6]",
       price: "9,90 €",
     },
@@ -638,23 +641,23 @@ export default function Home() {
                     src="/images/client-wall-art-trio.jpg"
                     alt={
                       es
-                        ? "Galería de arte de pared con 3 pósters enmarcados"
-                        : "Galeria de arte de parede com 3 posters emoldurados"
+                        ? "Láminas enmarcadas de distintos tamaños en una pared"
+                        : "Impressões emolduradas de vários tamanhos numa parede"
                     }
                     className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#182443]/80 via-[#182443]/20 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-6">
                     <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">
-                      {es ? "GALERÍA" : "GALERIA"}
+                      {es ? "11 TAMAÑOS" : "11 TAMANHOS"}
                     </p>
                     <h3 className="serif mt-2 text-2xl font-bold text-white">
                       {es
-                        ? "Una galería de recuerdos en tu pared"
-                        : "Uma galeria de memórias na tua parede"}
+                        ? "Del 10 × 15 cm al A1, tú eliges el tamaño"
+                        : "Do 10 × 15 cm ao A1, tu escolhes o tamanho"}
                     </h3>
                     <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-white/80 transition group-hover:text-[#f8c75e]">
-                      {es ? "Ver opciones" : "Ver opções"}{" "}
+                      {es ? "Elegir tamaño" : "Escolher tamanho"}{" "}
                       <Icon name="arrow" size={13} />
                     </span>
                   </div>

@@ -6,11 +6,12 @@ import { useDispatch, useSelector } from "react-redux";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CardPreview } from "@/components/card-preview";
+import { CartItemThumb } from "@/components/cart-item-visual";
 import { Icon } from "@/components/icons";
+import { getSessionUser } from "@/lib/client-session";
 import { Price, SiteFooter, SiteHeader, StatusBadge, Toast } from "@/components/site";
 import { DELIVERY_PRICES, FREE_SHIPPING_THRESHOLD, amountUntilFreeShipping, getDeliveryPrice, qualifiesForFreeShipping } from "@/lib/shipping";
-import { getCartItemUnitTotal } from "@/lib/cart";
+import { describeProductSelection, getCartItemUnitTotal } from "@/lib/cart";
 import { RootState, setAllItemsDelivery } from "@/lib/store";
 import { templates } from "@/lib/data";
 
@@ -53,7 +54,7 @@ export default function CheckoutPage() {
   const total = merchandiseSubtotal + delivery - discountValue;
   const { register, handleSubmit, watch, reset, formState: { errors, isSubmitting } } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema), defaultValues: { name: "", email: "", payment: "card", country: "ES" } });
   const selectedPayment = watch("payment");
-  useEffect(() => { fetch("/api/auth/me", { cache: "no-store" }).then((response) => response.json()).then((body) => { if (body.user) { setCurrentUser(body.user); reset({ name: body.user.name, email: body.user.email, payment: "card", country: "ES" }); } }).catch(() => undefined); }, [reset]);
+  useEffect(() => { let active = true; void getSessionUser().then((user) => { if (active && user) { setCurrentUser(user); reset({ name: user.name, email: user.email, payment: "card", country: "ES" }); } }); return () => { active = false; }; }, [reset]);
 
   const submitOrder = async (data: CheckoutForm) => {
     setPaymentError("");
@@ -72,7 +73,8 @@ export default function CheckoutPage() {
         const photoDataUrls = await Promise.all((item.card.photoDataUrls || []).map((value, index) => uploadDataUrl(value, `photo-${index}.jpg`)));
         const photoDataUrl = await uploadDataUrl(item.card.photoDataUrl, "photo-cover.jpg");
         const stickerImage = await uploadDataUrl(item.stickerImage, "sticker.jpg");
-        return { ...item, stickerImage, card: { ...item.card, photoDataUrl, photoDataUrls } };
+        const product = item.product ? { ...item.product, photos: await Promise.all(item.product.photos.map((value, index) => uploadDataUrl(value, `product-${index}.jpg`))) } : null;
+        return { ...item, product, stickerImage, card: { ...item.card, photoDataUrl, photoDataUrls } };
       }));
       const existingResponse = await fetch("/api/cart", { cache: "no-store" });
       if (!existingResponse.ok) throw new Error("Inicia sesión para continuar al pago.");
@@ -108,19 +110,4 @@ export default function CheckoutPage() {
 function CheckoutSection({ title, caption, children }: { title: string; caption: string; children: React.ReactNode }) { return <section className="rounded-[24px] border border-[#eadbd3] bg-white p-5 sm:p-7"><h2 className="text-lg font-black">{title}</h2><p className="mt-1 text-sm text-[#737b90]">{caption}</p><div className="mt-5">{children}</div></section>; }
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) { return <label className="block text-sm font-black">{label}{children}{error && <span className="mt-1 block text-xs font-bold text-[#c94758]">{error}</span>}</label>; }
 function PaymentOption({ register, value, title, detail }: { register: ReturnType<typeof useForm<CheckoutForm>>["register"]; value: "card" | "paypal"; title: string; detail: string }) { if (value === "paypal") return null; return <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#dfd3cc] p-4 has-[:checked]:border-[#ee5264] has-[:checked]:bg-[#fff0e8]"><input {...register("payment")} type="radio" value={value} className="accent-[#ee5264]" /><span><span className="block text-sm font-black">{title}</span><span className="mt-1 block text-xs text-[#737b90]">{detail}</span></span></label>; }
-function Summary({ rows, merchandiseSubtotal, delivery, total, isSubmitting, discountValue }: { rows: { item: RootState["cart"]["items"][number]; template: typeof templates[number]; unitTotal: number }[]; merchandiseSubtotal: number; delivery: number; total: number; isSubmitting: boolean; discountValue: number }) { return <aside className="h-fit rounded-[24px] bg-[#182443] p-6 text-white lg:sticky lg:top-28 sm:p-7"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#f8c75e]">RESUMEN</p><h2 className="mt-1 text-xl font-black">Tu momento</h2></div><StatusBadge tone="green">Listo</StatusBadge></div><div className="mt-6 space-y-4 border-b border-white/10 pb-5">{rows.map(({ item, template, unitTotal }) => <div key={item.id} className="flex gap-3"><div className="w-16 shrink-0 rounded-lg bg-white p-1"><CardPreview
-  compact
-  templateId={template.id}
-  message={item.card.frontHeadline || item.card.message}
-  headline={item.card.frontHeadline}
-  subheadline={item.card.frontSubheadline}
-  category={item.card.magazineCategory}
-  date={item.card.magazineDate}
-  badge={item.card.magazineBadge}
-  headlineTag={item.card.magazineHeadlineTag}
-  footerText={item.card.magazineFooter}
-  emojiElements={item.card.emojiElements}
-  photoDataUrls={item.card.photoDataUrls}
-  photoZoom={item.card.photoZoom}
-  photoPosition={item.card.photoPosition}
-/></div><div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-sm font-black"><span className="truncate">{template.name} × {item.quantity}</span><Price value={unitTotal * item.quantity} /></div><p className="mt-1 text-xs text-white/60">{item.card.size} · {item.card.packaging === "gift" ? "Packaging regalo" : "Sobre estándar"}</p></div></div>)}</div><div className="mt-5 space-y-3 text-sm text-white/70"><div className="flex justify-between"><span>Productos</span><Price value={merchandiseSubtotal} /></div><div className="flex justify-between"><span>Entrega</span>{delivery ? <Price value={delivery} /> : <span className="font-black text-[#f8c75e]">Gratis</span>}</div>{discountValue > 0 && <div className="flex justify-between text-[#f8c75e]"><span>Descuento HOLA10</span><span>−<Price value={discountValue} /></span></div>}</div><div className="mt-7 flex justify-between border-t border-white/10 pt-5 text-xl font-black"><span>Total</span><Price value={total} /></div><button disabled={isSubmitting} className="focus-ring mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black transition hover:bg-[#d83d54] disabled:opacity-60">{isSubmitting ? "Procesando…" : "Confirmar y pagar"}<Icon name="arrow" size={16} /></button><p className="mt-4 text-center text-[11px] text-white/50">Frontend demo · sin cobros reales.</p></aside>; }
+function Summary({ rows, merchandiseSubtotal, delivery, total, isSubmitting, discountValue }: { rows: { item: RootState["cart"]["items"][number]; template: typeof templates[number]; unitTotal: number }[]; merchandiseSubtotal: number; delivery: number; total: number; isSubmitting: boolean; discountValue: number }) { return <aside className="h-fit rounded-[24px] bg-[#182443] p-6 text-white lg:sticky lg:top-28 sm:p-7"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#f8c75e]">RESUMEN</p><h2 className="mt-1 text-xl font-black">Tu momento</h2></div><StatusBadge tone="green">Listo</StatusBadge></div><div className="mt-6 space-y-4 border-b border-white/10 pb-5">{rows.map(({ item, template, unitTotal }) => <div key={item.id} className="flex gap-3"><div className="w-16 shrink-0 rounded-lg bg-white p-1"><CartItemThumb item={item} template={template} /></div><div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-sm font-black"><span className="truncate">{item.product ? describeProductSelection(item.product).name : template.name} × {item.quantity}</span><Price value={unitTotal * item.quantity} /></div><p className="mt-1 text-xs text-white/60">{item.product ? describeProductSelection(item.product).detail : `${item.card.size} · ${item.card.packaging === "gift" ? "Packaging regalo" : "Sobre estándar"}`}</p></div></div>)}</div><div className="mt-5 space-y-3 text-sm text-white/70"><div className="flex justify-between"><span>Productos</span><Price value={merchandiseSubtotal} /></div><div className="flex justify-between"><span>Entrega</span>{delivery ? <Price value={delivery} /> : <span className="font-black text-[#f8c75e]">Gratis</span>}</div>{discountValue > 0 && <div className="flex justify-between text-[#f8c75e]"><span>Descuento HOLA10</span><span>−<Price value={discountValue} /></span></div>}</div><div className="mt-7 flex justify-between border-t border-white/10 pt-5 text-xl font-black"><span>Total</span><Price value={total} /></div><button disabled={isSubmitting} className="focus-ring mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black transition hover:bg-[#d83d54] disabled:opacity-60">{isSubmitting ? "Procesando…" : "Confirmar y pagar"}<Icon name="arrow" size={16} /></button><p className="mt-4 text-center text-[11px] text-white/50">Frontend demo · sin cobros reales.</p></aside>; }

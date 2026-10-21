@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       id: input.id || "",
       quantity: input.quantity,
       productId: input.productId || null,
+      product: input.product ?? null,
       card: input.card as CartItem["card"],
       stickerQuantity: input.stickerQuantity,
       stickerImage: input.stickerImage,

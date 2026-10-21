@@ -66,6 +66,8 @@ import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Icon } from "./icons";
 import { translations } from "@/lib/data";
+import { getSessionUser } from "@/lib/client-session";
+import { usePublicSettings } from "@/lib/public-settings";
 import { RootState, setLanguage } from "@/lib/store";
 
 function Glyph({ name, size = 18, className = "" }: { name: "search" | "globe" | "chevron"; size?: number; className?: string }) {
@@ -191,7 +193,7 @@ function ProductsMegaMenu({ active = false }: { active?: boolean }) {
     {
       name: tx("Arte de pared", "Arte de parede"),
       href: "/wall-art",
-      desc: tx("Pósters, madera y marcos", "Posters, madeira e molduras"),
+      desc: tx("Tu foto enmarcada · 11 tamaños", "A tua foto emoldurada · 11 tamanhos"),
     },
     {
       name: tx("Imanes", "Ímanes"),
@@ -283,7 +285,11 @@ export function SiteHeader({ active = "" }: { active?: string }) {
     ? [["Tienda", "/#categories"], ["Cómo funciona", "/#how"], ["Nosotros", "/#story"], ["Ayuda", "/contact"]]
     : [["Loja", "/#categories"], ["Como funciona", "/#how"], ["Sobre nós", "/#story"], ["Ajuda", "/contact"]];
   const [user, setUser] = useState<{ name: string } | null>(null);
-  useEffect(() => { fetch("/api/auth/me", { cache: "no-store" }).then((response) => response.json()).then((body) => setUser(body.user || null)).catch(() => setUser(null)); }, []);
+  useEffect(() => {
+    let active = true;
+    void getSessionUser().then((sessionUser) => { if (active) setUser(sessionUser); });
+    return () => { active = false; };
+  }, []);
   const cartCount = useSelector((state: RootState) => state.cart.items.reduce((total, item) => total + item.quantity, 0));
 
   return (
@@ -408,6 +414,35 @@ export function SiteHeader({ active = "" }: { active?: string }) {
   );
 }
 
+export function SocialLinks({ className = "" }: { className?: string }) {
+  const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
+  // Official links render immediately from the defaults; admin overrides replace them once loaded.
+  const { settings } = usePublicSettings();
+  const links = [
+    { key: "social_facebook", icon: "facebook", label: "Facebook" },
+    { key: "social_instagram", icon: "instagram", label: "Instagram" },
+    { key: "social_google_business", icon: "google", label: isPortuguese ? "Google (avaliações)" : "Google (reseñas)" },
+  ] as const;
+  return (
+    <ul className={`flex items-center gap-2.5 ${className}`} aria-label={isPortuguese ? "Redes sociais" : "Redes sociales"}>
+      {links.map((link) => settings.social[link.key] && (
+        <li key={link.key}>
+          <a
+            href={settings.social[link.key]}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${link.label} · Celebra Momentos (${isPortuguese ? "abre num novo separador" : "se abre en una pestaña nueva"})`}
+            title={link.label}
+            className="focus-ring flex h-11 w-11 items-center justify-center rounded-full border border-[#eadbd3] bg-white text-[#182443] transition hover:-translate-y-0.5 hover:border-[#ee5264] hover:text-[#ee5264]"
+          >
+            <Icon name={link.icon} size={19} />
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function SiteFooter() {
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
@@ -422,6 +457,8 @@ export function SiteFooter() {
           <p className="mt-5 max-w-[320px] text-sm leading-6 text-[#737b90]">
             {tx("Fotos que se convierten en detalles para regalar, compartir y recordar.", "Fotografias que se transformam em presentes para oferecer, partilhar e recordar.")}
           </p>
+          <p className="mt-6 text-xs font-black uppercase tracking-[.15em] text-[#182443]">{tx("Síguenos", "Segue-nos")}</p>
+          <SocialLinks className="mt-3" />
         </div>
         <div>
           <p className="text-xs font-black uppercase tracking-[.15em] text-[#182443]">{tx("Productos", "Produtos")}</p>
@@ -463,7 +500,7 @@ export function Spinner({ size = 16, className = "" }: { size?: number; classNam
 
 export function AuthRequiredModal({ returnTo, onClose, isPortuguese = false }: { returnTo: string; onClose: () => void; isPortuguese?: boolean }) {
   const href = "/account?returnTo=" + encodeURIComponent(returnTo);
-  return <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#182443]/45 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="auth-required-title"><button className="absolute inset-0" onClick={onClose} aria-label={isPortuguese ? "Fechar" : "Cerrar"} /><section className="relative w-full rounded-t-[28px] bg-white p-6 shadow-2xl sm:max-w-[480px] sm:rounded-[28px] sm:p-8"><button type="button" onClick={onClose} className="absolute right-5 top-5 rounded-full bg-[#fff5ef] p-2 text-[#737b90]" aria-label={isPortuguese ? "Fechar" : "Cerrar"}><Icon name="close" size={16} /></button><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff0e8] text-[#ee5264]"><Icon name="user" size={22} /></div><p className="mt-6 text-[10px] font-black uppercase tracking-[.18em] text-[#ee5264]">{isPortuguese ? "UM ÚLTIMO PASSO" : "UN ÚLTIMO PASO"}</p><h2 id="auth-required-title" className="serif mt-2 text-3xl font-bold tracking-[-.03em] text-[#182443]">{isPortuguese ? "Guarda o teu design" : "Guarda tu diseño"}</h2><p className="mt-3 text-sm leading-6 text-[#737b90]">{isPortuguese ? "Cria uma conta ou inicia sessão para manter a tua personalização e adicioná-la ao carrinho." : "Crea una cuenta o inicia sesión para guardar tu personalización y añadirla a la cesta."}</p><div className="mt-7 flex flex-col gap-3 sm:flex-row"><Link href={href} onClick={onClose} className="focus-ring inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white hover:bg-[#d83d54]">{isPortuguese ? "Entrar ou criar conta" : "Iniciar sesión o registrarme"}<Icon name="arrow" size={16} /></Link><button type="button" onClick={onClose} className="focus-ring rounded-full border border-[#d9cbc4] bg-white px-5 py-3.5 text-sm font-black text-[#182443]">{isPortuguese ? "Agora não" : "Ahora no"}</button></div><p className="mt-5 text-center text-[11px] text-[#9297a4]">{isPortuguese ? "É uma demonstração segura: nada é enviado para um servidor real." : "Es una demo segura: nada se envía a un servidor real."}</p></section></div>;
+  return <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#182443]/45 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="auth-required-title"><button className="absolute inset-0" onClick={onClose} aria-label={isPortuguese ? "Fechar" : "Cerrar"} /><section className="relative w-full rounded-t-[28px] bg-white p-6 shadow-2xl sm:max-w-[480px] sm:rounded-[28px] sm:p-8"><button type="button" onClick={onClose} className="absolute right-5 top-5 rounded-full bg-[#fff5ef] p-2 text-[#737b90]" aria-label={isPortuguese ? "Fechar" : "Cerrar"}><Icon name="close" size={16} /></button><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff0e8] text-[#ee5264]"><Icon name="user" size={22} /></div><p className="mt-6 text-[10px] font-black uppercase tracking-[.18em] text-[#ee5264]">{isPortuguese ? "UM ÚLTIMO PASSO" : "UN ÚLTIMO PASO"}</p><h2 id="auth-required-title" className="serif mt-2 text-3xl font-bold tracking-[-.03em] text-[#182443]">{isPortuguese ? "Guarda o teu design" : "Guarda tu diseño"}</h2><p className="mt-3 text-sm leading-6 text-[#737b90]">{isPortuguese ? "Cria uma conta ou inicia sessão para manter a tua personalização e adicioná-la ao carrinho." : "Crea una cuenta o inicia sesión para guardar tu personalización y añadirla a la cesta."}</p><div className="mt-7 flex flex-col gap-3 sm:flex-row"><Link href={href} onClick={onClose} className="focus-ring inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white hover:bg-[#d83d54]">{isPortuguese ? "Entrar ou criar conta" : "Iniciar sesión o registrarme"}<Icon name="arrow" size={16} /></Link><button type="button" onClick={onClose} className="focus-ring rounded-full border border-[#d9cbc4] bg-white px-5 py-3.5 text-sm font-black text-[#182443]">{isPortuguese ? "Agora não" : "Ahora no"}</button></div><p className="mt-5 text-center text-[11px] text-[#9297a4]">{isPortuguese ? "O teu design fica guardado na tua conta." : "Tu diseño se guarda en tu cuenta."}</p></section></div>;
 }
 
 export function Toast({ message, tone = "success", onClose }: { message: string; tone?: "success" | "error" | "warning"; onClose: () => void }) {

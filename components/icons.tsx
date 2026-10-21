@@ -19,6 +19,9 @@ const paths: Record<string, React.ReactNode> = {
   menuDots: <><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></>,
   tag: <><path d="M20 13 13 20l-9-9V4h7l9 9Z" /><circle cx="8" cy="8" r="1" /></>,
   mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></>,
+  facebook: <path d="M15 3h-2.5A3.5 3.5 0 0 0 9 6.5V10H6.5v3.5H9V21h3.5v-7.5h2.7l.6-3.5h-3.3V7.2c0-.6.4-.9 1-.9H15V3Z" />,
+  instagram: <><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.3" cy="6.7" r=".6" fill="currentColor" /></>,
+  google: <><path d="M20.5 12.2A8.5 8.5 0 1 1 18 6.1" /><path d="M20.5 12.2H12.5" /></>,
 };
 
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {

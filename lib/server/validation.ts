@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WALL_ART_SIZE_IDS } from "@/lib/data";
 
 export const adminLoginSchema = z.object({ email: z.string().email(), password: z.string().min(8).max(200) });
 export const customerRegisterSchema = z.object({
@@ -20,6 +21,10 @@ export const cartLineSchema = z.object({
   id: z.string().min(1).max(80).optional(),
   quantity: z.number().int().min(1).max(99).default(1),
   productId: z.string().cuid().optional().nullable(),
+  product: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("WALL_ART"), sizeId: z.enum(WALL_ART_SIZE_IDS), photos: z.array(z.string().nullable()).max(1), priceCents: z.number().int().nonnegative() }),
+    z.object({ kind: z.literal("MAGNET"), packSize: z.union([z.literal(4), z.literal(9)]), shape: z.enum(["square", "round"]), photos: z.array(z.string().nullable()).max(9), priceCents: z.number().int().nonnegative() }),
+  ]).optional().nullable(),
   stickerQuantity: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
   stickerImage: z.string().nullable(),
   envelopeText: z.string().max(80),

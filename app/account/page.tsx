@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/icons";
+import { BrandLoader } from "@/components/loading";
+import { clearSessionUser, getSessionUser } from "@/lib/client-session";
 import { PageIntro, Price, SiteFooter, SiteHeader, StatusBadge, Toast } from "@/components/site";
 
 type User = { id: string; name: string; email: string; phone?: string | null };
@@ -22,20 +24,25 @@ export default function AccountPage() {
   const [password, setPassword] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
 
-  const loadAccount = async () => {
-    const response = await fetch("/api/auth/me", { cache: "no-store" });
-    const body = await response.json();
-    if (!body.user) { setUser(null); return; }
-    setUser(body.user); setName(body.user.name); setEmail(body.user.email);
+  const loadAccount = async (refresh = false) => {
+    const sessionUser = await getSessionUser({ refresh });
+    if (!sessionUser) { setUser(null); return; }
+    setUser(sessionUser); setName(sessionUser.name); setEmail(sessionUser.email);
     const [ordersResponse, messagesResponse] = await Promise.all([fetch("/api/orders", { cache: "no-store" }), fetch("/api/contact", { cache: "no-store" })]);
     if (ordersResponse.ok) setOrders((await ordersResponse.json()).orders || []);
     if (messagesResponse.ok) setMessages((await messagesResponse.json()).messages || []);
   };
 
-  useEffect(() => { setReturnTo(new URLSearchParams(window.location.search).get("returnTo") || "/account"); void loadAccount(); }, []);
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("returnTo");
+    // Only allow same-site paths to avoid open redirects after login.
+    setReturnTo(requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/account");
+    loadAccount().catch(() => setError("No hemos podido cargar tu cuenta. Inténtalo de nuevo.")).finally(() => setChecking(false));
+  }, []);
 
   const submitAuth = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError("");
@@ -43,19 +50,21 @@ export default function AccountPage() {
       const response = await fetch(mode === "login" ? "/api/auth/login" : "/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mode === "login" ? { email, password } : { name, email, password }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "No se pudo completar la operación");
-      await loadAccount(); setToast(mode === "login" ? "Sesión iniciada." : "Cuenta creada correctamente.");
+      await loadAccount(true); setToast(mode === "login" ? "Sesión iniciada." : "Cuenta creada correctamente.");
       if (returnTo !== "/account") router.push(returnTo);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo completar la operación"); }
     finally { setBusy(false); }
   };
 
-  const logout = async () => { await fetch("/api/auth/logout", { method: "POST" }); setUser(null); setOrders([]); setMessages([]); setToast("Sesión cerrada."); };
+  const logout = async () => { await fetch("/api/auth/logout", { method: "POST" }); clearSessionUser(); setUser(null); setOrders([]); setMessages([]); setToast("Sesión cerrada."); };
   const saveProfile = async () => {
     setBusy(true); setError("");
-    try { const response = await fetch("/api/auth/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "No se pudo guardar el perfil"); setUser(body.user); setEditing(false); setToast("Perfil actualizado."); }
+    try { const response = await fetch("/api/auth/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "No se pudo guardar el perfil"); void getSessionUser({ refresh: true }); setUser(body.user); setEditing(false); setToast("Perfil actualizado."); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo guardar el perfil"); }
     finally { setBusy(false); }
   };
+
+  if (checking) return <><SiteHeader active="Mi cuenta" /><main className="bg-[#fffaf5] px-5 py-16 md:py-24"><PageIntro eyebrow="TU ESPACIO PERSONAL" title="Qué alegría verte" /><div className="mx-auto mt-10 max-w-[470px] rounded-[28px] border border-[#eadbd3] bg-white p-6 sm:p-8"><BrandLoader compact label="Comprobando tu sesión…" /></div></main><SiteFooter /></>;
 
   if (!user) return <><SiteHeader active="Mi cuenta" /><main className="bg-[#fffaf5] px-5 py-16 md:py-24"><PageIntro eyebrow="TU ESPACIO PERSONAL" title="Qué alegría verte" body="Regístrate o entra para guardar tu perfil, consultar pedidos y hablar con nuestro equipo." /><div className="mx-auto mt-10 max-w-[470px] rounded-[28px] border border-[#eadbd3] bg-white p-6 shadow-[0_20px_60px_rgba(24,36,67,.08)] sm:p-8"><div className="mb-7 grid grid-cols-2 rounded-full bg-[#fff5ef] p-1 text-center text-sm font-black"><button type="button" onClick={() => { setMode("login"); setError(""); }} className={`rounded-full px-4 py-2.5 ${mode === "login" ? "bg-[#182443] text-white" : "text-[#737b90]"}`}>Iniciar sesión</button><button type="button" onClick={() => { setMode("register"); setError(""); }} className={`rounded-full px-4 py-2.5 ${mode === "register" ? "bg-[#182443] text-white" : "text-[#737b90]"}`}>Crear cuenta</button></div><form onSubmit={submitAuth} className="space-y-4">{mode === "register" && <Field label="Nombre completo"><input required value={name} onChange={(event) => setName(event.target.value)} className="field" placeholder="María García" /></Field>}<Field label="Email"><input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="field" placeholder="hola@ejemplo.com" /></Field><Field label="Contraseña"><input required minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="field" placeholder="Mínimo 6 caracteres" /></Field>{error && <p className="rounded-xl bg-[#fff0e8] px-3 py-2.5 text-xs font-bold text-[#c94758]">{error}</p>}<button disabled={busy} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white disabled:opacity-60">{busy ? "Procesando…" : mode === "login" ? "Entrar en mi cuenta" : "Crear mi cuenta"}<Icon name="arrow" size={16} /></button></form></div></main><SiteFooter />{toast && <Toast message={toast} onClose={() => setToast("")} />}</>;
 

@@ -1,12 +1,18 @@
 "use client";
 
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSelector } from "react-redux";
+import { useRouter } from "next/navigation";
+import { useDispatch, useSelector } from "react-redux";
 import { Icon } from "@/components/icons";
-import { PageIntro, SiteFooter, SiteHeader, Toast } from "@/components/site";
-import { RootState } from "@/lib/store";
+import { AuthRequiredModal, PageIntro, SiteFooter, SiteHeader, Spinner, Toast } from "@/components/site";
+import { MAGNET_PACK_PRICES_CENTS, MAGNET_SAMPLE_PHOTOS, WALL_ART_SAMPLE_PHOTO, WALL_ART_SIZES, wallArtSizeText, type WallArtSizeId } from "@/lib/data";
+import { getSessionUser } from "@/lib/client-session";
+import { usePublicSettings } from "@/lib/public-settings";
+import { RootState, defaultCardCustomization, saveCartItem, type ProductSelection } from "@/lib/store";
 import { PublishedProducts, type PublishedProductKind } from "@/components/published-products";
+
+const formatCents = (cents: number) => (cents / 100).toFixed(2).replace(".", ",") + " €";
 
 function readPhoto(event: ChangeEvent<HTMLInputElement>, onRead: (value: string) => void) {
   const file = event.target.files?.[0];
@@ -14,6 +20,8 @@ function readPhoto(event: ChangeEvent<HTMLInputElement>, onRead: (value: string)
   const reader = new FileReader();
   reader.onload = () => onRead(String(reader.result));
   reader.readAsDataURL(file);
+  // Allow choosing the same file again after replacing it.
+  event.target.value = "";
 }
 
 function UploadButton({ photo, onPhoto, es }: { photo: string | null; onPhoto: (value: string) => void; es: boolean }) {
@@ -24,9 +32,45 @@ function UploadButton({ photo, onPhoto, es }: { photo: string | null; onPhoto: (
   </>;
 }
 
-function StudioShell({ eyebrow, title, body, controls, preview, price, es, catalogKind, catalogTitle }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; price: string; es: boolean; catalogKind: PublishedProductKind; catalogTitle: string }) {
+type StudioKind = ProductSelection["kind"];
+type SelectionOf<K extends StudioKind> = Extract<ProductSelection, { kind: K }>;
+
+// Adds a studio product to the cart (or replaces the line being edited via ?edit=<id>).
+function useStudioCart<K extends StudioKind>(kind: K) {
+  const router = useRouter();
+  const dispatch = useDispatch();
+  const items = useSelector((state: RootState) => state.cart.items);
+  const delivery = useSelector((state: RootState) => state.cart.card.delivery);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState(false);
+
+  useEffect(() => { setEditId(new URLSearchParams(window.location.search).get("edit")); }, []);
+  const editingItem = editId ? items.find((item) => item.id === editId && item.product?.kind === kind) : undefined;
+
+  const addToCart = async (product: SelectionOf<K>) => {
+    if (adding) return;
+    setAdding(true);
+    const user = await getSessionUser({ refresh: true });
+    if (!user) {
+      setAdding(false);
+      setAuthPrompt(true);
+      return;
+    }
+    dispatch(saveCartItem({ id: editingItem?.id, quantity: editingItem?.quantity, product, card: { ...defaultCardCustomization(), delivery }, stickerQuantity: 0, stickerImage: null, envelopeText: "", envelopeTextAdded: false }));
+    // Keep the button disabled while navigating so the item cannot be added twice.
+    router.push("/cart");
+  };
+
+  return { editing: editingItem?.product as SelectionOf<K> | undefined, addToCart, adding, authPrompt, closeAuthPrompt: () => setAuthPrompt(false) };
+}
+
+type StudioAction = { label: string; busy: boolean; disabled?: boolean; hint?: string; onClick: () => void; authPrompt: boolean; onCloseAuth: () => void; returnTo: string };
+
+function StudioShell({ eyebrow, title, body, controls, preview, price, es, catalogKind, catalogTitle, action }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; price: React.ReactNode; es: boolean; catalogKind?: PublishedProductKind; catalogTitle?: string; action?: StudioAction }) {
   const [notice, setNotice] = useState("");
-  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{price}</span></div>{controls}<div className="mt-7 border-t border-[#eadfd8] pt-5"><button type="button" onClick={() => setNotice(es ? "Tu vista está guardada en esta demo. Para un pedido completo, elige una tarjeta personalizada." : "A tua vista está guardada nesta demo. Para uma encomenda completa, escolhe um cartão personalizado.")} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{es ? "Continuar" : "Continuar"} <Icon name="arrow" size={16} /></button><p className="mt-3 text-center text-[11px] text-[#9297a4]">{es ? "Vista de demostración · no se realizará ningún pedido" : "Vista de demonstração · nenhuma encomenda será realizada"}</p></div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main><PublishedProducts kind={catalogKind} title={catalogTitle} /><SiteFooter />{notice && <Toast message={notice} onClose={() => setNotice("")} />}</>;
+  const demoContinue = () => setNotice(es ? "Tu vista está guardada en esta demo. Para un pedido completo, elige una tarjeta personalizada." : "A tua vista está guardada nesta demo. Para uma encomenda completa, escolhe um cartão personalizado.");
+  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{price}</span></div>{controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <><button type="button" onClick={action.onClick} disabled={action.busy || action.disabled} aria-busy={action.busy} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.busy ? <Spinner size={16} /> : null}{action.label} {!action.busy && <Icon name="arrow" size={16} />}</button>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <><button type="button" onClick={demoContinue} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{es ? "Continuar" : "Continuar"} <Icon name="arrow" size={16} /></button><p className="mt-3 text-center text-[11px] text-[#9297a4]">{es ? "Vista de demostración · no se realizará ningún pedido" : "Vista de demonstração · nenhuma encomenda será realizada"}</p></>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{catalogKind && <PublishedProducts kind={catalogKind} title={catalogTitle || ""} />}<SiteFooter />{notice && <Toast message={notice} onClose={() => setNotice("")} />}{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
 }
 
 export function CalendarStudio() {
@@ -43,140 +87,48 @@ export function CalendarStudio() {
 
 export function WallArtStudio() {
   const es = useSelector((state: RootState) => state.language.language) === "es";
-  const products = [
-    {
-      id: "framed-poster",
-      name: es ? "Póster enmarcado Fine Art" : "Poster emoldurado Fine Art",
-      detail: es ? "Marco de madera listo para colgar con plexiglass protector" : "Moldura de madeira pronta a pendurar com plexiglass",
-      basePrice: 29.9,
-      type: "framed" as const,
-    },
-    {
-      id: "matte-poster",
-      name: es ? "Póster mate clásico" : "Poster mate clássico",
-      detail: es ? "Papel mate prémium de 200 g/m² de calidad museo" : "Papel mate premium de 200 g/m² de qualidade museu",
-      basePrice: 14.9,
-      type: "poster" as const,
-    },
-    {
-      id: "wood-print",
-      name: es ? "Impresión en madera" : "Impressão em madeira",
-      detail: es ? "Impresión directa sobre madera de abedul con vetas visibles" : "Impressão direta sobre madeira de bétula com veios visíveis",
-      basePrice: 24.9,
-      type: "wood" as const,
-    },
-  ] as const;
-
-  const [selectedProduct, setSelectedProduct] = useState<(typeof products)[number]["id"]>("framed-poster");
-  const [size, setSize] = useState<"21x30" | "30x40" | "50x70">("30x40");
-  const [frame, setFrame] = useState<"white" | "wood" | "dark-wood" | "black">("wood");
-  const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical");
+  const { settings, loading: pricesLoading } = usePublicSettings();
+  const cart = useStudioCart("WALL_ART");
+  const [sizeId, setSizeId] = useState<WallArtSizeId>("30x40");
   const [photo, setPhoto] = useState<string | null>(null);
+  const appliedEdit = useRef(false);
 
-  const product = products.find((item) => item.id === selectedProduct)!;
+  useEffect(() => {
+    if (!cart.editing || appliedEdit.current) return;
+    appliedEdit.current = true;
+    setSizeId(cart.editing.sizeId);
+    setPhoto(cart.editing.photos[0] || null);
+  }, [cart.editing]);
 
-  // Frame colors: White, Wood, Dark Wood, Black
-  const frameStyles: Record<"white" | "wood" | "dark-wood" | "black", { nameEs: string; namePt: string; border: string; bg: string }> = {
-    white: { nameEs: "Blanco", namePt: "Branco", border: "#f3f3f3", bg: "#ffffff" },
-    wood: { nameEs: "Madera natural", namePt: "Madeira natural", border: "#caa57b", bg: "#caa57b" },
-    "dark-wood": { nameEs: "Madera oscura", namePt: "Madeira escura", border: "#4a3525", bg: "#4a3525" },
-    black: { nameEs: "Negro", namePt: "Preto", border: "#18181b", bg: "#18181b" },
-  };
-
-  const sizeMultipliers = { "21x30": 1, "30x40": 1.35, "50x70": 1.85 };
-  const currentPrice = (product.basePrice * sizeMultipliers[size]).toFixed(2).replace(".", ",") + " €";
+  const size = WALL_ART_SIZES.find((option) => option.id === sizeId) || WALL_ART_SIZES[0];
+  const priceCents = settings.wallArtPrices[sizeId];
+  // Prices come from the database; avoid flashing a default price that an admin may have changed.
+  const priceLabel = (cents: number) => pricesLoading ? <span className="inline-block h-3 w-12 animate-pulse rounded-full bg-[#f3d5d2] align-middle" aria-label={es ? "Cargando precio" : "A carregar preço"} /> : formatCents(cents);
 
   const controls = (
     <div className="mt-6 space-y-6">
-      <div>
-        <p className="text-sm font-black">{es ? "Tipo de producto" : "Tipo de produto"}</p>
-        <div className="mt-3 grid gap-2.5">
-          {products.map((item) => (
+      <div className="rounded-2xl border border-[#e8d5cc] bg-[#fff6f0] p-4 text-xs leading-5 text-[#6c584c]">
+        <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-[#ee5264]"><Icon name="check" size={13} />{es ? "Lámina enmarcada · listo para colgar" : "Impressão emoldurada · pronta a pendurar"}</p>
+        <p className="mt-1">{es ? "Marco de madera natural con paspartú blanco. Solo tienes que elegir el tamaño y subir tu foto." : "Moldura de madeira natural com passe-partout branco. Só tens de escolher o tamanho e carregar a tua fotografia."}</p>
+      </div>
+      <fieldset>
+        <legend className="text-sm font-black">{es ? "Tamaño" : "Tamanho"}</legend>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {WALL_ART_SIZES.map((option) => (
             <button
-              key={item.id}
+              key={option.id}
               type="button"
-              onClick={() => setSelectedProduct(item.id)}
-              className={`focus-ring flex items-start justify-between rounded-2xl border p-4 text-left transition ${
-                selectedProduct === item.id ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"
-              }`}
+              onClick={() => setSizeId(option.id)}
+              aria-pressed={sizeId === option.id}
+              className={`focus-ring rounded-xl border p-3 text-left transition ${sizeId === option.id ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}
             >
-              <div>
-                <span className="block text-sm font-black">{item.name}</span>
-                <span className="mt-1 block text-xs text-[#737b90]">{item.detail}</span>
-              </div>
-              <span className="text-xs font-black text-[#ee5264] whitespace-nowrap ml-3">
-                {es ? "desde " : "a partir de "}{(item.basePrice).toFixed(2).replace(".", ",")} €
-              </span>
+              <span className="block text-sm font-black text-[#182443]">{option.label}</span>
+              <span className="mt-0.5 block text-[10px] text-[#737b90]">{option.dimensions}</span>
+              <span className="mt-1.5 block text-xs font-black text-[#ee5264]">{priceLabel(settings.wallArtPrices[option.id])}</span>
             </button>
           ))}
         </div>
-      </div>
-
-      {product.type === "framed" && (
-        <div>
-          <p className="text-sm font-black">{es ? "Color del marco" : "Cor da moldura"}</p>
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {(["white", "wood", "dark-wood", "black"] as const).map((colorKey) => (
-              <button
-                key={colorKey}
-                type="button"
-                onClick={() => setFrame(colorKey)}
-                className={`focus-ring flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition ${
-                  frame === colorKey ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"
-                }`}
-              >
-                <span
-                  className="h-8 w-8 rounded-full border-2 border-white shadow-sm ring-1 ring-black/15"
-                  style={{ backgroundColor: frameStyles[colorKey].bg }}
-                />
-                <span className="text-xs font-black text-[#182443]">
-                  {es ? frameStyles[colorKey].nameEs : frameStyles[colorKey].namePt}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div>
-        <p className="text-sm font-black">{es ? "Tamaño" : "Tamanho"}</p>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {(["21x30", "30x40", "50x70"] as const).map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => setSize(opt)}
-              className={`focus-ring rounded-xl border p-3 text-center transition ${
-                size === opt ? "border-[#ee5264] bg-[#fff0e8] text-[#ee5264]" : "border-[#dfd3cc]"
-              }`}
-            >
-              <span className="block text-xs font-black">{opt.replace("x", " × ")} cm</span>
-              <span className="block text-[10px] text-[#737b90] mt-0.5">
-                {opt === "21x30" ? "A4" : opt === "30x40" ? (es ? "Mediano" : "Médio") : (es ? "Grande" : "Grande")}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <p className="text-sm font-black">{es ? "Orientación" : "Orientação"}</p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          {(["vertical", "horizontal"] as const).map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => setOrientation(opt)}
-              className={`focus-ring rounded-xl border p-2.5 text-xs font-black transition ${
-                orientation === opt ? "border-[#ee5264] bg-[#fff0e8] text-[#ee5264]" : "border-[#dfd3cc]"
-              }`}
-            >
-              {opt === "vertical" ? (es ? "Vertical (Retrato)" : "Vertical (Retrato)") : (es ? "Horizontal (Paisaje)" : "Horizontal (Paisagem)")}
-            </button>
-          ))}
-        </div>
-      </div>
-
+      </fieldset>
       <div>
         <p className="text-sm font-black">{es ? "Tu fotografía" : "A tua fotografia"}</p>
         <UploadButton photo={photo} onPhoto={setPhoto} es={es} />
@@ -184,46 +136,20 @@ export function WallArtStudio() {
     </div>
   );
 
-  const picture = <img src={photo || "/images/client-wall-art-single.jpg"} alt="Arte de pared" className="h-full w-full object-cover" />;
-
+  // Scale the frame on the wall by the real print height (10 × 15 cm up to A1).
+  const minHeight = WALL_ART_SIZES[0].heightCm;
+  const maxHeight = WALL_ART_SIZES[WALL_ART_SIZES.length - 1].heightCm;
+  const frameHeight = 30 + 54 * ((size.heightCm - minHeight) / (maxHeight - minHeight));
   const preview = (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] bg-[#ece2d6] p-6 sm:p-10 flex items-center justify-center">
-      <div className="absolute bottom-0 left-0 right-0 h-[22%] bg-[#d2beaa] shadow-inner" />
-
-      {product.type === "framed" ? (
-        <div
-          className={`relative z-10 overflow-hidden transition-all ${
-            orientation === "vertical" ? "h-[78%] aspect-[3/4]" : "w-[78%] aspect-[4/3]"
-          }`}
-        >
-          {picture}
+    <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[20px] bg-[#ece2d6]">
+      <div className="absolute bottom-0 left-0 right-0 h-[16%] bg-[#d2beaa] shadow-inner" />
+      <div className="relative z-10 -mt-[6%] bg-[#caa57b] p-[1.6%] shadow-2xl shadow-[#5b3b22]/30 transition-all duration-300" style={{ height: `${frameHeight}%`, aspectRatio: `${size.widthCm} / ${size.heightCm}` }}>
+        <div className="h-full w-full bg-white p-[9%]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo || WALL_ART_SAMPLE_PHOTO} alt={es ? `Vista previa de arte de pared ${size.label}` : `Pré-visualização de arte de parede ${size.label}`} className="h-full w-full object-cover" />
         </div>
-      ) : product.type === "wood" ? (
-        <div
-          className={`relative z-10 transition-all shadow-2xl overflow-hidden rounded-md border-r-8 border-b-8 border-[#b48d61] ${
-            orientation === "vertical" ? "h-[76%] aspect-[3/4]" : "w-[76%] aspect-[4/3]"
-          }`}
-          style={{
-            backgroundImage: "repeating-linear-gradient(45deg, rgba(200, 160, 110, 0.15) 0, rgba(200, 160, 110, 0.15) 10px, transparent 10px, transparent 20px)",
-            backgroundColor: "#ddba90",
-          }}
-        >
-          <div className="h-full w-full opacity-90 mix-blend-multiply">
-            {picture}
-          </div>
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#8b653c]/30 via-transparent to-white/10" />
-        </div>
-      ) : (
-        <div
-          className={`relative z-10 transition-all shadow-xl bg-white p-1 rounded-xs ${
-            orientation === "vertical" ? "h-[78%] aspect-[3/4]" : "w-[78%] aspect-[4/3]"
-          }`}
-        >
-          <div className="h-full w-full overflow-hidden shadow-sm">
-            {picture}
-          </div>
-        </div>
-      )}
+      </div>
+      <span className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-[#182443] shadow-sm">{wallArtSizeText(size)}</span>
     </div>
   );
 
@@ -231,27 +157,47 @@ export function WallArtStudio() {
     <StudioShell
       eyebrow={es ? "ARTE DE PARED PERSONALIZADA" : "ARTE DE PAREDE PERSONALIZADA"}
       title={es ? "Tus recuerdos convertidos en arte" : "As tuas memórias transformadas em arte"}
-      body={es ? "Elige póster enmarcado Fine Art (blanco, madera natural, madera oscura o negro), póster mate clásico o impresión sobre madera natural." : "Escolhe poster emoldurado Fine Art (branco, madeira natural, madeira escura ou preto), poster mate clássico ou impressão em madeira natural."}
+      body={es ? "Una lámina enmarcada en madera natural con tu foto. Elige entre 11 tamaños, desde 10 × 15 cm hasta A1." : "Uma impressão emoldurada em madeira natural com a tua fotografia. Escolhe entre 11 tamanhos, de 10 × 15 cm até A1."}
       controls={controls}
       preview={preview}
-      price={currentPrice}
+      price={priceLabel(priceCents)}
       es={es}
-      catalogKind="WALL_ART"
-      catalogTitle={es ? "Más arte de pared disponible" : "Mais arte de parede disponível"}
+      action={{
+        label: cart.editing ? (es ? "Guardar cambios" : "Guardar alterações") : (es ? "Añadir a la cesta" : "Adicionar ao carrinho"),
+        busy: cart.adding,
+        disabled: !photo || pricesLoading,
+        hint: !photo ? (es ? "Sube tu fotografía para continuar." : "Carrega a tua fotografia para continuar.") : undefined,
+        onClick: () => { if (photo) void cart.addToCart({ kind: "WALL_ART", sizeId, photos: [photo], priceCents }); },
+        authPrompt: cart.authPrompt,
+        onCloseAuth: cart.closeAuthPrompt,
+        returnTo: "/wall-art",
+      }}
     />
   );
 }
 
 export function MagnetsStudio() {
   const es = useSelector((state: RootState) => state.language.language) === "es";
+  const cart = useStudioCart("MAGNET");
   const [quantity, setQuantity] = useState<4 | 9>(9);
   const [shape, setShape] = useState<"square" | "round">("square");
   const [photos, setPhotos] = useState<(string | null)[]>(Array(9).fill(null));
   const [selectedPhoto, setSelectedPhoto] = useState(0);
-  const price = quantity === 4 ? "9,90 €" : "14,90 €";
-  const defaultProductImage = "/images/magnets-product.png";
-  const photoFor = (index: number) => photos[index] || defaultProductImage;
-  const hasCustomPhotos = photos.some(Boolean);
+  const appliedEdit = useRef(false);
+
+  useEffect(() => {
+    if (!cart.editing || appliedEdit.current) return;
+    appliedEdit.current = true;
+    setQuantity(cart.editing.packSize);
+    setShape(cart.editing.shape);
+    setPhotos(Array.from({ length: 9 }, (_, index) => cart.editing?.photos[index] || null));
+  }, [cart.editing]);
+
+  const priceCents = MAGNET_PACK_PRICES_CENTS[quantity];
+  // Each magnet shows exactly one photo: the customer's upload or its own sample.
+  const photoFor = (index: number) => photos[index] || MAGNET_SAMPLE_PHOTOS[index % MAGNET_SAMPLE_PHOTOS.length];
+  const shapeClass = shape === "round" ? "rounded-full" : "rounded-xl";
+  const missing = photos.slice(0, quantity).filter((photo) => !photo).length;
   const updatePhoto = (value: string) => setPhotos((current) => current.map((photo, index) => (index === selectedPhoto ? value : photo)));
   const controls = (
     <div className="mt-6 space-y-6">
@@ -262,6 +208,7 @@ export function MagnetsStudio() {
             <button
               key={amount}
               type="button"
+              aria-pressed={quantity === amount}
               onClick={() => {
                 setQuantity(amount);
                 setSelectedPhoto((current) => Math.min(current, amount - 1));
@@ -272,7 +219,7 @@ export function MagnetsStudio() {
             >
               <span className="flex items-center justify-between">
                 <span className="text-lg font-black">{amount}</span>
-                <span className="text-xs font-black text-[#ee5264]">{amount === 4 ? "9,90 €" : "14,90 €"}</span>
+                <span className="text-xs font-black text-[#ee5264]">{formatCents(MAGNET_PACK_PRICES_CENTS[amount])}</span>
               </span>
               <span className="mt-2 block text-xs text-[#737b90]">{es ? "imanes de 6 × 6 cm" : "ímanes de 6 × 6 cm"}</span>
             </button>
@@ -286,6 +233,7 @@ export function MagnetsStudio() {
             <button
               key={option}
               type="button"
+              aria-pressed={shape === option}
               onClick={() => setShape(option)}
               className={`focus-ring flex items-center gap-3 rounded-2xl border p-3 text-sm font-black transition ${
                 shape === option ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc]"
@@ -305,13 +253,15 @@ export function MagnetsStudio() {
               key={index}
               type="button"
               onClick={() => setSelectedPhoto(index)}
-              className={`focus-ring relative aspect-square overflow-hidden rounded-lg border-2 ${
+              aria-pressed={selectedPhoto === index}
+              className={`focus-ring relative aspect-square overflow-hidden border-2 ${shapeClass} ${
                 selectedPhoto === index ? "border-[#ee5264]" : "border-transparent"
               }`}
-              aria-label={`${es ? "Seleccionar imán" : "Selecionar íman"} ${index + 1}`}
+              aria-label={`${es ? "Seleccionar imán" : "Selecionar íman"} ${index + 1}${photos[index] ? "" : es ? " (foto de ejemplo)" : " (fotografia de exemplo)"}`}
             >
-              <img src={photoFor(index)} alt="" className="h-full w-full object-cover" />
-              <span className="absolute inset-x-0 bottom-0 bg-[#182443]/75 py-1 text-[9px] font-black text-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photoFor(index)} alt="" className={`h-full w-full object-cover ${photos[index] ? "" : "opacity-60"}`} />
+              <span className="absolute inset-x-0 bottom-0 bg-[#182443]/75 py-1 text-center text-[9px] font-black text-white">
                 {index + 1}
               </span>
             </button>
@@ -319,27 +269,22 @@ export function MagnetsStudio() {
         </div>
         <p className="mt-3 text-sm font-bold">{es ? `Foto del imán ${selectedPhoto + 1}` : `Fotografia do íman ${selectedPhoto + 1}`}</p>
         <UploadButton photo={photos[selectedPhoto]} onPhoto={updatePhoto} es={es} />
-        <p className="mt-2 text-[11px] leading-5 text-[#9297a4]">{es ? "Cada imán lleva una fotografía individual." : "Cada íman leva uma fotografia individual."}</p>
+        <p className="mt-2 text-[11px] leading-5 text-[#9297a4]">{es ? "Cada imán lleva una fotografía individual. Las fotos atenuadas son ejemplos." : "Cada íman leva uma fotografia individual. As fotografias esbatidas são exemplos."}</p>
       </div>
     </div>
   );
   const preview = (
-    hasCustomPhotos ? (
     <div className={`grid gap-3 rounded-[20px] bg-[#fdfaf5] p-5 shadow-inner sm:gap-4 sm:p-8 ${quantity === 4 ? "mx-auto max-w-[460px] grid-cols-2" : "grid-cols-3"}`}>
       {Array.from({ length: quantity }).map((_, index) => (
         <div
           key={index}
-          className={`aspect-square overflow-hidden border-[5px] border-white bg-white shadow-lg ${shape === "round" ? "rounded-full" : "rounded-xl"}`}
+          className={`aspect-square overflow-hidden border-[5px] border-white bg-white shadow-lg ${shapeClass}`}
         >
-          <img src={photoFor(index)} alt={es ? `Vista previa del imán ${index + 1}` : `Pré-visualização do íman ${index + 1}`} className="h-full w-full object-cover" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photoFor(index)} alt={es ? `Vista previa del imán ${index + 1}` : `Pré-visualização do íman ${index + 1}`} className={`h-full w-full object-cover ${shapeClass}`} />
         </div>
       ))}
     </div>
-    ) : (
-      <div className="overflow-hidden rounded-[20px] bg-[#fdfaf5] shadow-inner">
-        <img src={defaultProductImage} alt={es ? "Ejemplo real de imanes personalizados" : "Exemplo real de ímanes personalizados"} className="h-auto w-full object-cover" />
-      </div>
-    )
   );
   return (
     <StudioShell
@@ -348,10 +293,20 @@ export function MagnetsStudio() {
       body={es ? "Elige 4 o 9, cuadrados o redondos, y convierte cada foto en un pequeño detalle cotidiano." : "Escolhe 4 ou 9, quadrados ou redondos, e transforma cada fotografia num pequeno detalhe diário."}
       controls={controls}
       preview={preview}
-      price={price}
+      price={formatCents(priceCents)}
       es={es}
       catalogKind="MAGNET"
       catalogTitle={es ? "Más imanes disponibles" : "Mais ímanes disponíveis"}
+      action={{
+        label: cart.editing ? (es ? "Guardar cambios" : "Guardar alterações") : (es ? "Añadir a la cesta" : "Adicionar ao carrinho"),
+        busy: cart.adding,
+        disabled: missing > 0,
+        hint: missing > 0 ? (es ? `Sube ${missing === 1 ? "1 foto más" : `${missing} fotos más`} para completar tu pack.` : `Carrega mais ${missing === 1 ? "1 fotografia" : `${missing} fotografias`} para completar o conjunto.`) : undefined,
+        onClick: () => { if (!missing) void cart.addToCart({ kind: "MAGNET", packSize: quantity, shape, photos: photos.slice(0, quantity), priceCents }); },
+        authPrompt: cart.authPrompt,
+        onCloseAuth: cart.closeAuthPrompt,
+        returnTo: "/magnets",
+      }}
     />
   );
 }

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireCustomer } from "@/lib/server/auth";
+import { describeProductSelection } from "@/lib/cart";
 import { toCartItem } from "@/lib/server/cart";
 import { deliveryCents, ensureCatalog } from "@/lib/server/catalog";
 import { handleApiError, jsonError } from "@/lib/server/http";
@@ -39,6 +40,11 @@ export async function POST(request: NextRequest) {
     const totalCents = Math.max(0, subtotalCents + shippingCents - discountCents);
     const templates = await prisma.postcardTemplate.findMany({ where: { slug: { in: lines.map((line) => line.templateSlug).filter((slug): slug is string => Boolean(slug)) } } });
     const templateBySlug = Object.fromEntries(templates.map((template) => [template.slug, template]));
+    const lineName = (line: (typeof lines)[number]) => {
+      const item = toCartItem(line);
+      if (item.product) { const described = describeProductSelection(item.product); return `${described.name} · ${described.detail}`; }
+      return (line.templateSlug && templateBySlug[line.templateSlug]?.name) || "Producto personalizado";
+    };
     const shippingAddress = { name: input.name.trim(), phone: input.phone.trim(), recipient: input.recipient.trim(), address: input.address.trim(), city: input.city.trim(), postalCode: input.postalCode.trim(), country: input.country, billingAddress: input.billingAddress?.trim() };
     const order = await prisma.order.create({
       data: {
@@ -51,7 +57,14 @@ export async function POST(request: NextRequest) {
         discountCents,
         totalCents,
         shippingAddress,
-        items: { create: lines.map((line) => { const item = toCartItem(line); const template = item.card.templateId ? templateBySlug[item.card.templateId] : null; return { ...(line.productId ? { productId: line.productId } : {}), ...(template ? { templateId: template.id } : {}), name: template?.name || "Producto personalizado", quantity: line.quantity, unitPriceCents: line.unitPriceCents, personalization: { templateSlug: item.card.templateId, card: item.card, stickerQuantity: item.stickerQuantity, envelopeText: item.envelopeText, envelopeTextAdded: item.envelopeTextAdded, delivery: item.card.delivery } as Prisma.InputJsonValue }; }) },
+        items: { create: lines.map((line) => {
+          const item = toCartItem(line);
+          if (item.product) {
+            return { ...(line.productId ? { productId: line.productId } : {}), name: lineName(line), quantity: line.quantity, unitPriceCents: line.unitPriceCents, personalization: { product: { ...item.product, priceCents: line.unitPriceCents }, delivery: item.card.delivery } as Prisma.InputJsonValue };
+          }
+          const template = line.templateSlug ? templateBySlug[line.templateSlug] : null;
+          return { ...(line.productId ? { productId: line.productId } : {}), ...(template ? { templateId: template.id } : {}), name: template?.name || "Producto personalizado", quantity: line.quantity, unitPriceCents: line.unitPriceCents, personalization: { templateSlug: item.card.templateId, card: item.card, stickerQuantity: item.stickerQuantity, envelopeText: item.envelopeText, envelopeTextAdded: item.envelopeTextAdded, delivery: item.card.delivery } as Prisma.InputJsonValue };
+        }) },
         payments: { create: { amountCents: totalCents, currency: "eur", provider: "stripe" } },
         ...(discountValid && discount ? { discountUsages: { create: { discountId: discount.id } } } : {}),
       },
@@ -64,7 +77,7 @@ export async function POST(request: NextRequest) {
         mode: "payment",
         customer_email: input.email.trim().toLowerCase(),
         line_items: [
-          ...lines.map((line) => ({ price_data: { currency: "eur", product_data: { name: toCartItem(line).card.templateId || "Producto personalizado" }, unit_amount: line.unitPriceCents }, quantity: line.quantity })),
+          ...lines.map((line) => ({ price_data: { currency: "eur", product_data: { name: lineName(line) }, unit_amount: line.unitPriceCents }, quantity: line.quantity })),
           ...(shippingCents ? [{ price_data: { currency: "eur", product_data: { name: deliveryMethod === "express" ? "Entrega express" : "Entrega normal" }, unit_amount: shippingCents }, quantity: 1 }] : []),
         ],
         metadata: { orderId: order.id, orderNumber: order.number, customerId: customer.id },
