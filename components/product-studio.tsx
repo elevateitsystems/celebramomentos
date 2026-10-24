@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { Icon } from "@/components/icons";
 import { AuthRequiredModal, PageIntro, SiteFooter, SiteHeader, Spinner, Toast } from "@/components/site";
-import { MAGNET_PACK_PRICES_CENTS, MAGNET_SAMPLE_PHOTOS, WALL_ART_SAMPLE_PHOTO, WALL_ART_SIZES, wallArtSizeText, type WallArtSizeId } from "@/lib/data";
+import { MAGNET_PACK_PRICES_CENTS, MAGNET_SAMPLE_PHOTOS, WALL_ART_SIZES, wallArtSizeText, type WallArtSizeId } from "@/lib/data";
 import { getSessionUser } from "@/lib/client-session";
 import { usePublicSettings } from "@/lib/public-settings";
 import { RootState, defaultCardCustomization, saveCartItem, type ProductSelection } from "@/lib/store";
+import { WallArtFrame } from "@/components/wall-art-frame";
 import { PublishedProducts, type PublishedProductKind } from "@/components/published-products";
 
 const formatCents = (cents: number) => (cents / 100).toFixed(2).replace(".", ",") + " €";
@@ -139,16 +140,10 @@ export function WallArtStudio() {
   // Scale the frame on the wall by the real print height (10 × 15 cm up to A1).
   const minHeight = WALL_ART_SIZES[0].heightCm;
   const maxHeight = WALL_ART_SIZES[WALL_ART_SIZES.length - 1].heightCm;
-  const frameHeight = 30 + 54 * ((size.heightCm - minHeight) / (maxHeight - minHeight));
+  const frameHeight = 52 + 40 * ((size.heightCm - minHeight) / (maxHeight - minHeight));
   const preview = (
-    <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[20px] bg-[#ece2d6]">
-      <div className="absolute bottom-0 left-0 right-0 h-[16%] bg-[#d2beaa] shadow-inner" />
-      <div className="relative z-10 -mt-[6%] bg-[#caa57b] p-[1.6%] shadow-2xl shadow-[#5b3b22]/30 transition-all duration-300" style={{ height: `${frameHeight}%`, aspectRatio: `${size.widthCm} / ${size.heightCm}` }}>
-        <div className="h-full w-full bg-white p-[9%]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photo || WALL_ART_SAMPLE_PHOTO} alt={es ? `Vista previa de arte de pared ${size.label}` : `Pré-visualização de arte de parede ${size.label}`} className="h-full w-full object-cover" />
-        </div>
-      </div>
+    <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[20px] bg-[#e6ddcf]">
+      <WallArtFrame photo={photo} alt={es ? `Vista previa de arte de pared ${size.label}` : `Pré-visualização de arte de parede ${size.label}`} className="transition-all duration-300" style={{ height: `${frameHeight}%` }} />
       <span className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-[#182443] shadow-sm">{wallArtSizeText(size)}</span>
     </div>
   );

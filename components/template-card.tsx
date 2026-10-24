@@ -37,7 +37,7 @@ export function TemplateCard({ template, language, featured = false }: { templat
       dispatch(setInsideRightText(portuguese ? "Com todo o meu carinho." : "Con todo mi cariño."));
       dispatch(setBackText(portuguese ? "Feito especialmente para ti." : "Hecha especialmente para ti."));
     }
-    router.push("/customize");
+    router.push(`/customize?template=${encodeURIComponent(template.id)}`);
   };
 
   const previewAspectClass = template.magazineStyle ? "aspect-square" : "aspect-[.82/1]";

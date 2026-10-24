@@ -118,8 +118,6 @@ export type WallArtSizeId = (typeof WALL_ART_SIZES)[number]["id"];
 export const WALL_ART_SIZE_IDS = WALL_ART_SIZES.map((size) => size.id) as [WallArtSizeId, ...WallArtSizeId[]];
 export const DEFAULT_WALL_ART_PRICES = Object.fromEntries(WALL_ART_SIZES.map((size) => [size.id, size.defaultPriceCents])) as Record<WallArtSizeId, number>;
 export const WALL_ART_IMAGE = "/images/client-wall-art-single.jpg";
-// Sample photo placed inside the frame preview until the customer uploads one.
-export const WALL_ART_SAMPLE_PHOTO = "/images/moment-family-memories.jpg";
 export function wallArtSizeText(size: { label: string; dimensions: string }) {
   return size.dimensions.startsWith(size.label) ? size.dimensions : `${size.label} · ${size.dimensions}`;
 }

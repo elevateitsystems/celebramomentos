@@ -1,5 +1,6 @@
 "use client";
 
+import { WallArtFrame } from "@/components/wall-art-frame";
 import { CardPreview } from "@/components/card-preview";
 import { describeProductSelection } from "@/lib/cart";
 import type { Template } from "@/lib/data";
@@ -9,15 +10,16 @@ export function CartItemThumb({ item, template, className = "" }: { item: CartIt
   if (item.product) {
     const info = describeProductSelection(item.product);
     const round = item.product.kind === "MAGNET" && item.product.shape === "round";
+    if (item.product.kind === "WALL_ART") {
+      return <div className={`flex aspect-square items-center justify-center ${className}`}><WallArtFrame photo={item.product.photos[0] || null} alt={info.name} className="h-full drop-shadow-md" /></div>;
+    }
     return (
       <div className={`flex aspect-square items-center justify-center ${className}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={info.image}
           alt={info.name}
-          className={item.product.kind === "WALL_ART"
-            ? "h-full max-h-full w-auto border-[6px] border-[#caa57b] bg-white object-cover p-[6%] shadow-md"
-            : `aspect-square w-[88%] border-[4px] border-white object-cover shadow-md ${round ? "rounded-full" : "rounded-xl"}`}
+          className={`aspect-square w-[88%] border-[4px] border-white object-cover shadow-md ${round ? "rounded-full" : "rounded-xl"}`}
         />
       </div>
     );
