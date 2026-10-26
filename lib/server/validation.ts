@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { WALL_ART_SIZE_IDS } from "@/lib/data";
+import { CARD_TEMPLATE_SLUGS, MAX_PRODUCT_PHOTOS, PRODUCT_KINDS } from "@/lib/products";
 
 export const adminLoginSchema = z.object({ email: z.string().email(), password: z.string().min(8).max(200) });
 export const customerRegisterSchema = z.object({
@@ -24,7 +25,22 @@ export const cartLineSchema = z.object({
   product: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("WALL_ART"), sizeId: z.enum(WALL_ART_SIZE_IDS), photos: z.array(z.string().nullable()).max(1), priceCents: z.number().int().nonnegative() }),
     z.object({ kind: z.literal("MAGNET"), packSize: z.union([z.literal(4), z.literal(9)]), shape: z.enum(["square", "round"]), photos: z.array(z.string().nullable()).max(9), priceCents: z.number().int().nonnegative() }),
+    // Admin-created catalog products. Name, detail and price are display snapshots that the server recomputes.
+    z.object({
+      kind: z.literal("CATALOG"),
+      productKind: z.enum(["WALL_ART", "MAGNET", "PHONE_CASE", "MUG", "CALENDAR"]),
+      productId: z.string().cuid(),
+      variantId: z.string().cuid().nullable(),
+      options: z.record(z.string().max(40), z.string().max(160)).refine((value) => Object.keys(value).length <= 20, "Too many options"),
+      photos: z.array(z.string().nullable()).max(MAX_PRODUCT_PHOTOS),
+      name: z.string().max(200),
+      detail: z.string().max(400),
+      image: z.string().max(2000).nullable(),
+      priceCents: z.number().int().nonnegative(),
+    }),
   ]).optional().nullable(),
+  productPriceCents: z.number().int().nonnegative().optional().nullable(),
+  productName: z.string().max(200).optional().nullable(),
   stickerQuantity: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
   stickerImage: z.string().nullable(),
   envelopeText: z.string().max(80),
@@ -81,17 +97,34 @@ export const customerCheckoutSchema = z.object({
 });
 export const adminOrderStatusSchema = z.object({ status: z.enum(["PENDING", "PAID", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]) });
 export const adminMessageReplySchema = z.object({ text: z.string().trim().min(1).max(2000) });
+export const productVariantSchema = z.object({
+  id: z.string().cuid().optional(),
+  name: z.string().trim().min(1).max(80),
+  priceCents: z.number().int().nonnegative(),
+});
+export const productOptionSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  choices: z.array(z.string().trim().min(1).max(80)).min(1).max(30),
+  required: z.boolean().optional(),
+});
 export const productSchema = z.object({
   slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/),
-  name: z.string().min(2).max(160),
+  name: z.string().trim().min(2).max(160),
   description: z.string().max(5000).optional().nullable(),
-  kind: z.enum(["POSTCARD", "CALENDAR", "WALL_ART", "MAGNET", "PHONE_CASE", "MUG", "STICKER"]),
+  kind: z.enum(PRODUCT_KINDS),
   basePriceCents: z.number().int().nonnegative(),
   categoryId: z.string().cuid().optional().nullable(),
   active: z.boolean().optional(),
   featured: z.boolean().optional(),
   imageAssetId: z.string().cuid().nullable().optional(),
-  metadata: z.record(z.unknown()).optional().nullable(),
+  metadata: z.object({
+    // Cards only: which of the three Card templates the product opens in.
+    templateSlug: z.enum(CARD_TEMPLATE_SLUGS).optional(),
+    // Non-card products: how many customer photos the product needs.
+    photoCount: z.number().int().min(1).max(MAX_PRODUCT_PHOTOS).optional(),
+  }).strict().optional().nullable(),
+  variants: z.array(productVariantSchema).max(30).optional(),
+  options: z.array(productOptionSchema).max(10).optional(),
 });
 export const templateSchema = z.object({
   slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/),

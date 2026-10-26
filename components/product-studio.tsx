@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
@@ -9,9 +9,10 @@ import { AuthRequiredModal, PageIntro, SiteFooter, SiteHeader, Spinner, Toast } 
 import { MAGNET_PACK_PRICES_CENTS, MAGNET_SAMPLE_PHOTOS, WALL_ART_SIZES, wallArtSizeText, type WallArtSizeId } from "@/lib/data";
 import { getSessionUser } from "@/lib/client-session";
 import { usePublicSettings } from "@/lib/public-settings";
-import { RootState, defaultCardCustomization, saveCartItem, type ProductSelection } from "@/lib/store";
+import { productPhotoCount, type CatalogProduct, type StudioProductKind } from "@/lib/products";
+import { RootState, defaultCardCustomization, saveCartItem, type CatalogSelection, type ProductSelection } from "@/lib/store";
 import { WallArtFrame } from "@/components/wall-art-frame";
-import { PublishedProducts, type PublishedProductKind } from "@/components/published-products";
+import { PublishedProducts, catalogImage, useCatalogProducts } from "@/components/published-products";
 
 const formatCents = (cents: number) => (cents / 100).toFixed(2).replace(".", ",") + " €";
 
@@ -33,11 +34,8 @@ function UploadButton({ photo, onPhoto, es }: { photo: string | null; onPhoto: (
   </>;
 }
 
-type StudioKind = ProductSelection["kind"];
-type SelectionOf<K extends StudioKind> = Extract<ProductSelection, { kind: K }>;
-
 // Adds a studio product to the cart (or replaces the line being edited via ?edit=<id>).
-function useStudioCart<K extends StudioKind>(kind: K) {
+function useStudioCart(matches: (product: ProductSelection) => boolean) {
   const router = useRouter();
   const dispatch = useDispatch();
   const items = useSelector((state: RootState) => state.cart.items);
@@ -47,9 +45,9 @@ function useStudioCart<K extends StudioKind>(kind: K) {
   const [authPrompt, setAuthPrompt] = useState(false);
 
   useEffect(() => { setEditId(new URLSearchParams(window.location.search).get("edit")); }, []);
-  const editingItem = editId ? items.find((item) => item.id === editId && item.product?.kind === kind) : undefined;
+  const editingItem = editId ? items.find((item) => item.id === editId && item.product && matches(item.product)) : undefined;
 
-  const addToCart = async (product: SelectionOf<K>) => {
+  const addToCart = async (product: ProductSelection) => {
     if (adding) return;
     setAdding(true);
     const user = await getSessionUser({ refresh: true });
@@ -63,43 +61,187 @@ function useStudioCart<K extends StudioKind>(kind: K) {
     router.push("/cart");
   };
 
-  return { editing: editingItem?.product as SelectionOf<K> | undefined, addToCart, adding, authPrompt, closeAuthPrompt: () => setAuthPrompt(false) };
+  return { editing: editingItem?.product ?? undefined, addToCart, adding, authPrompt, closeAuthPrompt: () => setAuthPrompt(false) };
+}
+
+const optionDefaults = (product: CatalogProduct) => Object.fromEntries(product.options.map((option) => [option.key, option.config?.choices[0] || ""]));
+
+// Database products of one category. ?product=<id> selects one; categories
+// without a purchasable built-in design (autoSelect) fall back to the first product.
+function useStudioCatalog(kind: StudioProductKind, autoSelect: boolean) {
+  const catalog = useCatalogProducts(kind);
+  const [requestedId, setRequestedId] = useState<string | null>(null);
+  const [config, setConfig] = useState<{ productId: string | null; variantId: string | null; options: Record<string, string> }>({ productId: null, variantId: null, options: {} });
+
+  useEffect(() => { setRequestedId(new URLSearchParams(window.location.search).get("product")); }, []);
+
+  const requested = requestedId ? catalog.products.find((product) => product.id === requestedId) || null : null;
+  const unavailable = Boolean(requestedId && !catalog.loading && !catalog.error && !requested);
+  const selected = requested || (autoSelect && (!requestedId || unavailable) ? catalog.products[0] || null : null);
+
+  useEffect(() => {
+    if (!selected || config.productId === selected.id) return;
+    setConfig({ productId: selected.id, variantId: selected.variants[0]?.id ?? null, options: optionDefaults(selected) });
+  }, [selected, config.productId]);
+
+  const select = (product: CatalogProduct | null) => {
+    setRequestedId(product?.id ?? null);
+    const url = new URL(window.location.href);
+    if (product) url.searchParams.set("product", product.id); else url.searchParams.delete("product");
+    url.searchParams.delete("edit");
+    window.history.replaceState(null, "", url.pathname + url.search);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const applyEdit = (selection: CatalogSelection) => {
+    setRequestedId(selection.productId);
+    setConfig({ productId: selection.productId, variantId: selection.variantId, options: selection.options });
+  };
+
+  const ready = Boolean(selected && config.productId === selected.id);
+  const variant = selected?.variants.find((item) => item.id === config.variantId) || null;
+  const priceCents = selected ? variant?.priceCents ?? (selected.variants.length ? null : selected.basePriceCents) : null;
+  const options = selected ? Object.fromEntries(selected.options.map((option) => [option.key, config.options[option.key] || ""])) : {};
+  const missingOption = selected?.options.find((option) => option.required && !options[option.key]) || null;
+
+  const toSelection = (photos: (string | null)[], studioOptions: Record<string, string>): CatalogSelection | null => {
+    if (!selected || priceCents === null) return null;
+    return { kind: "CATALOG", productKind: kind, productId: selected.id, variantId: variant?.id ?? null, options: { ...studioOptions, ...options }, photos, name: selected.name, detail: [variant?.name, ...Object.values(options)].filter(Boolean).join(" · "), image: selected.images[0]?.asset.url || null, priceCents };
+  };
+
+  return {
+    catalog,
+    selected,
+    unavailable,
+    ready,
+    variant,
+    priceCents,
+    options,
+    missingOption,
+    photoCount: selected ? productPhotoCount(selected) : 1,
+    image: selected?.images[0]?.asset.url || null,
+    select,
+    applyEdit,
+    setVariant: (variantId: string) => setConfig((current) => ({ ...current, variantId })),
+    setOption: (key: string, value: string) => setConfig((current) => ({ ...current, options: { ...current.options, [key]: value } })),
+    toSelection,
+  };
+}
+
+type StudioCatalog = ReturnType<typeof useStudioCatalog>;
+
+// Selected database product: its details, sizes and admin-defined options.
+function CatalogControls({ studio, es, allowStandard, standardLabel }: { studio: StudioCatalog; es: boolean; allowStandard: boolean; standardLabel?: string }) {
+  const { selected } = studio;
+  return <div className="mt-6 space-y-6">
+    {studio.unavailable && <p role="status" className="rounded-xl border border-[#f3c6c2] bg-[#fff0e8] px-3 py-2.5 text-xs font-bold text-[#c94758]">{es ? "El producto que buscabas ya no está disponible." : "O produto que procuravas já não está disponível."}</p>}
+    {selected && <div className="flex gap-3 rounded-2xl border border-[#e8d5cc] bg-[#fff6f0] p-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={catalogImage(selected)} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-black uppercase tracking-wide text-[#ee5264]">{es ? "Producto seleccionado" : "Produto selecionado"}</p>
+        <p className="mt-0.5 text-sm font-black text-[#182443]">{selected.name}</p>
+        {selected.description && <p className="mt-1 text-xs leading-5 text-[#6c584c]">{selected.description}</p>}
+        <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] font-black">
+          {studio.catalog.products.length > 1 && <a href="#catalog" className="text-[#182443] underline underline-offset-2 hover:text-[#ee5264]">{es ? "Ver otros productos" : "Ver outros produtos"}</a>}
+          {allowStandard && <button type="button" onClick={() => studio.select(null)} className="text-[#737b90] underline underline-offset-2 hover:text-[#ee5264]">{standardLabel || (es ? "Usar el diseño estándar" : "Usar o design padrão")}</button>}
+        </div>
+      </div>
+    </div>}
+    {selected && selected.variants.length > 0 && <fieldset>
+      <legend className="text-sm font-black">{es ? "Tamaño" : "Tamanho"}</legend>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {selected.variants.map((variant) => <button key={variant.id} type="button" onClick={() => studio.setVariant(variant.id)} aria-pressed={studio.variant?.id === variant.id} className={`focus-ring rounded-xl border p-3 text-left transition ${studio.variant?.id === variant.id ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}><span className="block text-sm font-black text-[#182443]">{variant.name}</span><span className="mt-1 block text-xs font-black text-[#ee5264]">{formatCents(variant.priceCents)}</span></button>)}
+      </div>
+    </fieldset>}
+    {selected?.options.map((option) => <fieldset key={option.id}>
+      <legend className="text-sm font-black">{option.name}{option.required ? "" : <span className="font-bold text-[#9297a4]"> · {es ? "opcional" : "opcional"}</span>}</legend>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {(option.config?.choices || []).map((choice) => <button key={choice} type="button" onClick={() => studio.setOption(option.key, studio.options[option.key] === choice && !option.required ? "" : choice)} aria-pressed={studio.options[option.key] === choice} className={`focus-ring rounded-xl border px-3 py-2 text-xs font-black transition ${studio.options[option.key] === choice ? "border-[#ee5264] bg-[#fff0e8] text-[#ee5264]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}>{choice}</button>)}
+      </div>
+    </fieldset>)}
+  </div>;
 }
 
 type StudioAction = { label: string; busy: boolean; disabled?: boolean; hint?: string; onClick: () => void; authPrompt: boolean; onCloseAuth: () => void; returnTo: string };
 
-function StudioShell({ eyebrow, title, body, controls, preview, price, es, catalogKind, catalogTitle, action }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; price: React.ReactNode; es: boolean; catalogKind?: PublishedProductKind; catalogTitle?: string; action?: StudioAction }) {
+// Add-to-cart action for a selected database product.
+function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioCart>, es: boolean, photos: (string | null)[], studioOptions: Record<string, string>, returnTo: string): StudioAction {
+  const missingPhotos = Math.max(0, studio.photoCount - photos.filter(Boolean).length);
+  const hint = !studio.ready ? undefined
+    : missingPhotos ? (missingPhotos === 1 ? (es ? "Sube tu fotografía para continuar." : "Carrega a tua fotografia para continuar.") : (es ? `Sube ${missingPhotos} fotos más para continuar.` : `Carrega mais ${missingPhotos} fotografias para continuar.`))
+    : studio.missingOption ? (es ? `Elige una opción de "${studio.missingOption.name}".` : `Escolhe uma opção de "${studio.missingOption.name}".`)
+    : undefined;
+  return {
+    label: cart.editing ? (es ? "Guardar cambios" : "Guardar alterações") : (es ? "Añadir a la cesta" : "Adicionar ao carrinho"),
+    busy: cart.adding,
+    disabled: !studio.ready || studio.priceCents === null || Boolean(hint),
+    hint,
+    onClick: () => { const selection = studio.toSelection(photos, studioOptions); if (selection) void cart.addToCart(selection); },
+    authPrompt: cart.authPrompt,
+    onCloseAuth: cart.closeAuthPrompt,
+    returnTo,
+  };
+}
+
+function StudioShell({ eyebrow, title, body, controls, preview, price, es, catalog, catalogTitle, action }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; price: React.ReactNode; es: boolean; catalog?: { studio: StudioCatalog; emptyText?: string }; catalogTitle?: string; action?: StudioAction }) {
   const [notice, setNotice] = useState("");
   const demoContinue = () => setNotice(es ? "Tu vista está guardada en esta demo. Para un pedido completo, elige una tarjeta personalizada." : "A tua vista está guardada nesta demo. Para uma encomenda completa, escolhe um cartão personalizado.");
-  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{price}</span></div>{controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <><button type="button" onClick={action.onClick} disabled={action.busy || action.disabled} aria-busy={action.busy} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.busy ? <Spinner size={16} /> : null}{action.label} {!action.busy && <Icon name="arrow" size={16} />}</button>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <><button type="button" onClick={demoContinue} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{es ? "Continuar" : "Continuar"} <Icon name="arrow" size={16} /></button><p className="mt-3 text-center text-[11px] text-[#9297a4]">{es ? "Vista de demostración · no se realizará ningún pedido" : "Vista de demonstração · nenhuma encomenda será realizada"}</p></>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{catalogKind && <PublishedProducts kind={catalogKind} title={catalogTitle || ""} />}<SiteFooter />{notice && <Toast message={notice} onClose={() => setNotice("")} />}{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
+  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{price}</span></div>{controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <><button type="button" onClick={action.onClick} disabled={action.busy || action.disabled} aria-busy={action.busy} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.busy ? <Spinner size={16} /> : null}{action.label} {!action.busy && <Icon name="arrow" size={16} />}</button>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <><button type="button" onClick={demoContinue} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]">{es ? "Continuar" : "Continuar"} <Icon name="arrow" size={16} /></button><p className="mt-3 text-center text-[11px] text-[#9297a4]">{es ? "Vista de demostración · no se realizará ningún pedido" : "Vista de demonstração · nenhuma encomenda será realizada"}</p></>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{catalog && <PublishedProducts catalog={catalog.studio.catalog} title={catalogTitle || ""} es={es} selectedId={catalog.studio.selected?.id} onSelect={(product) => catalog.studio.select(product)} emptyText={catalog.emptyText} />}<SiteFooter />{notice && <Toast message={notice} onClose={() => setNotice("")} />}{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
 }
+
+// Price chip while a database product is loading or selected.
+function catalogPriceChip(studio: StudioCatalog, es: boolean) {
+  if (studio.catalog.loading && !studio.selected) return <span className="inline-block h-3 w-12 animate-pulse rounded-full bg-[#f3d5d2] align-middle" aria-label={es ? "Cargando precio" : "A carregar preço"} />;
+  return studio.priceCents === null ? "—" : formatCents(studio.priceCents);
+}
+
+// Restores a database-product cart line opened with ?edit=<id>.
+function useCatalogEdit(editing: ProductSelection | undefined, studio: StudioCatalog, apply: (selection: CatalogSelection) => void) {
+  const applied = useRef(false);
+  useEffect(() => {
+    if (!editing || editing.kind !== "CATALOG" || applied.current) return;
+    applied.current = true;
+    studio.applyEdit(editing);
+    apply(editing);
+  }, [editing, studio, apply]);
+}
+
+const isCatalogOf = (kind: StudioProductKind) => (product: ProductSelection) => product.kind === "CATALOG" && product.productKind === kind;
 
 export function CalendarStudio() {
   const es = useSelector((state: RootState) => state.language.language) === "es";
+  const studio = useStudioCatalog("CALENDAR", true);
+  const cart = useStudioCart(isCatalogOf("CALENDAR"));
   const [size, setSize] = useState<"A4" | "A5">("A4");
   const [dated, setDated] = useState(true);
   const [photo, setPhoto] = useState<string | null>(null);
+  useCatalogEdit(cart.editing, studio, useCallback((selection: CatalogSelection) => { setPhoto(selection.photos[0] || null); setDated(selection.options.calendario !== "Sin fechas"); }, []));
+  const selected = studio.selected;
+  const compact = selected ? /\bA5\b/i.test(studio.variant?.name || "") : size === "A5";
   const months = es ? ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"] : ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
-  const price = size === "A4" ? "18,90 €" : "16,90 €";
-  const controls = <div className="mt-6 space-y-6"><div><p className="text-sm font-black">{es ? "Tamaño" : "Tamanho"}</p><div className="mt-3 grid grid-cols-2 gap-3">{(["A4", "A5"] as const).map((option) => <button key={option} type="button" onClick={() => setSize(option)} className={`focus-ring rounded-2xl border p-4 text-left transition ${size === option ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}><span className="flex items-center justify-between"><span className="text-base font-black">{option}</span><span className={`h-4 w-4 rounded-full border ${size === option ? "border-[5px] border-[#ee5264]" : "border-[#b7b0ac]"}`} /></span><span className="mt-2 block text-xs text-[#737b90]">{option === "A4" ? "21 × 29,7 cm" : "14,8 × 21 cm"}</span></button>)}</div></div><div><p className="text-sm font-black">{es ? "Tipo de calendario" : "Tipo de calendário"}</p><button type="button" onClick={() => setDated(!dated)} className={`focus-ring mt-3 flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${dated ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc]"}`}><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${dated ? "bg-[#ee5264] text-white" : "bg-[#f4eee9]"}`}><Icon name="check" size={18} /></span><span className="flex-1"><span className="block text-sm font-black">{es ? "Con fechas" : "Com datas"}</span><span className="mt-1 block text-xs leading-5 text-[#737b90]">{es ? "12 meses listos para empezar en enero." : "12 meses prontos para começar em janeiro."}</span></span></button></div><div><p className="text-sm font-black">{es ? "Foto de portada" : "Fotografia de capa"}</p><UploadButton photo={photo} onPhoto={setPhoto} es={es} /></div></div>;
-  const preview = <div className="mx-auto max-w-[560px]"><div className={`mx-auto overflow-hidden bg-white shadow-2xl shadow-[#8a564c]/15 transition-all ${size === "A5" ? "w-[70%] rounded-[14px]" : "w-full rounded-[18px]"}`}><div className="flex h-5 items-center justify-center gap-3 bg-[#182443]">{Array.from({ length: 13 }).map((_, index) => <span key={index} className="h-2.5 w-1 rounded-full bg-white/70" />)}</div><img src={photo || "/images/calendar-product.png"} alt={es ? "Vista previa del calendario" : "Pré-visualização do calendário"} className="aspect-[1.65/1] w-full object-cover" /><div className="p-4 sm:p-6"><div className="flex items-end justify-between border-b border-[#182443] pb-3"><h3 className="serif text-3xl font-bold">{dated ? (es ? "ENERO" : "JANEIRO") : (es ? "TU MES" : "O TEU MÊS")}</h3><span className="text-[10px] font-black">2027</span></div><div className="mt-3 grid grid-cols-7 gap-px bg-[#eadfd8]">{Array.from({ length: 35 }).map((_, index) => <span key={index} className="flex aspect-square items-start justify-end bg-white p-1 text-[7px] text-[#59627b]">{dated && index > 2 && index < 34 ? index - 2 : ""}</span>)}</div></div></div><div className="mt-4 flex flex-wrap justify-center gap-1.5">{months.map((month, index) => <span key={month} className={`rounded-full px-2.5 py-1 text-[9px] font-black ${index === 0 ? "bg-[#182443] text-white" : "bg-white text-[#9297a4]"}`}>{month}</span>)}</div></div>;
-  return <StudioShell eyebrow={es ? "CALENDARIOS PERSONALIZADOS" : "CALENDÁRIOS PERSONALIZADOS"} title={es ? "Un año lleno de los tuyos" : "Um ano cheio dos teus"} body={es ? "Elige A4 o A5, añade tu foto y revisa cómo quedará tu calendario con fechas." : "Escolhe A4 ou A5, adiciona a tua fotografia e vê como ficará o calendário com datas."} controls={controls} preview={preview} price={price} es={es} catalogKind="CALENDAR" catalogTitle={es ? "Más calendarios disponibles" : "Mais calendários disponíveis"} />;
+  const price = selected ? catalogPriceChip(studio, es) : size === "A4" ? "18,90 €" : "16,90 €";
+  const controls = <><CatalogControls studio={studio} es={es} allowStandard={false} /><div className="mt-6 space-y-6">{!selected && <div><p className="text-sm font-black">{es ? "Tamaño" : "Tamanho"}</p><div className="mt-3 grid grid-cols-2 gap-3">{(["A4", "A5"] as const).map((option) => <button key={option} type="button" onClick={() => setSize(option)} className={`focus-ring rounded-2xl border p-4 text-left transition ${size === option ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}><span className="flex items-center justify-between"><span className="text-base font-black">{option}</span><span className={`h-4 w-4 rounded-full border ${size === option ? "border-[5px] border-[#ee5264]" : "border-[#b7b0ac]"}`} /></span><span className="mt-2 block text-xs text-[#737b90]">{option === "A4" ? "21 × 29,7 cm" : "14,8 × 21 cm"}</span></button>)}</div></div>}<div><p className="text-sm font-black">{es ? "Tipo de calendario" : "Tipo de calendário"}</p><button type="button" onClick={() => setDated(!dated)} className={`focus-ring mt-3 flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${dated ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc]"}`}><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${dated ? "bg-[#ee5264] text-white" : "bg-[#f4eee9]"}`}><Icon name="check" size={18} /></span><span className="flex-1"><span className="block text-sm font-black">{es ? "Con fechas" : "Com datas"}</span><span className="mt-1 block text-xs leading-5 text-[#737b90]">{es ? "12 meses listos para empezar en enero." : "12 meses prontos para começar em janeiro."}</span></span></button></div><div><p className="text-sm font-black">{es ? "Foto de portada" : "Fotografia de capa"}</p><UploadButton photo={photo} onPhoto={setPhoto} es={es} /></div></div></>;
+  const preview = <div className="mx-auto max-w-[560px]"><div className={`mx-auto overflow-hidden bg-white shadow-2xl shadow-[#8a564c]/15 transition-all ${compact ? "w-[70%] rounded-[14px]" : "w-full rounded-[18px]"}`}><div className="flex h-5 items-center justify-center gap-3 bg-[#182443]">{Array.from({ length: 13 }).map((_, index) => <span key={index} className="h-2.5 w-1 rounded-full bg-white/70" />)}</div><img src={photo || studio.image || "/images/calendar-product.png"} alt={es ? "Vista previa del calendario" : "Pré-visualização do calendário"} className="aspect-[1.65/1] w-full object-cover" /><div className="p-4 sm:p-6"><div className="flex items-end justify-between border-b border-[#182443] pb-3"><h3 className="serif text-3xl font-bold">{dated ? (es ? "ENERO" : "JANEIRO") : (es ? "TU MES" : "O TEU MÊS")}</h3><span className="text-[10px] font-black">2027</span></div><div className="mt-3 grid grid-cols-7 gap-px bg-[#eadfd8]">{Array.from({ length: 35 }).map((_, index) => <span key={index} className="flex aspect-square items-start justify-end bg-white p-1 text-[7px] text-[#59627b]">{dated && index > 2 && index < 34 ? index - 2 : ""}</span>)}</div></div></div><div className="mt-4 flex flex-wrap justify-center gap-1.5">{months.map((month, index) => <span key={month} className={`rounded-full px-2.5 py-1 text-[9px] font-black ${index === 0 ? "bg-[#182443] text-white" : "bg-white text-[#9297a4]"}`}>{month}</span>)}</div></div>;
+  return <StudioShell eyebrow={es ? "CALENDARIOS PERSONALIZADOS" : "CALENDÁRIOS PERSONALIZADOS"} title={es ? "Un año lleno de los tuyos" : "Um ano cheio dos teus"} body={es ? "Elige A4 o A5, añade tu foto y revisa cómo quedará tu calendario con fechas." : "Escolhe A4 ou A5, adiciona a tua fotografia e vê como ficará o calendário com datas."} controls={controls} preview={preview} price={price} es={es} catalog={{ studio, emptyText: es ? "Todavía no hay calendarios a la venta. Vuelve pronto." : "Ainda não há calendários à venda. Volta em breve." }} catalogTitle={es ? "Calendarios disponibles" : "Calendários disponíveis"} action={selected ? catalogAction(studio, cart, es, [photo], { calendario: dated ? "Con fechas" : "Sin fechas" }, "/calendars") : undefined} />;
 }
 
 export function WallArtStudio() {
   const es = useSelector((state: RootState) => state.language.language) === "es";
   const { settings, loading: pricesLoading } = usePublicSettings();
-  const cart = useStudioCart("WALL_ART");
+  const studio = useStudioCatalog("WALL_ART", false);
+  const cart = useStudioCart((product) => product.kind === "WALL_ART" || isCatalogOf("WALL_ART")(product));
   const [sizeId, setSizeId] = useState<WallArtSizeId>("30x40");
   const [photo, setPhoto] = useState<string | null>(null);
   const appliedEdit = useRef(false);
 
   useEffect(() => {
-    if (!cart.editing || appliedEdit.current) return;
+    if (!cart.editing || cart.editing.kind !== "WALL_ART" || appliedEdit.current) return;
     appliedEdit.current = true;
     setSizeId(cart.editing.sizeId);
     setPhoto(cart.editing.photos[0] || null);
   }, [cart.editing]);
+  useCatalogEdit(cart.editing, studio, useCallback((selection: CatalogSelection) => setPhoto(selection.photos[0] || null), []));
+  const selected = studio.selected;
 
   const size = WALL_ART_SIZES.find((option) => option.id === sizeId) || WALL_ART_SIZES[0];
   const priceCents = settings.wallArtPrices[sizeId];
@@ -107,8 +249,10 @@ export function WallArtStudio() {
   const priceLabel = (cents: number) => pricesLoading ? <span className="inline-block h-3 w-12 animate-pulse rounded-full bg-[#f3d5d2] align-middle" aria-label={es ? "Cargando precio" : "A carregar preço"} /> : formatCents(cents);
 
   const controls = (
+    <>
+    <CatalogControls studio={studio} es={es} allowStandard standardLabel={es ? "Usar la lámina enmarcada estándar" : "Usar a impressão emoldurada padrão"} />
     <div className="mt-6 space-y-6">
-      <div className="rounded-2xl border border-[#e8d5cc] bg-[#fff6f0] p-4 text-xs leading-5 text-[#6c584c]">
+      {!selected && <><div className="rounded-2xl border border-[#e8d5cc] bg-[#fff6f0] p-4 text-xs leading-5 text-[#6c584c]">
         <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-[#ee5264]"><Icon name="check" size={13} />{es ? "Lámina enmarcada · listo para colgar" : "Impressão emoldurada · pronta a pendurar"}</p>
         <p className="mt-1">{es ? "Marco de madera natural con paspartú blanco. Solo tienes que elegir el tamaño y subir tu foto." : "Moldura de madeira natural com passe-partout branco. Só tens de escolher o tamanho e carregar a tua fotografia."}</p>
       </div>
@@ -129,12 +273,13 @@ export function WallArtStudio() {
             </button>
           ))}
         </div>
-      </fieldset>
+      </fieldset></>}
       <div>
         <p className="text-sm font-black">{es ? "Tu fotografía" : "A tua fotografia"}</p>
         <UploadButton photo={photo} onPhoto={setPhoto} es={es} />
       </div>
     </div>
+    </>
   );
 
   // Scale the frame on the wall by the real print height (10 × 15 cm up to A1).
@@ -143,8 +288,8 @@ export function WallArtStudio() {
   const frameHeight = 52 + 40 * ((size.heightCm - minHeight) / (maxHeight - minHeight));
   const preview = (
     <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[20px] bg-[#e6ddcf]">
-      <WallArtFrame photo={photo} alt={es ? `Vista previa de arte de pared ${size.label}` : `Pré-visualização de arte de parede ${size.label}`} className="transition-all duration-300" style={{ height: `${frameHeight}%` }} />
-      <span className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-[#182443] shadow-sm">{wallArtSizeText(size)}</span>
+      <WallArtFrame photo={photo || (selected ? studio.image : null)} alt={selected ? selected.name : es ? `Vista previa de arte de pared ${size.label}` : `Pré-visualização de arte de parede ${size.label}`} className="transition-all duration-300" style={{ height: `${selected ? 72 : frameHeight}%` }} />
+      <span className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-[#182443] shadow-sm">{selected ? studio.variant?.name || selected.name : wallArtSizeText(size)}</span>
     </div>
   );
 
@@ -155,9 +300,11 @@ export function WallArtStudio() {
       body={es ? "Una lámina enmarcada en madera natural con tu foto. Elige entre 11 tamaños, desde 10 × 15 cm hasta A1." : "Uma impressão emoldurada em madeira natural com a tua fotografia. Escolhe entre 11 tamanhos, de 10 × 15 cm até A1."}
       controls={controls}
       preview={preview}
-      price={priceLabel(priceCents)}
+      price={selected ? catalogPriceChip(studio, es) : priceLabel(priceCents)}
       es={es}
-      action={{
+      catalog={{ studio }}
+      catalogTitle={es ? "Más arte de pared disponible" : "Mais arte de parede disponível"}
+      action={selected ? catalogAction(studio, cart, es, [photo], {}, "/wall-art") : {
         label: cart.editing ? (es ? "Guardar cambios" : "Guardar alterações") : (es ? "Añadir a la cesta" : "Adicionar ao carrinho"),
         busy: cart.adding,
         disabled: !photo || pricesLoading,
@@ -173,15 +320,25 @@ export function WallArtStudio() {
 
 export function MagnetsStudio() {
   const es = useSelector((state: RootState) => state.language.language) === "es";
-  const cart = useStudioCart("MAGNET");
+  const studio = useStudioCatalog("MAGNET", false);
+  const cart = useStudioCart((product) => product.kind === "MAGNET" || isCatalogOf("MAGNET")(product));
   const [quantity, setQuantity] = useState<4 | 9>(9);
   const [shape, setShape] = useState<"square" | "round">("square");
   const [photos, setPhotos] = useState<(string | null)[]>(Array(9).fill(null));
   const [selectedPhoto, setSelectedPhoto] = useState(0);
   const appliedEdit = useRef(false);
+  useCatalogEdit(cart.editing, studio, useCallback((selection: CatalogSelection) => {
+    setShape(selection.options.forma === "Redondo" ? "round" : "square");
+    setPhotos(Array.from({ length: 9 }, (_, index) => selection.photos[index] || null));
+  }, []));
+  const selected = studio.selected;
+  // A database product sets its own number of photos; the standard pack uses 4 or 9.
+  const count = selected ? studio.photoCount : quantity;
+
+  useEffect(() => { setSelectedPhoto((current) => Math.min(current, count - 1)); }, [count]);
 
   useEffect(() => {
-    if (!cart.editing || appliedEdit.current) return;
+    if (!cart.editing || cart.editing.kind !== "MAGNET" || appliedEdit.current) return;
     appliedEdit.current = true;
     setQuantity(cart.editing.packSize);
     setShape(cart.editing.shape);
@@ -192,11 +349,13 @@ export function MagnetsStudio() {
   // Each magnet shows exactly one photo: the customer's upload or its own sample.
   const photoFor = (index: number) => photos[index] || MAGNET_SAMPLE_PHOTOS[index % MAGNET_SAMPLE_PHOTOS.length];
   const shapeClass = shape === "round" ? "rounded-full" : "rounded-xl";
-  const missing = photos.slice(0, quantity).filter((photo) => !photo).length;
+  const missing = photos.slice(0, count).filter((photo) => !photo).length;
   const updatePhoto = (value: string) => setPhotos((current) => current.map((photo, index) => (index === selectedPhoto ? value : photo)));
   const controls = (
+    <>
+    <CatalogControls studio={studio} es={es} allowStandard standardLabel={es ? "Usar el pack estándar de 4 o 9" : "Usar o conjunto padrão de 4 ou 9"} />
     <div className="mt-6 space-y-6">
-      <div>
+      {!selected && <div>
         <p className="text-sm font-black">{es ? "Tamaño del pack" : "Tamanho do conjunto"}</p>
         <div className="mt-3 grid grid-cols-2 gap-3">
           {([4, 9] as const).map((amount) => (
@@ -220,7 +379,7 @@ export function MagnetsStudio() {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
       <div>
         <p className="text-sm font-black">{es ? "Forma" : "Forma"}</p>
         <div className="mt-3 grid grid-cols-2 gap-3">
@@ -242,8 +401,8 @@ export function MagnetsStudio() {
       </div>
       <div>
         <p className="text-sm font-black">{es ? "Fotos de los imanes" : "Fotografias dos ímanes"}</p>
-        <div className={`mt-3 grid gap-2 ${quantity === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
-          {Array.from({ length: quantity }).map((_, index) => (
+        <div className={`mt-3 grid gap-2 ${count === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+          {Array.from({ length: count }).map((_, index) => (
             <button
               key={index}
               type="button"
@@ -267,10 +426,11 @@ export function MagnetsStudio() {
         <p className="mt-2 text-[11px] leading-5 text-[#9297a4]">{es ? "Cada imán lleva una fotografía individual. Las fotos atenuadas son ejemplos." : "Cada íman leva uma fotografia individual. As fotografias esbatidas são exemplos."}</p>
       </div>
     </div>
+    </>
   );
   const preview = (
-    <div className={`grid gap-3 rounded-[20px] bg-[#fdfaf5] p-5 shadow-inner sm:gap-4 sm:p-8 ${quantity === 4 ? "mx-auto max-w-[460px] grid-cols-2" : "grid-cols-3"}`}>
-      {Array.from({ length: quantity }).map((_, index) => (
+    <div className={`grid gap-3 rounded-[20px] bg-[#fdfaf5] p-5 shadow-inner sm:gap-4 sm:p-8 ${count <= 4 ? "mx-auto max-w-[460px] grid-cols-2" : "grid-cols-3"}`}>
+      {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
           className={`aspect-square overflow-hidden border-[5px] border-white bg-white shadow-lg ${shapeClass}`}
@@ -288,11 +448,11 @@ export function MagnetsStudio() {
       body={es ? "Elige 4 o 9, cuadrados o redondos, y convierte cada foto en un pequeño detalle cotidiano." : "Escolhe 4 ou 9, quadrados ou redondos, e transforma cada fotografia num pequeno detalhe diário."}
       controls={controls}
       preview={preview}
-      price={formatCents(priceCents)}
+      price={selected ? catalogPriceChip(studio, es) : formatCents(priceCents)}
       es={es}
-      catalogKind="MAGNET"
+      catalog={{ studio }}
       catalogTitle={es ? "Más imanes disponibles" : "Mais ímanes disponíveis"}
-      action={{
+      action={selected ? catalogAction(studio, cart, es, photos.slice(0, count), { forma: shape === "round" ? "Redondo" : "Cuadrado" }, "/magnets") : {
         label: cart.editing ? (es ? "Guardar cambios" : "Guardar alterações") : (es ? "Añadir a la cesta" : "Adicionar ao carrinho"),
         busy: cart.adding,
         disabled: missing > 0,
@@ -363,6 +523,19 @@ export function PhoneCaseStudio() {
   const [caseType, setCaseType] = useState<"snap" | "tough" | "clear">("tough");
   const [finish, setFinish] = useState<"matte" | "glossy">("matte");
   const [photo, setPhoto] = useState<string | null>(null);
+  const studio = useStudioCatalog("PHONE_CASE", true);
+  const cart = useStudioCart(isCatalogOf("PHONE_CASE"));
+  useCatalogEdit(cart.editing, studio, useCallback((selection: CatalogSelection) => {
+    setPhoto(selection.photos[0] || null);
+    setFinish(selection.options.acabado === "Brillante" ? "glossy" : "matte");
+    for (const [key, value] of Object.entries(phoneCatalog) as [keyof typeof phoneCatalog, (typeof phoneCatalog)[keyof typeof phoneCatalog]][]) {
+      const model = value.models.find((item) => item.name === selection.options.modelo);
+      if (model) { setBrand(key); setModelId(model.id); }
+    }
+  // phoneCatalog is a constant declared in this component.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
+  const selected = studio.selected;
 
   const currentModels = phoneCatalog[brand].models;
   const currentModel = currentModels.find((m) => m.id === modelId) || currentModels[0];
@@ -373,9 +546,11 @@ export function PhoneCaseStudio() {
     clear: 19.9,
   };
 
-  const price = casePrices[caseType].toFixed(2).replace(".", ",") + " €";
+  const price = selected ? catalogPriceChip(studio, es) : casePrices[caseType].toFixed(2).replace(".", ",") + " €";
 
   const controls = (
+    <>
+    <CatalogControls studio={studio} es={es} allowStandard={false} />
     <div className="mt-6 space-y-6">
       {/* 1. Phone Brand */}
       <div>
@@ -417,8 +592,8 @@ export function PhoneCaseStudio() {
         </label>
       </div>
 
-      {/* 3. Case Protection Type */}
-      <div>
+      {/* 3. Case Protection Type (a database product defines its own sizes/prices) */}
+      {!selected && <div>
         <p className="text-sm font-black">{es ? "Tipo de funda Gelato" : "Tipo de capa Gelato"}</p>
         <div className="mt-3 grid gap-2">
           {[
@@ -457,7 +632,7 @@ export function PhoneCaseStudio() {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* 4. Finish */}
       <div>
@@ -486,6 +661,7 @@ export function PhoneCaseStudio() {
         <UploadButton photo={photo} onPhoto={setPhoto} es={es} />
       </div>
     </div>
+    </>
   );
 
   // Live camera module rendering based on brand/model camera layout
@@ -531,7 +707,7 @@ export function PhoneCaseStudio() {
         }`}
       >
         <img
-          src={photo || "/images/romantic-couple.png"}
+          src={photo || studio.image || "/images/romantic-couple.png"}
           alt="Vista previa de la funda"
           className={`h-full w-full object-cover ${caseType === "clear" ? "opacity-85" : ""} ${
             finish === "glossy" ? "contrast-[1.05]" : ""
@@ -563,188 +739,9 @@ export function PhoneCaseStudio() {
       preview={preview}
       price={price}
       es={es}
-      catalogKind="PHONE_CASE"
-      catalogTitle={es ? "Más fundas disponibles" : "Mais capas disponíveis"}
-    />
-  );
-}
-
-export function StickerStudio() {
-  const es = useSelector((state: RootState) => state.language.language) === "es";
-  const [format, setFormat] = useState<"circular" | "rectangular">("circular");
-  const [pack, setPack] = useState<1 | 4 | 10>(4);
-  const [finish, setFinish] = useState<"matte" | "glossy" | "clear">("matte");
-  const [photo, setPhoto] = useState<string | null>(null);
-
-  const packPrices = {
-    1: 1.5,
-    4: 4.9,
-    10: 9.9,
-  };
-
-  const currentPrice = packPrices[pack].toFixed(2).replace(".", ",") + " €";
-
-  const controls = (
-    <div className="mt-6 space-y-6">
-      {/* Gelato physical product specification notice */}
-      <div className="rounded-2xl border border-[#e8d5cc] bg-[#fff6f0] p-4 text-xs leading-5 text-[#6c584c]">
-        <p className="font-black text-[#ee5264] flex items-center gap-1.5 uppercase tracking-wide text-[10px]">
-          <Icon name="check" size={13} />
-          {es ? "Especificación física de catálogo Gelato" : "Especificação física do catálogo Gelato"}
-        </p>
-        <p className="mt-1">
-          {es
-            ? "El producto físico es una lámina adhesiva rectangular de 4 × 3 pulgadas (10,16 × 7,62 cm). Para ofrecer pegatinas redondas, la plantilla de personalización centra un diseño circular de 3 pulgadas (7,62 cm), logrando la apariencia perfecta de sticker circular."
-            : "O produto físico é uma folha adesiva retangular de 4 × 3 polegadas (10,16 × 7,62 cm). Para oferecer autocolantes redondos, o modelo centra um design circular de 3 polegadas (7,62 cm), obtendo a aparência perfeita de autocolante circular."}
-        </p>
-      </div>
-
-      {/* Format selection */}
-      <div>
-        <p className="text-sm font-black">{es ? "Formato de diseño en la lámina 4×3\"" : "Formato de design na folha 4×3\""}</p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setFormat("circular")}
-            className={`focus-ring flex flex-col items-start rounded-2xl border p-3.5 text-left transition ${
-              format === "circular" ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded-full border-2 border-[#ee5264] bg-[#ee5264]/20" />
-              <span className="text-xs font-black">{es ? "Circular 3\" (Recomendado)" : "Circular 3\" (Recomendado)"}</span>
-            </div>
-            <span className="mt-1 block text-[11px] text-[#737b90]">
-              {es ? "Diseño redondo centrado con línea de despegue" : "Design redondo centrado com linha de destaque"}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFormat("rectangular")}
-            className={`focus-ring flex flex-col items-start rounded-2xl border p-3.5 text-left transition ${
-              format === "rectangular" ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded-md border-2 border-[#182443] bg-[#182443]/20" />
-              <span className="text-xs font-black">{es ? "Rectangular 4×3\"" : "Retangular 4×3\""}</span>
-            </div>
-            <span className="mt-1 block text-[11px] text-[#737b90]">
-              {es ? "Aprovecha toda la lámina rectangular" : "Aproveita toda a folha retangular"}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* Pack quantity */}
-      <div>
-        <p className="text-sm font-black">{es ? "Cantidad" : "Quantidade"}</p>
-        <div className="mt-3 grid grid-cols-3 gap-2.5">
-          {([1, 4, 10] as const).map((amount) => (
-            <button
-              key={amount}
-              type="button"
-              onClick={() => setPack(amount)}
-              className={`focus-ring rounded-xl border p-3 text-center transition ${
-                pack === amount ? "border-[#ee5264] bg-[#fff0e8] text-[#ee5264]" : "border-[#dfd3cc]"
-              }`}
-            >
-              <span className="block text-base font-black">{amount} {amount === 1 ? (es ? "unidad" : "unidade") : "stickers"}</span>
-              <span className="block text-xs font-black text-[#ee5264] mt-0.5">{packPrices[amount].toFixed(2).replace(".", ",")} €</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Material Finish */}
-      <div>
-        <p className="text-sm font-black">{es ? "Acabado de vinilo" : "Acabamento de vinil"}</p>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {[
-            { id: "matte" as const, label: es ? "Vinilo mate" : "Vinil mate" },
-            { id: "glossy" as const, label: es ? "Vinilo brillante" : "Vinil brilhante" },
-            { id: "clear" as const, label: es ? "Transparente" : "Transparente" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setFinish(item.id)}
-              className={`focus-ring rounded-xl border p-2.5 text-center text-xs font-black transition ${
-                finish === item.id ? "border-[#ee5264] bg-[#fff0e8] text-[#ee5264]" : "border-[#dfd3cc] hover:border-[#ee5264]"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <p className="text-sm font-black">{es ? "Tu fotografía" : "A tua fotografia"}</p>
-        <UploadButton photo={photo} onPhoto={setPhoto} es={es} />
-      </div>
-    </div>
-  );
-
-  const preview = (
-    <div className="flex min-h-[500px] flex-col items-center justify-center rounded-[22px] bg-[#f8efe8] p-6 sm:p-10">
-      {/* 4x3 inch physical rectangular backing sheet representation */}
-      <div className="relative aspect-[4/3] w-full max-w-[420px] rounded-[16px] border-2 border-dashed border-[#b6a69d] bg-white p-5 shadow-2xl shadow-[#8a564c]/15">
-        <span className="absolute -top-3 left-4 rounded-full bg-[#182443] px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
-          {es ? "Lámina física 4 × 3 pulgadas" : "Folha física 4 × 3 polegadas"}
-        </span>
-
-        {format === "circular" ? (
-          /* Circular 3 inch design in the center of 4x3 sheet with peel corner */
-          <div className="relative mx-auto flex h-full aspect-square items-center justify-center">
-            <div className="relative h-full w-full overflow-hidden rounded-full border-[5px] border-white shadow-xl ring-2 ring-[#ee5264]/40">
-              <img
-                src={photo || "/images/sticker-lifestyle-sports.jpg"}
-                alt="Vista previa del sticker circular"
-                className="h-full w-full object-cover"
-              />
-              {/* Circular peel back corner effect matching client reference */}
-              <div
-                className="absolute -right-1 -top-1 h-10 w-10 origin-top-right rotate-45 bg-gradient-to-br from-white via-[#dedede] to-[#b3b3b3] shadow-md border-b border-l border-black/15"
-                style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
-              />
-            </div>
-            <div className="pointer-events-none absolute -bottom-2 rounded-full bg-white/95 px-3 py-1 text-[10px] font-black text-[#ee5264] shadow-md">
-              {es ? "Diseño circular 3\" (7,62 cm)" : "Design circular 3\" (7,62 cm)"}
-            </div>
-          </div>
-        ) : (
-          /* Rectangular full bleed option */
-          <div className="relative h-full w-full overflow-hidden rounded-xl border-[4px] border-white shadow-lg">
-            <img
-              src={photo || "/images/sticker-lifestyle-sports.jpg"}
-              alt="Vista previa del sticker rectangular"
-              className="h-full w-full object-cover"
-            />
-          </div>
-        )}
-      </div>
-
-      <p className="mt-5 text-center text-xs font-bold text-[#737b90]">
-        {es
-          ? `Lámina adhesiva de alta adherencia · Acabado ${finish === "matte" ? "mate" : finish === "glossy" ? "brillante" : "transparente"}`
-          : `Folha adesiva de alta aderência · Acabamento ${finish === "matte" ? "mate" : finish === "glossy" ? "brilhante" : "transparente"}`}
-      </p>
-    </div>
-  );
-
-  return (
-    <StudioShell
-      eyebrow={es ? "STICKERS PERSONALIZADOS · GELATO WORKAROUND" : "AUTOCOLANTES PERSONALIZADOS · GELATO WORKAROUND"}
-      title={es ? "Tus fotos en stickers resistentes" : "As tuas fotos em autocolantes resistentes"}
-      body={es ? "Lámina física de 4 × 3 pulgadas con opción de diseño circular de 3 pulgadas o formato rectangular completo." : "Folha física de 4 × 3 polegadas com opção de design circular de 3 polegadas ou formato retangular completo."}
-      controls={controls}
-      preview={preview}
-      price={currentPrice}
-      es={es}
-      catalogKind="STICKER"
-      catalogTitle={es ? "Más stickers disponibles" : "Mais autocolantes disponíveis"}
+      catalog={{ studio, emptyText: es ? "Todavía no hay fundas a la venta. Vuelve pronto." : "Ainda não há capas à venda. Volta em breve." }}
+      catalogTitle={es ? "Fundas disponibles" : "Capas disponíveis"}
+      action={selected ? catalogAction(studio, cart, es, [photo], { marca: phoneCatalog[brand].name, modelo: currentModel.name, acabado: finish === "glossy" ? "Brillante" : "Mate" }, "/phone-cases") : undefined}
     />
   );
 }
@@ -754,13 +751,24 @@ export function MugStudio() {
   const [size, setSize] = useState<"11oz" | "15oz">("11oz");
   const [colorScheme, setColorScheme] = useState<"white" | "red" | "blue" | "black">("white");
   const [photo, setPhoto] = useState<string | null>("/images/mug-couple-travel.jpg");
+  const studio = useStudioCatalog("MUG", true);
+  const cart = useStudioCart(isCatalogOf("MUG"));
+  const mugColors = { white: "Blanco clásico", red: "Interior y asa rojo", blue: "Interior y asa azul", black: "Interior y asa negro" } as const;
+  useCatalogEdit(cart.editing, studio, useCallback((selection: CatalogSelection) => {
+    setPhoto(selection.photos[0] || null);
+    const color = (Object.keys(mugColors) as (keyof typeof mugColors)[]).find((key) => mugColors[key] === selection.options.color);
+    if (color) setColorScheme(color);
+  // mugColors is a constant declared in this component.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
+  const selected = studio.selected;
 
   const mugPrices = {
     "11oz": 11.9,
     "15oz": 14.9,
   };
 
-  const currentPrice = mugPrices[size].toFixed(2).replace(".", ",") + " €";
+  const currentPrice = selected ? catalogPriceChip(studio, es) : mugPrices[size].toFixed(2).replace(".", ",") + " €";
 
   const colorOptions = [
     { id: "white" as const, name: es ? "Blanco clásico" : "Branco clássico", hex: "#ffffff", border: "#dfd3cc" },
@@ -776,6 +784,8 @@ export function MugStudio() {
   ];
 
   const controls = (
+    <>
+    <CatalogControls studio={studio} es={es} allowStandard={false} />
     <div className="mt-6 space-y-6">
       {/* Ceramic quality notice */}
       <div className="rounded-2xl border border-[#e8d5cc] bg-[#fff6f0] p-4 text-xs leading-5 text-[#6c584c]">
@@ -790,8 +800,8 @@ export function MugStudio() {
         </p>
       </div>
 
-      {/* Mug Size */}
-      <div>
+      {/* Mug Size (a database product defines its own sizes/prices) */}
+      {!selected && <div>
         <p className="text-sm font-black">{es ? "Tamaño y capacidad" : "Tamanho e capacidade"}</p>
         <div className="mt-3 grid grid-cols-2 gap-3">
           <button
@@ -826,7 +836,7 @@ export function MugStudio() {
             </span>
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Color Accent */}
       <div>
@@ -878,9 +888,11 @@ export function MugStudio() {
         <UploadButton photo={photo} onPhoto={setPhoto} es={es} />
       </div>
     </div>
+    </>
   );
 
   const selectedColor = colorOptions.find((c) => c.id === colorScheme) || colorOptions[0];
+  const sizeLabel = selected ? studio.variant?.name || selected.name : size === "11oz" ? "11 oz" : "15 oz";
 
   const preview = (
     <div className="flex min-h-[500px] flex-col items-center justify-center rounded-[22px] bg-gradient-to-b from-[#fbf5f0] to-[#f4ebe3] p-6 sm:p-10">
@@ -895,7 +907,7 @@ export function MugStudio() {
             />
           </div>
           <div className="mt-4 flex items-center gap-2 rounded-full bg-white/90 px-4 py-1.5 text-xs font-black text-[#182443] shadow-md backdrop-blur">
-            <span>✨ {es ? `Taza de cerámica ${size === "11oz" ? "11 oz" : "15 oz"}` : `Caneca de cerâmica ${size === "11oz" ? "11 oz" : "15 oz"}`}</span>
+            <span>✨ {es ? `Taza de cerámica ${sizeLabel}` : `Caneca de cerâmica ${sizeLabel}`}</span>
           </div>
         </div>
       ) : (
@@ -914,7 +926,7 @@ export function MugStudio() {
               <div className="relative h-[calc(100%-28px)] w-full overflow-hidden p-3 bg-white">
                 <div className="h-full w-full overflow-hidden rounded-xl border border-gray-100 bg-[#f9f5f1]">
                   <img
-                    src={photo || "/images/mug-couple-travel.jpg"}
+                    src={photo || studio.image || "/images/mug-couple-travel.jpg"}
                     alt={es ? "Fotografía en la taza" : "Fotografia na caneca"}
                     className="h-full w-full object-cover"
                   />
@@ -937,7 +949,7 @@ export function MugStudio() {
           </div>
 
           <div className="mt-6 flex items-center gap-2 rounded-full bg-white/90 px-4 py-1.5 text-xs font-black text-[#182443] shadow-md backdrop-blur">
-            <span>✨ {es ? `Taza personalizada ${size} · ${selectedColor.name}` : `Caneca personalizada ${size} · ${selectedColor.name}`}</span>
+            <span>✨ {es ? `Taza personalizada ${sizeLabel} · ${selectedColor.name}` : `Caneca personalizada ${sizeLabel} · ${selectedColor.name}`}</span>
           </div>
         </div>
       )}
@@ -959,8 +971,9 @@ export function MugStudio() {
       preview={preview}
       price={currentPrice}
       es={es}
-      catalogKind="MUG"
-      catalogTitle={es ? "Más tazas disponibles" : "Mais canecas disponíveis"}
+      catalog={{ studio, emptyText: es ? "Todavía no hay tazas a la venta. Vuelve pronto." : "Ainda não há canecas à venda. Volta em breve." }}
+      catalogTitle={es ? "Tazas disponibles" : "Canecas disponíveis"}
+      action={selected ? catalogAction(studio, cart, es, [photo], { color: mugColors[colorScheme] }, "/mugs") : undefined}
     />
   );
 }

@@ -294,6 +294,8 @@ model Payment {
   currency              String        @default("eur")
   stripePaymentIntentId String?       @unique
   stripeCheckoutId      String?       @unique
+  paypalOrderId         String?       @unique
+  paypalCaptureId       String?       @unique
   refundId              String?
   raw                   Json?
   createdAt             DateTime      @default(now())

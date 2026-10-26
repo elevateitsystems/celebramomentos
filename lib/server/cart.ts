@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { CartItem } from "@/lib/store";
 import { prisma } from "./prisma";
-import { ensureCatalog, resolveUnitPriceCents } from "./catalog";
+import { ensureCatalog, resolveCartLine } from "./catalog";
 
 export function publicCustomer(customer: { id: string; name: string; email: string; phone: string | null; createdAt: Date }) {
   return { id: customer.id, name: customer.name, email: customer.email, phone: customer.phone, createdAt: customer.createdAt.toISOString() };
@@ -12,8 +12,12 @@ export function toCartItem(line: { id: string; quantity: number; productId?: str
   return {
     id: line.id,
     quantity: line.quantity,
-    productId: line.productId || null,
+    // The payload keeps the product id so a line still points at its product
+    // (and is rejected) after the product row is deleted and the relation is nulled.
+    productId: line.productId || payload.productId || null,
     product: payload.product ?? null,
+    productPriceCents: payload.productPriceCents ?? null,
+    productName: payload.productName ?? null,
     card: payload.card as CartItem["card"],
     stickerQuantity: payload.stickerQuantity ?? 0,
     stickerImage: payload.stickerImage ?? null,
@@ -28,12 +32,15 @@ export async function getCustomerCart(customerId: string) {
   return { items: lines.map(toCartItem) };
 }
 
-export async function upsertCartLine(customerId: string, item: CartItem, productId?: string | null) {
+export async function upsertCartLine(customerId: string, item: CartItem) {
   await ensureCatalog();
-  const templateSlug = item.product ? null : item.card.templateId;
-  const unitPriceCents = await resolveUnitPriceCents({ templateSlug, productId, item });
+  const resolved = await resolveCartLine(item);
+  const { unitPriceCents, templateSlug, productId } = resolved;
   const payload = {
-    product: item.product ? { ...item.product, priceCents: unitPriceCents } : null,
+    productId,
+    product: resolved.product,
+    productPriceCents: resolved.productPriceCents,
+    productName: resolved.productName,
     card: item.card,
     stickerQuantity: item.stickerQuantity,
     stickerImage: item.stickerImage,
@@ -43,7 +50,7 @@ export async function upsertCartLine(customerId: string, item: CartItem, product
   const data = {
     customerId,
     templateSlug,
-    productId: productId || null,
+    productId,
     quantity: item.quantity,
     unitPriceCents,
     payload: payload as Prisma.InputJsonValue,

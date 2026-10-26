@@ -36,7 +36,8 @@ export async function middleware(request: NextRequest) {
   if (needsCustomer && !(await validToken(request.cookies.get(CUSTOMER_COOKIE)?.value, "customer"))) {
     if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const login = new URL("/account", request.url);
-    login.searchParams.set("returnTo", pathname);
+    // Keep the query (e.g. PayPal's ?token=) so the customer lands back on the same step after signing in.
+    login.searchParams.set("returnTo", pathname + request.nextUrl.search);
     return NextResponse.redirect(login);
   }
   return NextResponse.next();
