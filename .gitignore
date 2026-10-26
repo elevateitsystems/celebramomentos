@@ -3,7 +3,8 @@ node_modules
 out
 .DS_Store
 npm-debug.log*
-.env
-.env.local
-.env.*.local
+.vercel
+
+# Environment files hold secrets; only the placeholder template is committed
+.env*
 !.env.example

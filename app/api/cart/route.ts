@@ -28,13 +28,15 @@ export async function POST(request: NextRequest) {
       quantity: input.quantity,
       productId: input.productId || null,
       product: input.product ?? null,
+      productPriceCents: input.productPriceCents ?? null,
+      productName: input.productName ?? null,
       card: input.card as CartItem["card"],
       stickerQuantity: input.stickerQuantity,
       stickerImage: input.stickerImage,
       envelopeText: input.envelopeText,
       envelopeTextAdded: input.envelopeTextAdded,
     };
-    const saved = await upsertCartLine(customer.id, item, input.productId);
+    const saved = await upsertCartLine(customer.id, item);
     return NextResponse.json({ item: saved }, { status: item.id ? 200 : 201 });
   } catch (reason) {
     return handleApiError(reason);

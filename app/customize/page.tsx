@@ -71,6 +71,7 @@ export default function CustomizePage() {
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [cardProduct, setCardProduct] = useState<{ id: string; name: string; priceCents: number } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
 
@@ -86,6 +87,27 @@ export default function CustomizePage() {
     void getSessionUser().then(() => { if (active) setAuthChecked(true); });
     return () => { active = false; };
   }, []);
+
+  // Card products come from the database and must be active Cards; anything else is dropped.
+  useEffect(() => {
+    if (!selectedProductId) { setCardProduct(null); return; }
+    let active = true;
+    fetch("/api/products?kind=POSTCARD", { cache: "no-store" })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "Unable to load products");
+        const product = (body.products as { id: string; name: string; basePriceCents: number }[]).find((item) => item.id === selectedProductId);
+        if (!active) return;
+        if (product) { setCardProduct({ id: product.id, name: product.name, priceCents: product.basePriceCents }); return; }
+        setSelectedProductId(null);
+        setCardProduct(null);
+        setToast(tx("Esta tarjeta ya no está disponible. Puedes seguir con un diseño estándar.", "Este cartão já não está disponível. Podes continuar com um design padrão."));
+      })
+      .catch(() => { if (active) setToast(tx("No hemos podido cargar la tarjeta seleccionada.", "Não foi possível carregar o cartão selecionado.")); });
+    return () => { active = false; };
+  // tx only depends on the current language.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProductId]);
 
   const template = templates.find((item) => item.id === (chosenTemplateId || cart.card.templateId)) || templates[0];
   const frame = frames.find((item) => item.id === (chosenFrameId || cart.card.frameId)) || frames[0];
@@ -233,7 +255,11 @@ export default function CustomizePage() {
         return;
       }
       setAuthChecked(true);
-      dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, productId: selectedProductId, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
+      if (selectedProductId && cardProduct?.id !== selectedProductId) {
+        setToast(tx("Estamos cargando la tarjeta seleccionada. Inténtalo de nuevo en un momento.", "Estamos a carregar o cartão selecionado. Tenta novamente dentro de momentos."));
+        return;
+      }
+      dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, productId: selectedProductId, productPriceCents: cardProduct?.priceCents ?? null, productName: cardProduct?.name ?? null, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
       router.push("/cart");
     } catch {
       setToast(tx("No hemos podido verificar tu sesión. Inténtalo de nuevo.", "Não foi possível verificar a tua sessão. Tenta novamente."));
@@ -1005,6 +1031,7 @@ export default function CustomizePage() {
               onAddToCart={handleAddToCart}
               addingToCart={addingToCart || !authChecked}
               isPortuguese={isPortuguese}
+              cardProduct={cardProduct}
             />
           )}
         </div>
@@ -1191,6 +1218,7 @@ function ExtrasStep({
   onAddToCart,
   addingToCart,
   isPortuguese,
+  cardProduct,
 }: {
   cart: RootState["cart"];
   dispatch: ReturnType<typeof useDispatch>;
@@ -1201,6 +1229,7 @@ function ExtrasStep({
   onAddToCart: () => void;
   addingToCart: boolean;
   isPortuguese: boolean;
+  cardProduct: { name: string; priceCents: number } | null;
 }) {
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
   const template = templates.find((item) => item.id === cart.card.templateId) || templates[0];
@@ -1210,7 +1239,8 @@ function ExtrasStep({
   const packagingPrice = PACKAGING_PRICES[cart.card.packaging];
   const sizePrice = SIZE_PRICES[cart.card.size];
   const extrasTotal = stickerPrice + envelopePrice + packagingPrice + sizePrice;
-  const totalWithCard = template.price + extrasTotal;
+  const cardPrice = cardProduct ? cardProduct.priceCents / 100 : template.price;
+  const totalWithCard = cardPrice + extrasTotal;
 
   return (
     <section aria-labelledby="extras-step-title">
@@ -1388,8 +1418,8 @@ function ExtrasStep({
 
           <div className="mt-6 space-y-3.5 border-b border-white/10 pb-5 text-sm">
             <div className="flex justify-between text-white/80">
-              <span>{template.name} ({cart.card.size})</span>
-              <Price value={template.price} />
+              <span>{cardProduct?.name || template.name} ({cart.card.size})</span>
+              <Price value={cardPrice} />
             </div>
             <div className="flex justify-between text-white/80">
               <span>{cart.card.packaging === "gift" ? tx("Packaging regalo", "Embalagem para presente") : tx("Sobre estándar", "Envelope standard")}</span>

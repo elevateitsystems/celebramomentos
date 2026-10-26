@@ -1,10 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { requireCustomer } from "@/lib/server/auth";
-import { describeProductSelection } from "@/lib/cart";
-import { toCartItem } from "@/lib/server/cart";
-import { deliveryCents, ensureCatalog } from "@/lib/server/catalog";
+import { checkoutOrigin, createPendingOrder, markOrderFailed } from "@/lib/server/checkout";
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { prisma } from "@/lib/server/prisma";
 import { assertStripeConfigured, stripe } from "@/lib/server/stripe";
@@ -26,58 +23,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ orderId: existing.id, orderNumber: existing.number, checkoutUrl: session.url });
     }
 
-    await ensureCatalog();
-    const lines = await prisma.cartLine.findMany({ where: { customerId: customer.id }, orderBy: { createdAt: "asc" } });
-    if (!lines.length) return jsonError("Tu cesta está vacía. Añade un producto antes de pagar.");
-    const items = lines.map(toCartItem);
-    const subtotalCents = lines.reduce((sum, line) => sum + line.unitPriceCents * line.quantity, 0);
-    const deliveryMethod = items[0].card.delivery;
-    const shippingCents = deliveryCents(deliveryMethod, subtotalCents);
-    const discountCode = (input.discountCode || "").trim().toUpperCase();
-    const discount = discountCode ? await prisma.discount.findFirst({ where: { code: discountCode, active: true } }) : null;
-    const discountValid = Boolean(discount && (!discount.expiresAt || discount.expiresAt > new Date()) && (!discount.minOrderCents || subtotalCents >= discount.minOrderCents) && (!discount.maxUses || discount.usedCount < discount.maxUses));
-    const discountCents = discountValid && discount ? discount.percentage ? Math.floor((subtotalCents + shippingCents) * discount.percentage / 100) : Math.min(discount.amountCents || 0, subtotalCents) : 0;
-    const totalCents = Math.max(0, subtotalCents + shippingCents - discountCents);
-    const templates = await prisma.postcardTemplate.findMany({ where: { slug: { in: lines.map((line) => line.templateSlug).filter((slug): slug is string => Boolean(slug)) } } });
-    const templateBySlug = Object.fromEntries(templates.map((template) => [template.slug, template]));
-    const lineName = (line: (typeof lines)[number]) => {
-      const item = toCartItem(line);
-      if (item.product) { const described = describeProductSelection(item.product); return `${described.name} · ${described.detail}`; }
-      return (line.templateSlug && templateBySlug[line.templateSlug]?.name) || "Producto personalizado";
-    };
-    const shippingAddress = { name: input.name.trim(), phone: input.phone.trim(), recipient: input.recipient.trim(), address: input.address.trim(), city: input.city.trim(), postalCode: input.postalCode.trim(), country: input.country, billingAddress: input.billingAddress?.trim() };
-    const order = await prisma.order.create({
-      data: {
-        number: `CM-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
-        checkoutIdempotencyKey: idempotencyKey,
-        customerId: customer.id,
-        email: input.email.trim().toLowerCase(),
-        subtotalCents,
-        shippingCents,
-        discountCents,
-        totalCents,
-        shippingAddress,
-        items: { create: lines.map((line) => {
-          const item = toCartItem(line);
-          if (item.product) {
-            return { ...(line.productId ? { productId: line.productId } : {}), name: lineName(line), quantity: line.quantity, unitPriceCents: line.unitPriceCents, personalization: { product: { ...item.product, priceCents: line.unitPriceCents }, delivery: item.card.delivery } as Prisma.InputJsonValue };
-          }
-          const template = line.templateSlug ? templateBySlug[line.templateSlug] : null;
-          return { ...(line.productId ? { productId: line.productId } : {}), ...(template ? { templateId: template.id } : {}), name: template?.name || "Producto personalizado", quantity: line.quantity, unitPriceCents: line.unitPriceCents, personalization: { templateSlug: item.card.templateId, card: item.card, stickerQuantity: item.stickerQuantity, envelopeText: item.envelopeText, envelopeTextAdded: item.envelopeTextAdded, delivery: item.card.delivery } as Prisma.InputJsonValue };
-        }) },
-        payments: { create: { amountCents: totalCents, currency: "eur", provider: "stripe" } },
-        ...(discountValid && discount ? { discountUsages: { create: { discountId: discount.id } } } : {}),
-      },
-      include: { payments: true },
-    });
-
+    const { order, lines, shippingCents, deliveryMethod } = await createPendingOrder({ customerId: customer.id, input, idempotencyKey, provider: "stripe" });
     try {
-      const origin = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+      const origin = checkoutOrigin(request.nextUrl.origin);
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         customer_email: input.email.trim().toLowerCase(),
         line_items: [
-          ...lines.map((line) => ({ price_data: { currency: "eur", product_data: { name: lineName(line) }, unit_amount: line.unitPriceCents }, quantity: line.quantity })),
+          ...lines.map((line) => ({ price_data: { currency: "eur", product_data: { name: line.name }, unit_amount: line.unitPriceCents }, quantity: line.quantity })),
           ...(shippingCents ? [{ price_data: { currency: "eur", product_data: { name: deliveryMethod === "express" ? "Entrega express" : "Entrega normal" }, unit_amount: shippingCents }, quantity: 1 }] : []),
         ],
         metadata: { orderId: order.id, orderNumber: order.number, customerId: customer.id },
@@ -88,10 +41,7 @@ export async function POST(request: NextRequest) {
       await prisma.payment.update({ where: { id: order.payments[0].id }, data: { stripeCheckoutId: session.id, raw: { sessionId: session.id } } });
       return NextResponse.json({ orderId: order.id, orderNumber: order.number, checkoutUrl: session.url });
     } catch (reason) {
-      await prisma.$transaction([
-        prisma.order.update({ where: { id: order.id }, data: { status: "CANCELLED" } }),
-        prisma.payment.updateMany({ where: { orderId: order.id, status: "PENDING" }, data: { status: "FAILED", raw: { error: reason instanceof Error ? reason.message : "Stripe checkout failed" } } }),
-      ]);
+      await markOrderFailed(order.id, "FAILED", reason instanceof Error ? reason.message : "Stripe checkout failed");
       throw reason;
     }
   } catch (reason) {

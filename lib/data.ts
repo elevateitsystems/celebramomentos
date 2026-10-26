@@ -79,7 +79,6 @@ export const addOns: AddOn[] = [
 // built-in catalog until a product-specific image is assigned.
 export function getProductPreviewImage(kind?: string | null, category?: string | null) {
   const value = `${kind || ""} ${category || ""}`.toLowerCase();
-  if (value.includes("sticker")) return "/images/sticker-dog.jpg";
   if (value.includes("calendar")) return "/images/calendar-product.png";
   if (value.includes("wall")) return "/images/client-wall-art-single.jpg";
   if (value.includes("magnet")) return "/images/magnet-single.jpg";

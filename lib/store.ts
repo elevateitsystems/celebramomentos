@@ -2,6 +2,7 @@
 
 import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import type { CardSize, DeliveryMethod, DesignCategoryId, Packaging, RecipientMode, WallArtSizeId } from "./data";
+import type { StudioProductKind } from "./products";
 import { defaultEmojiPosition, type EmojiElement, type EmojiPosition, type EmojiTone } from "./emojis";
 
 export type CardCustomization = {
@@ -34,18 +35,35 @@ export type CardCustomization = {
     magazineFooter?: string;
 };
 
-// Studio products (Wall Art, Magnets) reuse the cart line but carry their own
-// options instead of a postcard design. priceCents is a display snapshot only;
-// the server always recalculates it.
+// Studio products (Wall Art, Magnets and admin-created catalog products) reuse
+// the cart line but carry their own options instead of a postcard design.
+// priceCents, name and detail are display snapshots only; the server always
+// recalculates them from the database.
+export type CatalogSelection = {
+  kind: "CATALOG";
+  productKind: StudioProductKind;
+  productId: string;
+  variantId: string | null;
+  options: Record<string, string>;
+  photos: (string | null)[];
+  name: string;
+  detail: string;
+  image: string | null;
+  priceCents: number;
+};
 export type ProductSelection =
   | { kind: "WALL_ART"; sizeId: WallArtSizeId; photos: (string | null)[]; priceCents: number }
-  | { kind: "MAGNET"; packSize: 4 | 9; shape: "square" | "round"; photos: (string | null)[]; priceCents: number };
+  | { kind: "MAGNET"; packSize: 4 | 9; shape: "square" | "round"; photos: (string | null)[]; priceCents: number }
+  | CatalogSelection;
 
 export type CartItem = {
   id: string;
   quantity: number;
   productId?: string | null;
   product?: ProductSelection | null;
+  // Cards created from an admin product: display snapshot of the product price/name.
+  productPriceCents?: number | null;
+  productName?: string | null;
   card: CardCustomization;
   stickerQuantity: 0 | 1 | 2 | 3;
   stickerImage: string | null;
@@ -172,6 +190,8 @@ const cartSlice = createSlice({
         quantity: Math.max(1, action.payload.quantity || 1),
         productId: action.payload.productId || null,
         product: action.payload.product ? { ...action.payload.product, photos: [...action.payload.product.photos] } : null,
+        productPriceCents: action.payload.productPriceCents ?? null,
+        productName: action.payload.productName ?? null,
         card: cloneCard(action.payload.card),
         stickerQuantity: action.payload.stickerQuantity,
         stickerImage: action.payload.stickerImage,

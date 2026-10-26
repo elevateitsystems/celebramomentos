@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
+import { CatalogError } from "./errors";
 
 export function handleApiError(error: unknown) {
+  if (error instanceof CatalogError) return NextResponse.json({ error: error.message }, { status: error.status });
   if (error instanceof ZodError) return NextResponse.json({ error: "Validation failed", details: error.flatten() }, { status: 400 });
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") return NextResponse.json({ error: "A record with these details already exists" }, { status: 409 });
     if (error.code === "P2025") return NextResponse.json({ error: "The requested record was not found" }, { status: 404 });
+    if (error.code === "P2021" || error.code === "P2022") {
+      console.error("Database schema is behind the code. Run `npm run db:deploy`.", error.meta);
+      return NextResponse.json({ error: "El servicio no está disponible temporalmente. Inténtalo de nuevo más tarde." }, { status: 503 });
+    }
   }
   if (error instanceof Error && error.message.startsWith("Cloudinary storage is not configured")) return NextResponse.json({ error: error.message }, { status: 503 });
   if (error instanceof Error && /EHOSTUNREACH|ECONNREFUSED|ENOTFOUND|storage|cloudinary/i.test(error.message)) return NextResponse.json({ error: "Image storage is unavailable. Check the configured Cloudinary configuration." }, { status: 503 });

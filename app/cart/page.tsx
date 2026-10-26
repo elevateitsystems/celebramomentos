@@ -23,7 +23,7 @@ export default function CartPage() {
     const template = templates.find((current) => current.id === item.card.templateId) || templates[0];
     const templatePrice = template.price;
     const info = item.product ? describeProductSelection(item.product) : null;
-    return { item, template, info, name: info?.name || template.name, unitTotal: getCartItemUnitTotal(item, templatePrice) };
+    return { item, template, info, name: info?.name || item.productName || template.name, unitTotal: getCartItemUnitTotal(item, templatePrice) };
   });
   const merchandiseSubtotal = rows.reduce((sum, row) => sum + row.unitTotal * row.item.quantity, 0);
   const freeShipping = qualifiesForFreeShipping(merchandiseSubtotal);
@@ -35,7 +35,7 @@ export default function CartPage() {
 
   const editItem = (id: string) => {
     const item = items.find((current) => current.id === id);
-    if (item?.product) { router.push(describeProductSelection(item.product).editHref + "?edit=" + encodeURIComponent(id)); return; }
+    if (item?.product) { const href = describeProductSelection(item.product).editHref; router.push(href + (href.includes("?") ? "&" : "?") + "edit=" + encodeURIComponent(id)); return; }
     dispatch(loadCartItem(id));
     router.push("/customize?edit=" + encodeURIComponent(id));
   };
