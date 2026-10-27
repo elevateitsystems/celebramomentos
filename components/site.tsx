@@ -291,11 +291,15 @@ export function SiteHeader({ active = "" }: { active?: string }) {
     return () => { active = false; };
   }, []);
   const cartCount = useSelector((state: RootState) => state.cart.items.reduce((total, item) => total + item.quantity, 0));
+  // Free-shipping threshold of standard delivery, as set in admin Settings.
+  const { settings } = usePublicSettings();
+  const freeFrom = settings.delivery.standard.freeFromCents;
+  const freeFromText = freeFrom === null ? null : `${(freeFrom / 100).toFixed(2).replace(".", ",").replace(",00", "")}€`;
 
   return (
     <>
       <div className="bg-[#182443] px-4 py-2 text-center text-[11px] font-bold tracking-[.08em] text-white/90">
-        {es ? "Envío gratis en pedidos de 35€ o más · Entregamos en España y Portugal" : "Envio grátis em pedidos de 35€ ou mais · Entregamos em Espanha e Portugal"}
+        {es ? `${freeFromText ? `Envío gratis en pedidos de ${freeFromText} o más · ` : ""}Entregamos en España y Portugal` : `${freeFromText ? `Envio grátis em encomendas de ${freeFromText} ou mais · ` : ""}Entregamos em Espanha e Portugal`}
       </div>
       <header className="sticky top-0 z-30 border-b border-[#ebdfd6]/80 bg-[#fffaf5]/95 backdrop-blur-md">
         {/* Row 1: menu · logo · search · language · cart · account · CTA */}

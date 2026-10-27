@@ -33,10 +33,21 @@ The schema covers admin roles, catalog products and variants, postcard templates
 | `MUG` | Mugs (Tazas) | `/mugs` |
 | `CALENDAR` | Calendars (Calendarios) | `/calendars` |
 
-- `GET /api/products?kind=…` is the public catalog: active products with their active sizes (`ProductVariant`) and options (`PersonalizationOption`). Category pages read it at request time, so admin changes show up on the next page load.
+- `GET /api/products?kind=…` is the public catalog: active products with their active sizes (`ProductVariant`, including the per-size photo count) and options (`PersonalizationOption`). Category pages read it at request time, so admin changes show up on the next page load.
+- Every non-Card category page (`components/product-studio.tsx`) sells **only** the products created in admin → Products. Sizes, prices and options come from the database. The studio adds the photo upload and a live preview. If a category has no visible product, its page shows "Muy pronto disponible".
+  - Wall Art: the preview is a poster with a hanger (`components/poster-hanger.tsx`). An option named like "Marco"/"Frame" drives the hanger colour (Blanco, Madera natural, Madera oscura, Negro), and one named "Orientación" drives vertical/horizontal.
+  - Magnets: rectangular 7,6 × 5,1 cm. Each pack is a size whose "Photos" value is the number of magnets (1/3/5/10).
+  - Phone cases: case types (Clear, Tough) are sizes. An option named "Modelo" lists the phone models; long lists show as a dropdown.
+  - Mugs: sizes 11 oz / 15 oz. Handle/inside colours follow PRODUCTS.pdf (11 oz: Negro, Rojo, Naranja, Azul, Rosa, Amarillo; 15 oz: Negro, Azul marino, Rojo, Azul, Rosa) unless the product defines its own "Color" option.
+  - Calendars: 12 month slots, one photo per month. The product's photo count is how many are required (new calendars default to 12).
 - The three card templates (Tradicional `template-3`, Collage `template-2`, Magazine `template-magazine`) are for Cards only. A Card product stores its template in `metadata.templateSlug`; other kinds cannot have one, and the API rejects any attempt to add one.
-- Other kinds can have sizes (each with its own price), select options (`{ name, choices[], required }`) and `metadata.photoCount` (how many photos the customer uploads, 1–9). Sizes that are removed are deactivated rather than deleted, so past orders keep their reference.
-- The cart and checkout re-price every line on the server (`resolveCartLine` in `lib/server/catalog.ts`). A line is rejected if its product was deleted or deactivated, if it uses a product from another category, if its Card template is archived, or if its size or option is no longer offered.
+- Card sizes are the Prodigi sizes from PRODUCTS.pdf: `5x7` (`CLASSIC-GRE-FEDR-7X5-BLA`) and `A5` (`CLASSIC-GRE-FEDR-A5-BLA`), defined in `lib/data.ts` (`CARD_SIZES`). The price added for each size is set in admin → Settings (`SiteSetting` `card_size_prices`, size id → cents). Cards have no extras: stickers, gift packaging and envelope text were removed (26 Oct feedback). Carts saved before that are cleaned on load, and the server ignores those fields.
+- Non-Card products can have sizes (each with its own price, an optional photo count, a print-shop SKU and a print-shop override, stored in `ProductVariant.attributes`), select options (`{ name, choices[], required }`), `metadata.photoCount` (1–12) and `metadata.provider` (PRODIGI, PRINTFUL, GELATO, ALERIO_PRINT). Sizes that are removed are deactivated rather than deleted, so past orders keep their reference. The server copies the provider and SKU onto each order line's `personalization.product`; Card lines get `provider: "PRODIGI"` and the size SKU.
+- The cart and checkout re-price every line on the server (`resolveCartLine` in `lib/server/catalog.ts`). `POST /api/catalog/quote` (public, saves nothing) returns those prices per line, and the cart and checkout pages show them. A line is rejected if its product was deleted or deactivated, if it uses a product from another category, if its Card template is archived, if its size or option is no longer offered, if photos are missing, or if it is an old built-in Wall Art/Magnet line.
+
+## Delivery
+
+Standard and express delivery prices and their free-shipping thresholds are stored in the `ShippingMethod` table (slugs `standard`, `express`) and edited in admin → Settings (`GET|PUT /api/admin/shipping`, OWNER/ADMIN). `GET /api/settings` exposes them to the storefront (header banner, cart, checkout, card summary). The checkout charges the same values.
 
 ## Payments
 

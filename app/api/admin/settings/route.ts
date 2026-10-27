@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server/auth";
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { prisma } from "@/lib/server/prisma";
-import { isSocialLinkKey, parseWallArtPrices, validSocialUrl, WALL_ART_PRICES_KEY } from "@/lib/server/settings";
+import { CARD_SIZE_PRICES_KEY, isSocialLinkKey, parseCardSizePrices, validSocialUrl } from "@/lib/server/settings";
 import { settingSchema } from "@/lib/server/validation";
 
 export const dynamic = "force-dynamic";
@@ -25,8 +25,8 @@ export async function PUT(request: NextRequest) {
       if (input.value && !validSocialUrl(input.value)) return jsonError("Social links must be full https:// URLs", 400);
       input.isSecret = false;
     }
-    if (input.key === WALL_ART_PRICES_KEY) {
-      if (!parseWallArtPrices(input.value)) return jsonError("Wall Art prices must be whole, non-negative cent values for known sizes", 400);
+    if (input.key === CARD_SIZE_PRICES_KEY) {
+      if (!parseCardSizePrices(input.value)) return jsonError("Card size prices must be whole, non-negative cent values for known sizes", 400);
       input.isSecret = false;
     }
     const setting = await prisma.siteSetting.upsert({ where: { key: input.key }, update: { value: input.value, ...(input.isSecret !== undefined ? { isSecret: input.isSecret } : {}) }, create: input });

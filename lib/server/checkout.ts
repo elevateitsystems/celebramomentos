@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { describeProductSelection } from "@/lib/cart";
+import { cardSizeText } from "@/lib/data";
 import { toCartItem } from "./cart";
 import { deliveryCents, ensureCatalog, resolveCartLine } from "./catalog";
 import { CatalogError } from "./errors";
@@ -25,7 +26,7 @@ export async function createPendingOrder({ customerId, input, idempotencyKey, pr
   }));
   const subtotalCents = priced.reduce((sum, { line, resolved }) => sum + resolved.unitPriceCents * line.quantity, 0);
   const deliveryMethod = priced[0].item.card.delivery;
-  const shippingCents = deliveryCents(deliveryMethod, subtotalCents);
+  const shippingCents = await deliveryCents(deliveryMethod, subtotalCents);
   const discountCode = (input.discountCode || "").trim().toUpperCase();
   const discount = discountCode ? await prisma.discount.findFirst({ where: { code: discountCode, active: true } }) : null;
   const discountValid = Boolean(discount && (!discount.expiresAt || discount.expiresAt > new Date()) && (!discount.minOrderCents || subtotalCents >= discount.minOrderCents) && (!discount.maxUses || discount.usedCount < discount.maxUses));
@@ -34,9 +35,11 @@ export async function createPendingOrder({ customerId, input, idempotencyKey, pr
   const templateSlugs = priced.map(({ resolved }) => resolved.templateSlug).filter((slug): slug is string => Boolean(slug));
   const templates = await prisma.postcardTemplate.findMany({ where: { slug: { in: templateSlugs } } });
   const templateBySlug = Object.fromEntries(templates.map((template) => [template.slug, template]));
-  const lineName = ({ resolved }: (typeof priced)[number]) => {
+  const lineName = (row: (typeof priced)[number]) => {
+    const { resolved } = row;
     if (resolved.product) { const described = describeProductSelection(resolved.product); return `${described.name} · ${described.detail}`; }
-    return resolved.productName || (resolved.templateSlug && templateBySlug[resolved.templateSlug]?.name) || "Producto personalizado";
+    const name = resolved.productName || (resolved.templateSlug && templateBySlug[resolved.templateSlug]?.name) || "Producto personalizado";
+    return `${name} · ${cardSizeText(row.item.card.size)}`;
   };
   const shippingAddress = { name: input.name.trim(), phone: input.phone.trim(), recipient: input.recipient.trim(), address: input.address.trim(), city: input.city.trim(), postalCode: input.postalCode.trim(), country: input.country, billingAddress: input.billingAddress?.trim() };
   const order = await prisma.order.create({
@@ -58,7 +61,7 @@ export async function createPendingOrder({ customerId, input, idempotencyKey, pr
           return { ...productLink, ...variantLink, name: lineName(row), quantity: line.quantity, unitPriceCents: resolved.unitPriceCents, personalization: { product: resolved.product, delivery: item.card.delivery } as Prisma.InputJsonValue };
         }
         const template = resolved.templateSlug ? templateBySlug[resolved.templateSlug] : null;
-        return { ...productLink, ...(template ? { templateId: template.id } : {}), name: lineName(row), quantity: line.quantity, unitPriceCents: resolved.unitPriceCents, personalization: { templateSlug: item.card.templateId, card: item.card, stickerQuantity: item.stickerQuantity, envelopeText: item.envelopeText, envelopeTextAdded: item.envelopeTextAdded, delivery: item.card.delivery } as Prisma.InputJsonValue };
+        return { ...productLink, ...(template ? { templateId: template.id } : {}), name: lineName(row), quantity: line.quantity, unitPriceCents: resolved.unitPriceCents, personalization: { templateSlug: item.card.templateId, card: item.card, cardSize: item.card.size, provider: "PRODIGI", sku: resolved.cardSizeSku, delivery: item.card.delivery } as Prisma.InputJsonValue };
       }) },
       payments: { create: { amountCents: totalCents, currency: "eur", provider } },
       ...(discountValid && discount ? { discountUsages: { create: { discountId: discount.id } } } : {}),

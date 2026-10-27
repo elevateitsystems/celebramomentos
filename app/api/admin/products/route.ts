@@ -7,7 +7,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireAdmin } from "@/lib/server/auth";
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { productSchema } from "@/lib/server/validation";
-import { DEFAULT_CARD_TEMPLATE, PRODUCT_KIND_INFO, PRODUCT_KINDS, isProductKind, optionKey, type ProductKind } from "@/lib/products";
+import { DEFAULT_CARD_TEMPLATE, DEFAULT_POD_PROVIDER, PRODUCT_KIND_INFO, PRODUCT_KINDS, isPodProvider, isProductKind, optionKey, type ProductKind } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
 
@@ -30,14 +30,16 @@ function revalidateStorefront(kinds: string[]) {
 
 // Card templates belong to Cards only; sizes and options belong to studio products only.
 function normalizeForKind(kind: ProductKind, data: ProductPatch, currentMetadata: Prisma.JsonValue | null) {
-  const current = (currentMetadata && typeof currentMetadata === "object" && !Array.isArray(currentMetadata) ? currentMetadata : {}) as { templateSlug?: string; photoCount?: number };
+  const current = (currentMetadata && typeof currentMetadata === "object" && !Array.isArray(currentMetadata) ? currentMetadata : {}) as { templateSlug?: string; photoCount?: number; provider?: string };
   const merged = { ...current, ...(data.metadata || {}) };
+  const provider = isPodProvider(merged.provider) ? merged.provider : DEFAULT_POD_PROVIDER[kind];
   if (kind === "POSTCARD") {
-    if (data.variants?.length || data.options?.length) return { error: "Cards use their template options; sizes and options are not available for Cards." };
-    return { metadata: { templateSlug: merged.templateSlug || DEFAULT_CARD_TEMPLATE }, variants: [], options: [] };
+    // Card sizes (5x7 / A5) and their prices are shared by every card and set in admin Settings.
+    if (data.variants?.length || data.options?.length) return { error: "Cards use the card sizes from Settings; sizes and options are not available for Card products." };
+    return { metadata: { templateSlug: merged.templateSlug || DEFAULT_CARD_TEMPLATE, provider }, variants: [], options: [] };
   }
   if (data.metadata?.templateSlug) return { error: "Card templates (Tradicional, Collage, Magazine) can only be used by Cards." };
-  return { metadata: merged.photoCount ? { photoCount: merged.photoCount } : {}, variants: data.variants, options: data.options };
+  return { metadata: { ...(merged.photoCount ? { photoCount: merged.photoCount } : {}), provider }, variants: data.variants, options: data.options };
 }
 
 async function validateReferences(data: ProductPatch) {
@@ -54,6 +56,12 @@ async function validateReferences(data: ProductPatch) {
   return null;
 }
 
+// ProductVariant.sku is our own unique id; the print shop's SKU can repeat across sizes
+// (e.g. every magnet pack uses M-MAG-FRI-3X2), so it lives in attributes.
+function variantAttributesInput(variant: NonNullable<ProductInput["variants"]>[number]) {
+  return { size: variant.name, ...(variant.photoCount ? { photoCount: variant.photoCount } : {}), ...(variant.podSku ? { podSku: variant.podSku } : {}), ...(variant.provider ? { provider: variant.provider } : {}) };
+}
+
 async function syncVariants(tx: Prisma.TransactionClient, productId: string, slug: string, variants: NonNullable<ProductInput["variants"]>) {
   const existing = await tx.productVariant.findMany({ where: { productId }, select: { id: true } });
   const existingIds = new Set(existing.map((variant) => variant.id));
@@ -61,9 +69,9 @@ async function syncVariants(tx: Prisma.TransactionClient, productId: string, slu
   for (const variant of variants) {
     if (variant.id && existingIds.has(variant.id)) {
       keep.add(variant.id);
-      await tx.productVariant.update({ where: { id: variant.id }, data: { name: variant.name, priceCents: variant.priceCents, attributes: { size: variant.name }, active: true } });
+      await tx.productVariant.update({ where: { id: variant.id }, data: { name: variant.name, priceCents: variant.priceCents, attributes: variantAttributesInput(variant), active: true } });
     } else {
-      await tx.productVariant.create({ data: { productId, sku: `${slug}-${randomUUID().slice(0, 8)}`, name: variant.name, priceCents: variant.priceCents, attributes: { size: variant.name } } });
+      await tx.productVariant.create({ data: { productId, sku: `${slug}-${randomUUID().slice(0, 8)}`, name: variant.name, priceCents: variant.priceCents, attributes: variantAttributesInput(variant) } });
     }
   }
   // Removed sizes are deactivated rather than deleted so past orders keep their reference.

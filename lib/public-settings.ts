@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DEFAULT_WALL_ART_PRICES, SOCIAL_LINK_DEFAULTS, type SocialLinkKey, type WallArtSizeId } from "./data";
+import { DEFAULT_CARD_SIZE_PRICES, SOCIAL_LINK_DEFAULTS, type CardSize, type SocialLinkKey } from "./data";
+import { DEFAULT_DELIVERY_RATES, type DeliveryRates } from "./shipping";
 
 export type PublicSettings = {
   social: Record<SocialLinkKey, string>;
-  wallArtPrices: Record<WallArtSizeId, number>;
+  cardSizePrices: Record<CardSize, number>;
+  delivery: DeliveryRates;
 };
 
-export const FALLBACK_PUBLIC_SETTINGS: PublicSettings = { social: { ...SOCIAL_LINK_DEFAULTS }, wallArtPrices: { ...DEFAULT_WALL_ART_PRICES } };
+export const FALLBACK_PUBLIC_SETTINGS: PublicSettings = { social: { ...SOCIAL_LINK_DEFAULTS }, cardSizePrices: { ...DEFAULT_CARD_SIZE_PRICES }, delivery: DEFAULT_DELIVERY_RATES };
 
 // One request per page load, shared by every component that needs settings.
 let request: Promise<PublicSettings> | null = null;
@@ -16,11 +18,11 @@ let resolved: PublicSettings | null = null;
 
 function loadPublicSettings() {
   if (!request) {
-    request = fetch("/api/settings")
+    request = fetch("/api/settings", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to load settings");
         const body = await response.json() as Partial<PublicSettings>;
-        resolved = { social: { ...SOCIAL_LINK_DEFAULTS, ...body.social }, wallArtPrices: { ...DEFAULT_WALL_ART_PRICES, ...body.wallArtPrices } };
+        resolved = { social: { ...SOCIAL_LINK_DEFAULTS, ...body.social }, cardSizePrices: { ...DEFAULT_CARD_SIZE_PRICES, ...body.cardSizePrices }, delivery: { ...DEFAULT_DELIVERY_RATES, ...body.delivery } };
         return resolved;
       })
       .catch(() => {

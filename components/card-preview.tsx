@@ -2,7 +2,7 @@
 
 import { type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { useSelector } from "react-redux";
-import { frames, templates } from "@/lib/data";
+import { frames, templates, type CardSize } from "@/lib/data";
 import { defaultEmojiPosition, emojiToneFilters, type EmojiElement, type EmojiPosition, type EmojiTone } from "@/lib/emojis";
 import type { RootState } from "@/lib/store";
 import { MagazineFront } from "./magazine-card";
@@ -23,7 +23,8 @@ type CardPreviewProps = {
   photoZoom?: number;
   photoPosition?: "center" | "top" | "bottom" | "left" | "right";
   frameId?: string | null;
-  size?: "A4" | "A3";
+  // 5x7 and A5 share the same proportions, so the preview shape does not change.
+  size?: CardSize;
   compact?: boolean;
   className?: string;
   photoFit?: "cover" | "contain" | "fill";
@@ -81,7 +82,6 @@ export function CardPreview({
   photoZoom = 1,
   photoPosition = "center",
   frameId,
-  size = "A4",
   compact = false,
   className = "",
   photoFit = "cover",
@@ -103,7 +103,7 @@ export function CardPreview({
   const legacyElement: EmojiElement = { id: "legacy-emoji", emoji, tone: emojiTone ?? savedCard.emojiTone ?? "natural", size: emojiSize ?? savedCard.emojiSize ?? 28, position: emojiPosition ?? savedCard.emojiPosition ?? defaultEmojiPosition };
   const elements = emojiElements ?? (savedCard.templateId === templateId ? savedCard.emojiElements : [legacyElement]);
   const canMoveEmoji = Boolean(onEmojiElementPositionChange || onEmojiPositionChange) && !compact;
-  const surfaceClass = compact ? template.magazineStyle ? "aspect-square" : "aspect-[.9/1]" : size === "A3" ? "aspect-[.78/1]" : "aspect-[.82/1]";
+  const surfaceClass = compact ? template.magazineStyle ? "aspect-square" : "aspect-[.9/1]" : "aspect-[.82/1]";
 
   const updatePosition = (id: string, position: EmojiPosition) => {
     onEmojiElementPositionChange?.(id, position);

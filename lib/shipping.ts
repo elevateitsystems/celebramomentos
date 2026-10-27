@@ -1,21 +1,25 @@
 import type { DeliveryMethod } from "./data";
 
-export const FREE_SHIPPING_THRESHOLD = 35;
+// Delivery rates are stored in the ShippingMethod table and edited in admin
+// Settings. These defaults only apply until the stored rates have loaded.
+export type DeliveryRate = { priceCents: number; freeFromCents: number | null };
+export type DeliveryRates = Record<DeliveryMethod, DeliveryRate>;
 
-export const DELIVERY_PRICES: Record<DeliveryMethod, number> = {
-  standard: 5,
-  express: 8,
+export const DEFAULT_DELIVERY_RATES: DeliveryRates = {
+  standard: { priceCents: 500, freeFromCents: 3500 },
+  express: { priceCents: 800, freeFromCents: 3500 },
 };
 
-export function qualifiesForFreeShipping(merchandiseTotal: number) {
-  return merchandiseTotal >= FREE_SHIPPING_THRESHOLD;
+export function qualifiesForFreeShipping(rates: DeliveryRates, method: DeliveryMethod, merchandiseCents: number) {
+  const threshold = rates[method].freeFromCents;
+  return threshold !== null && merchandiseCents >= threshold;
 }
 
-export function getDeliveryPrice(method: DeliveryMethod, merchandiseTotal: number) {
-  if (qualifiesForFreeShipping(merchandiseTotal)) return 0;
-  return DELIVERY_PRICES[method];
+export function getDeliveryPriceCents(rates: DeliveryRates, method: DeliveryMethod, merchandiseCents: number) {
+  return qualifiesForFreeShipping(rates, method, merchandiseCents) ? 0 : rates[method].priceCents;
 }
 
-export function amountUntilFreeShipping(merchandiseTotal: number) {
-  return Math.max(0, FREE_SHIPPING_THRESHOLD - merchandiseTotal);
+export function amountUntilFreeShippingCents(rates: DeliveryRates, method: DeliveryMethod, merchandiseCents: number) {
+  const threshold = rates[method].freeFromCents;
+  return threshold === null ? null : Math.max(0, threshold - merchandiseCents);
 }

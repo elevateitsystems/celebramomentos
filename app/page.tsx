@@ -1,7 +1,8 @@
 "use client";
 
 import { usePublicSettings } from "@/lib/public-settings";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import type { CatalogProduct, ProductKind } from "@/lib/products";
 import Link from "next/link";
 import { useSelector } from "react-redux";
 import { Icon } from "@/components/icons";
@@ -70,11 +71,36 @@ const reviews = [
   },
 ];
 
+// Lowest price per category: catalog products (cheapest size) and, for Cards,
+// the cheapest template plus the cheapest card size.
+function useCategoryFromPrices(cardSizeFromCents: number) {
+  const [prices, setPrices] = useState<Partial<Record<ProductKind, number>>>({});
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch("/api/products", { cache: "no-store" }).then((response) => (response.ok ? response.json() : { products: [] })),
+      fetch("/api/templates", { cache: "no-store" }).then((response) => (response.ok ? response.json() : { templates: [] })),
+    ]).then(([catalog, cards]: [{ products: CatalogProduct[] }, { templates: { priceCents: number }[] }]) => {
+      const next: Partial<Record<ProductKind, number>> = {};
+      for (const product of catalog.products) {
+        const cents = product.variants.length ? Math.min(...product.variants.map((variant) => variant.priceCents)) : product.basePriceCents;
+        next[product.kind] = Math.min(next[product.kind] ?? Infinity, cents);
+      }
+      if (cards.templates.length) next.POSTCARD = Math.min(next.POSTCARD ?? Infinity, Math.min(...cards.templates.map((template) => template.priceCents)) + cardSizeFromCents);
+      if (active) setPrices(next);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [cardSizeFromCents]);
+  return prices;
+}
+
 export default function Home() {
   const language = useSelector((state: RootState) => state.language.language);
   const es = language === "es";
   const { settings } = usePublicSettings();
-  const wallArtFrom = (Math.min(...Object.values(settings.wallArtPrices)) / 100).toFixed(2).replace(".", ",") + " €";
+  const fromPrices = useCategoryFromPrices(Math.min(...Object.values(settings.cardSizePrices)));
+  // "Desde" price of each category, from the products and templates in the database.
+  const priceLabel = (kind: ProductKind) => fromPrices[kind] === undefined ? "" : `${es ? "Desde" : "Desde"} ${(fromPrices[kind]! / 100).toFixed(2).replace(".", ",")} €`;
   const categories: Category[] = [
     {
       name: es ? "Tarjetas" : "Cartões",
@@ -84,47 +110,47 @@ export default function Home() {
       href: "/templates",
       image: "/images/ljVw4.jpg",
       accent: "bg-[#fbe7e1]",
-      price: "8,90 €",
+      price: priceLabel("POSTCARD"),
     },
     {
       name: es ? "Calendarios" : "Calendários",
       description: es
-        ? "Un año entero con tus fotos favoritas (A4 o A5)"
-        : "Um ano inteiro com as tuas fotos favoritas (A4 ou A5)",
+        ? "Un año entero con una foto para cada mes"
+        : "Um ano inteiro com uma fotografia para cada mês",
       href: "/calendars",
       image: "/images/calendar-product.png",
       accent: "bg-[#fff1c7]",
-      price: "16,90 €",
+      price: priceLabel("CALENDAR"),
     },
     {
       name: es ? "Arte de pared" : "Arte de parede",
       description: es
-        ? "Tu foto enmarcada en madera natural, en 11 tamaños"
-        : "A tua fotografia emoldurada em madeira natural, em 11 tamanhos",
+        ? "Póster de calidad museo con colgador de madera"
+        : "Poster de qualidade museu com suporte de madeira",
       href: "/wall-art",
       image: "/images/client-wall-art-trio.jpg",
       accent: "bg-[#e7f1eb]",
-      price: wallArtFrom,
+      price: priceLabel("WALL_ART"),
     },
     {
       name: es ? "Imanes" : "Ímanes",
       description: es
-        ? "Packs de 4 o 9 imanes cuadrados o redondos para tu nevera"
-        : "Packs de 4 ou 9 ímanes quadrados ou redondos para o frigorífico",
+        ? "Imanes rectangulares de 7,6 × 5,1 cm con tus fotos"
+        : "Ímanes retangulares de 7,6 × 5,1 cm com as tuas fotos",
       href: "/magnets",
       image: "/images/magnet-single.jpg",
       accent: "bg-[#e8e7f6]",
-      price: "9,90 €",
+      price: priceLabel("MAGNET"),
     },
     {
       name: es ? "Fundas Móvil" : "Capas de telemóvel",
       description: es
-        ? "Para Apple iPhone, Samsung Galaxy, Google Pixel y Xiaomi"
-        : "Para Apple iPhone, Samsung Galaxy, Google Pixel e Xiaomi",
+        ? "Fundas transparentes o resistentes con tu foto"
+        : "Capas transparentes ou resistentes com a tua foto",
       href: "/phone-cases",
       image: "/images/personalised-phone-cases.png",
       accent: "bg-[#f4e8df]",
-      price: "19,90 €",
+      price: priceLabel("PHONE_CASE"),
     },
     {
       name: es ? "Tazas" : "Canecas",
@@ -134,7 +160,7 @@ export default function Home() {
       href: "/mugs",
       image: "/images/mug-child-beach.jpg",
       accent: "bg-[#fff2e8]",
-      price: "11,90 €",
+      price: priceLabel("MUG"),
     },
   ];
   const moments = [
@@ -362,9 +388,9 @@ export default function Home() {
                       />
                     )}
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#182443]/15 via-transparent to-transparent" />
-                    <span className="absolute right-4 top-4 rounded-full bg-white/95 px-4 py-1.5 text-sm font-black text-[#182443] shadow-lg shadow-black/10 backdrop-blur">
+                    {category.price && <span className="absolute right-4 top-4 rounded-full bg-white/95 px-4 py-1.5 text-sm font-black text-[#182443] shadow-lg shadow-black/10 backdrop-blur">
                       {category.price}
-                    </span>
+                    </span>}
                   </div>
 
                   {/* Content */}

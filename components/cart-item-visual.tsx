@@ -1,26 +1,23 @@
 "use client";
 
-import { WallArtFrame } from "@/components/wall-art-frame";
 import { CardPreview } from "@/components/card-preview";
+import { PosterHanger, hangerColorFrom, orientationFrom } from "@/components/poster-hanger";
 import { describeProductSelection } from "@/lib/cart";
 import type { Template } from "@/lib/data";
 import type { CartItem } from "@/lib/store";
 
+const optionValue = (options: Record<string, string>, pattern: RegExp) => Object.entries(options).find(([key]) => pattern.test(key))?.[1];
+
 export function CartItemThumb({ item, template, className = "" }: { item: CartItem; template: Template; className?: string }) {
   if (item.product) {
     const info = describeProductSelection(item.product);
-    const round = item.product.kind === "MAGNET" && item.product.shape === "round";
-    if (item.product.kind === "WALL_ART") {
-      return <div className={`flex aspect-square items-center justify-center ${className}`}><WallArtFrame photo={item.product.photos[0] || null} alt={info.name} className="h-full drop-shadow-md" /></div>;
+    if (item.product.productKind === "WALL_ART") {
+      return <div className={`flex aspect-square items-center justify-center ${className}`}><PosterHanger photo={item.product.photos[0] || item.product.image} alt={info.name} color={hangerColorFrom(optionValue(item.product.options, /marco|frame|colgador|hanger/i))} orientation={orientationFrom(optionValue(item.product.options, /orienta/i))} className="h-full max-w-full" /></div>;
     }
     return (
       <div className={`flex aspect-square items-center justify-center ${className}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={info.image}
-          alt={info.name}
-          className={`aspect-square w-[88%] border-[4px] border-white object-cover shadow-md ${round ? "rounded-full" : "rounded-xl"}`}
-        />
+        <img src={info.image} alt={info.name} className="aspect-square w-[88%] rounded-xl border-[4px] border-white object-cover shadow-md" />
       </div>
     );
   }

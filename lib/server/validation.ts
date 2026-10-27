@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { WALL_ART_SIZE_IDS } from "@/lib/data";
-import { CARD_TEMPLATE_SLUGS, MAX_PRODUCT_PHOTOS, PRODUCT_KINDS } from "@/lib/products";
+import { CARD_SIZE_IDS } from "@/lib/data";
+import { CARD_TEMPLATE_SLUGS, MAX_PRODUCT_PHOTOS, POD_PROVIDERS, PRODUCT_KINDS } from "@/lib/products";
 
 export const adminLoginSchema = z.object({ email: z.string().email(), password: z.string().min(8).max(200) });
 export const customerRegisterSchema = z.object({
@@ -22,11 +22,9 @@ export const cartLineSchema = z.object({
   id: z.string().min(1).max(80).optional(),
   quantity: z.number().int().min(1).max(99).default(1),
   productId: z.string().cuid().optional().nullable(),
-  product: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("WALL_ART"), sizeId: z.enum(WALL_ART_SIZE_IDS), photos: z.array(z.string().nullable()).max(1), priceCents: z.number().int().nonnegative() }),
-    z.object({ kind: z.literal("MAGNET"), packSize: z.union([z.literal(4), z.literal(9)]), shape: z.enum(["square", "round"]), photos: z.array(z.string().nullable()).max(9), priceCents: z.number().int().nonnegative() }),
-    // Admin-created catalog products. Name, detail and price are display snapshots that the server recomputes.
-    z.object({
+  // Admin-created catalog products. Name, detail and price are display snapshots that the server recomputes.
+  // Unknown keys (e.g. the retired sticker/envelope/packaging extras) are stripped by zod.
+  product: z.object({
       kind: z.literal("CATALOG"),
       productKind: z.enum(["WALL_ART", "MAGNET", "PHONE_CASE", "MUG", "CALENDAR"]),
       productId: z.string().cuid(),
@@ -37,14 +35,9 @@ export const cartLineSchema = z.object({
       detail: z.string().max(400),
       image: z.string().max(2000).nullable(),
       priceCents: z.number().int().nonnegative(),
-    }),
-  ]).optional().nullable(),
+  }).optional().nullable(),
   productPriceCents: z.number().int().nonnegative().optional().nullable(),
   productName: z.string().max(200).optional().nullable(),
-  stickerQuantity: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
-  stickerImage: z.string().nullable(),
-  envelopeText: z.string().max(80),
-  envelopeTextAdded: z.boolean(),
   card: z.object({
     categoryId: z.string(),
     templateId: z.string().min(1).max(100),
@@ -64,9 +57,8 @@ export const cartLineSchema = z.object({
     photoDataUrls: z.array(z.string().nullable()),
     photoZoom: z.number(),
     photoPosition: z.string(),
-    size: z.enum(["A4", "A3"]),
+    size: z.enum(CARD_SIZE_IDS),
     delivery: z.enum(["standard", "express"]),
-    packaging: z.enum(["standard", "gift"]),
     recipientMode: z.enum(["recipient", "customer"]),
     magazineDate: z.string().optional(),
     magazineCategory: z.string().optional(),
@@ -101,6 +93,11 @@ export const productVariantSchema = z.object({
   id: z.string().cuid().optional(),
   name: z.string().trim().min(1).max(80),
   priceCents: z.number().int().nonnegative(),
+  // Photos the customer uploads for this size (e.g. 3 for a pack of 3 magnets).
+  photoCount: z.number().int().min(1).max(MAX_PRODUCT_PHOTOS).nullable().optional(),
+  // Print shop SKU and provider for fulfilment.
+  podSku: z.string().trim().max(120).nullable().optional(),
+  provider: z.enum(POD_PROVIDERS).nullable().optional(),
 });
 export const productOptionSchema = z.object({
   name: z.string().trim().min(1).max(60),
@@ -122,6 +119,8 @@ export const productSchema = z.object({
     templateSlug: z.enum(CARD_TEMPLATE_SLUGS).optional(),
     // Non-card products: how many customer photos the product needs.
     photoCount: z.number().int().min(1).max(MAX_PRODUCT_PHOTOS).optional(),
+    // Print shop that fulfils the product (Prodigi, Printful, Gelato, Alerio Print).
+    provider: z.enum(POD_PROVIDERS).optional(),
   }).strict().optional().nullable(),
   variants: z.array(productVariantSchema).max(30).optional(),
   options: z.array(productOptionSchema).max(10).optional(),
@@ -147,3 +146,5 @@ export const checkoutSchema = z.object({
   discountCode: z.string().max(40).optional(),
 });
 export const uploadSchema = z.object({ fileName: z.string().min(1).max(255), mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), sizeBytes: z.number().int().positive().max(10 * 1024 * 1024), kind: z.enum(["PRODUCT_IMAGE", "TEMPLATE_IMAGE", "CUSTOMER_UPLOAD", "BANNER", "OTHER"]) });
+const deliveryRateSchema = z.object({ priceCents: z.number().int().min(0).max(100_000), freeFromCents: z.number().int().min(0).max(10_000_000).nullable() });
+export const deliveryRatesSchema = z.object({ standard: deliveryRateSchema, express: deliveryRateSchema });

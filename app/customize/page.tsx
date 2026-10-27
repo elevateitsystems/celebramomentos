@@ -10,7 +10,9 @@ import { Icon } from "@/components/icons";
 import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/components/postcard-preview";
 import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
 import { PageIntro, Price, SiteFooter, SiteHeader, Spinner, Toast } from "@/components/site";
-import { addOns, designCategories, ENVELOPE_TEXT_PRICE, frames, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, stickerGallery, templates } from "@/lib/data";
+import { CARD_SIZES, DEFAULT_CARD_SIZE, cardSizeText, designCategories, frames, templates } from "@/lib/data";
+import { usePublicSettings } from "@/lib/public-settings";
+import { amountUntilFreeShippingCents, qualifiesForFreeShipping } from "@/lib/shipping";
 import { type EmojiOption } from "@/lib/emojis";
 import {
   RootState,
@@ -21,8 +23,6 @@ import {
   loadCartItem,
   setEmoji,
   setEmojiElements,
-  setEnvelopeText,
-  setEnvelopeTextAdded,
   setMagazineDate,
   setMagazineCategory,
   setMagazineBadge,
@@ -39,16 +39,13 @@ import {
   setPhotoPosition,
   setPhotoSlots,
   setPhotoZoom,
-  setPackaging,
   setRecipientMode,
   setSize,
-  setStickerImage,
-  setStickerQuantity,
   setTemplate,
   updateEmojiElement,
 } from "@/lib/store";
 
-type FlowStep = "template" | "frame" | "customize" | "emojis" | "preview" | "extras";
+type FlowStep = "template" | "frame" | "customize" | "emojis" | "preview" | "summary";
 
 export default function CustomizePage() {
   const router = useRouter();
@@ -67,13 +64,13 @@ export default function CustomizePage() {
   const [selectedEmojiId, setSelectedEmojiId] = useState<string | null>(cart.card.emojiElements[0]?.id || null);
   const [toast, setToast] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const stickerFileRef = useRef<HTMLInputElement>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [cardProduct, setCardProduct] = useState<{ id: string; name: string; priceCents: number } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
+  const { settings } = usePublicSettings();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -192,16 +189,6 @@ export default function CustomizePage() {
     event.target.value = "";
   };
 
-  const handleStickerPhoto = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      dispatch(setStickerImage(String(reader.result)));
-      setToast(isPortuguese ? "Imagem do autocolante guardada" : "Imagen del sticker guardada");
-    };
-    reader.readAsDataURL(file);
-  };
 
   const reset = () => {
     if (isMagazine) {
@@ -227,8 +214,7 @@ export default function CustomizePage() {
     for (let index = 0; index < template.imageCount; index += 1) dispatch(setPhotoAt({ index, dataUrl: null }));
     dispatch(setPhotoZoom(1));
     dispatch(setPhotoPosition("center"));
-    dispatch(setSize("A4"));
-    dispatch(setPackaging("standard"));
+    dispatch(setSize(DEFAULT_CARD_SIZE));
     setToast(isPortuguese ? "Personalização reposta" : "Personalización restablecida");
   };
 
@@ -259,7 +245,7 @@ export default function CustomizePage() {
         setToast(tx("Estamos cargando la tarjeta seleccionada. Inténtalo de nuevo en un momento.", "Estamos a carregar o cartão selecionado. Tenta novamente dentro de momentos."));
         return;
       }
-      dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, productId: selectedProductId, productPriceCents: cardProduct?.priceCents ?? null, productName: cardProduct?.name ?? null, card: cart.card, stickerQuantity: cart.stickerQuantity, stickerImage: cart.stickerImage, envelopeText: cart.envelopeText, envelopeTextAdded: cart.envelopeTextAdded }));
+      dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, productId: selectedProductId, productPriceCents: cardProduct?.priceCents ?? null, productName: cardProduct?.name ?? null, card: cart.card }));
       router.push("/cart");
     } catch {
       setToast(tx("No hemos podido verificar tu sesión. Inténtalo de nuevo.", "Não foi possível verificar a tua sessão. Tenta novamente."));
@@ -276,14 +262,14 @@ export default function CustomizePage() {
         { id: "customize", label: tx("Secciones", "Secções") },
         { id: "emojis", label: "Emojis" },
         { id: "preview", label: tx("Vista previa", "Pré-visualização") },
-        { id: "extras", label: "Extras" },
+        { id: "summary", label: tx("Resumen", "Resumo") },
       ]
     : [
         { id: "template", label: tx("Plantilla", "Modelo") },
         { id: "customize", label: tx("Secciones", "Secções") },
         { id: "emojis", label: "Emojis" },
         { id: "preview", label: tx("Vista previa", "Pré-visualização") },
-        { id: "extras", label: "Extras" },
+        { id: "summary", label: tx("Resumen", "Resumo") },
       ];
 
   const activeProgressIndex = progressSteps.findIndex((item) => item.id === step);
@@ -781,21 +767,21 @@ export default function CustomizePage() {
                       <div>
                         <p className="text-sm font-black">{tx("Tamaño físico de la tarjeta", "Tamanho físico do cartão")}</p>
                         <div className="mt-2 grid grid-cols-2 gap-2">
-                          {(["A4", "A3"] as const).map((option) => (
+                          {CARD_SIZES.map((option) => (
                             <button
-                              key={option}
+                              key={option.id}
                               type="button"
-                              onClick={() => dispatch(setSize(option))}
+                              onClick={() => dispatch(setSize(option.id))}
+                              aria-pressed={cart.card.size === option.id}
                               className={`focus-ring rounded-2xl border p-3 text-left transition ${
-                                cart.card.size === option
+                                cart.card.size === option.id
                                   ? "border-[#ee5264] bg-[#fff0e8]"
                                   : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"
                               }`}
                             >
-                              <span className="block text-sm font-black">{option}</span>
-                              <span className="mt-1 block text-[11px] text-[#7c8191]">
-                                {option === "A4" ? "21 × 29,7 cm" : "29,7 × 42 cm"}
-                              </span>
+                              <span className="block text-sm font-black">{option.label}</span>
+                              <span className="mt-1 block text-[11px] text-[#7c8191]">{option.dimensions}</span>
+                              {settings.cardSizePrices[option.id] > 0 && <span className="mt-1 block text-[11px] font-black text-[#ee5264]">+<Price value={settings.cardSizePrices[option.id] / 100} /></span>}
                             </button>
                           ))}
                         </div>
@@ -880,7 +866,7 @@ export default function CustomizePage() {
                       {tx("Vista previa en vivo · Cara activa", "Pré-visualização ao vivo · Face ativa")}
                     </span>
                     <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-[#182443]">
-                      {cart.card.size} ·{" "}
+                      {CARD_SIZES.find((option) => option.id === cart.card.size)?.label || cart.card.size} ·{" "}
                       {activeSection === "front" && tx("Portada", "Capa")}
                       {activeSection === "inside-left" && tx("Interior Izq.", "Interior Esq.")}
                       {activeSection === "inside-right" && tx("Interior Dcho.", "Interior Dir.")}
@@ -994,7 +980,7 @@ export default function CustomizePage() {
               <PageIntro
                 eyebrow={!template.requiresFrame ? tx("PASO 4 DE 5 · VISTA COMPLETA", "PASSO 4 DE 5 · VISTA COMPLETA") : tx("PASO 5 DE 6 · VISTA COMPLETA", "PASSO 5 DE 6 · VISTA COMPLETA")}
                 title={tx("Revisa las 4 caras de tu tarjeta", "Revê as 4 faces do teu cartão")}
-                body={tx("Comprueba cómo lucirá la tarjeta física desplegada antes de pasar a los extras o finalizar tu compra.", "Confirma como ficará o cartão físico aberto antes de avançar para os extras ou finalizar a compra.")}
+                body={tx("Comprueba cómo lucirá la tarjeta física desplegada antes de revisar el resumen y añadirla a la cesta.", "Confirma como ficará o cartão físico aberto antes de rever o resumo e adicioná-lo ao carrinho.")}
               />
               <PostcardPreviewWindow />
               <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -1007,10 +993,10 @@ export default function CustomizePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStep("extras")}
+                  onClick={() => setStep("summary")}
                   className="focus-ring inline-flex min-w-[240px] items-center justify-center gap-2 rounded-full bg-[#ee5264] px-7 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54]"
                 >
-                  {tx("Continuar a Extras (Paso 6)", "Continuar para Extras (Passo 6)")} <Icon name="arrow" size={16} />
+                  {template.requiresFrame ? tx("Continuar al resumen (Paso 6)", "Continuar para o resumo (Passo 6)") : tx("Continuar al resumen (Paso 5)", "Continuar para o resumo (Passo 5)")} <Icon name="arrow" size={16} />
                 </button>
               </div>
               <p className="mt-4 text-center text-xs text-[#7c8191]">
@@ -1019,15 +1005,12 @@ export default function CustomizePage() {
             </>
           )}
 
-          {/* STEP 6: EXTRAS */}
-          {step === "extras" && (
-            <ExtrasStep
+          {/* LAST STEP: SUMMARY */}
+          {step === "summary" && (
+            <SummaryStep
               cart={cart}
-              dispatch={dispatch}
-              stickerFileRef={stickerFileRef}
-              handleStickerPhoto={handleStickerPhoto}
+              stepLabel={template.requiresFrame ? tx("PASO 6 DE 6 · RESUMEN", "PASSO 6 DE 6 · RESUMO") : tx("PASO 5 DE 5 · RESUMEN", "PASSO 5 DE 5 · RESUMO")}
               onBack={() => setStep("preview")}
-              setToast={setToast}
               onAddToCart={handleAddToCart}
               addingToCart={addingToCart || !authChecked}
               isPortuguese={isPortuguese}
@@ -1208,272 +1191,92 @@ function FrameStep({
   );
 }
 
-function ExtrasStep({
+function SummaryStep({
   cart,
-  dispatch,
-  stickerFileRef,
-  handleStickerPhoto,
+  stepLabel,
   onBack,
-  setToast,
   onAddToCart,
   addingToCart,
   isPortuguese,
   cardProduct,
 }: {
   cart: RootState["cart"];
-  dispatch: ReturnType<typeof useDispatch>;
-  stickerFileRef: React.RefObject<HTMLInputElement>;
-  handleStickerPhoto: (e: ChangeEvent<HTMLInputElement>) => void;
+  stepLabel: string;
   onBack: () => void;
-  setToast: (msg: string) => void;
   onAddToCart: () => void;
   addingToCart: boolean;
   isPortuguese: boolean;
   cardProduct: { name: string; priceCents: number } | null;
 }) {
   const tx = (es: string, pt: string) => isPortuguese ? pt : es;
+  const { settings } = usePublicSettings();
   const template = templates.find((item) => item.id === cart.card.templateId) || templates[0];
-  const sticker = addOns[0];
-  const stickerPrice = STICKER_PRICES[cart.stickerQuantity];
-  const envelopePrice = cart.envelopeTextAdded ? ENVELOPE_TEXT_PRICE : 0;
-  const packagingPrice = PACKAGING_PRICES[cart.card.packaging];
-  const sizePrice = SIZE_PRICES[cart.card.size];
-  const extrasTotal = stickerPrice + envelopePrice + packagingPrice + sizePrice;
-  const cardPrice = cardProduct ? cardProduct.priceCents / 100 : template.price;
-  const totalWithCard = cardPrice + extrasTotal;
+  // Template prices are edited in admin → Templates; the built-in price is only a fallback.
+  const [templatePriceCents, setTemplatePriceCents] = useState(Math.round(template.price * 100));
+  useEffect(() => {
+    let active = true;
+    fetch("/api/templates", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        const stored = (body?.templates as { slug: string; priceCents: number }[] | undefined)?.find((item) => item.slug === template.id);
+        if (active && stored) setTemplatePriceCents(stored.priceCents);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [template.id]);
+  const cardCents = cardProduct ? cardProduct.priceCents : templatePriceCents;
+  const sizeCents = settings.cardSizePrices[cart.card.size] ?? 0;
+  const totalCents = cardCents + sizeCents;
+  const freeShipping = qualifiesForFreeShipping(settings.delivery, cart.card.delivery, totalCents);
+  const missingCents = amountUntilFreeShippingCents(settings.delivery, cart.card.delivery, totalCents);
 
   return (
-    <section aria-labelledby="extras-step-title">
+    <section aria-labelledby="summary-step-title" className="mx-auto max-w-[560px]">
       <PageIntro
-        eyebrow={tx("PASO 6 · EXTRAS OPCIONALES", "PASSO 6 · EXTRAS OPCIONAIS")}
-        title={tx("Completa tu momento con extras", "Completa o teu momento com extras")}
-        body={tx("Detalles opcionales pensados con cariño para que abrir el paquete sea todavía más especial e inolvidable.", "Detalhes opcionais pensados com carinho para tornar a abertura da encomenda ainda mais especial e inesquecível.")}
+        eyebrow={stepLabel}
+        title={tx("Todo listo para tu tarjeta", "Tudo pronto para o teu cartão")}
+        body={tx("Revisa el resumen y añade tu tarjeta a la cesta.", "Revê o resumo e adiciona o teu cartão ao carrinho.")}
       />
-
-      <div className="mt-12 grid gap-8 lg:grid-cols-[1.1fr_.9fr]">
-        <div className="space-y-8">
-          {/* PACKAGING */}
-          <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">01 · {tx("PRESENTACIÓN", "APRESENTAÇÃO")}</span>
-            <h3 className="mt-1 text-xl font-black">{tx("Elige el packaging", "Escolhe a embalagem")}</h3>
-            <p className="mt-1 max-w-[520px] text-xs leading-5 text-[#737b90]">{tx("Selecciona cómo quieres que preparemos tu tarjeta para entregar o recibir.", "Seleciona como queres que preparemos o teu cartão para oferecer ou receber.")}</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {([ ["standard", tx("Sobre estándar", "Envelope standard"), tx("Protección sencilla y bonita", "Proteção simples e bonita"), PACKAGING_PRICES.standard], ["gift", tx("Packaging regalo", "Embalagem para presente"), tx("Listo para regalar", "Pronto para oferecer"), PACKAGING_PRICES.gift] ] as const).map(([value, title, body, price]) => (
-                <button key={value} type="button" onClick={() => dispatch(setPackaging(value))} className={`focus-ring rounded-2xl border p-4 text-left transition ${cart.card.packaging === value ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"}`}>
-                  <span className="flex items-start justify-between gap-3"><span><span className="block text-sm font-black">{title}</span><span className="mt-1 block text-xs text-[#737b90]">{body}</span></span><span className="text-sm font-black">{price ? <Price value={price} /> : tx("Gratis", "Grátis")}</span></span>
-                </button>
-              ))}
-            </div>
+      <aside className="mt-10 rounded-[24px] bg-[#182443] p-6 text-white sm:p-7">
+        <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">{tx("RESUMEN DEL PEDIDO", "RESUMO DA ENCOMENDA")}</p>
+        <h3 id="summary-step-title" className="mt-1 text-2xl font-black">{tx("Tu selección", "A tua seleção")}</h3>
+        <div className="mt-6 space-y-3.5 border-b border-white/10 pb-5 text-sm">
+          <div className="flex justify-between text-white/80">
+            <span>{cardProduct?.name || template.name}</span>
+            <Price value={cardCents / 100} />
           </div>
-          {/* STICKERS */}
-          <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-              <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">02 · {tx("PEGATINAS PERSONALIZADAS", "AUTOCOLANTES PERSONALIZADOS")}</span>
-                <h3 className="mt-1 text-xl font-black">{sticker.name}</h3>
-                <p className="mt-1 max-w-[440px] text-xs leading-5 text-[#737b90]">{isPortuguese ? sticker.descriptionPt : sticker.description}</p>
-              </div>
-              <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-[4px] border-white bg-[#fff0e8] shadow-[0_0_0_2px_#f8c75e] sm:h-24 sm:w-24">
-                {cart.stickerImage ? (
-                  <img src={cart.stickerImage} alt="Sticker" className="h-full w-full object-cover" />
-                ) : (
-                  <img src={sticker.image} alt="Ejemplo de sticker" className="h-full w-full object-cover" />
-                )}
-                <span className="absolute bottom-1 rounded-full bg-[#182443]/85 px-1.5 py-0.5 text-[8px] font-black text-white">
-                  7,62 cm
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-2xl bg-white p-4 border border-[#eadbd3]">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black">{tx("Elige cuántos stickers quieres", "Escolhe quantos autocolantes queres")}</p>
-                  <p className="mt-0.5 text-[11px] text-[#737b90]">1=€1.50 · 2=€2.50 · 3=€3.50</p>
-                </div>
-                <span className="text-base font-black">
-                  {cart.stickerQuantity === 0 ? tx("Sin sticker", "Sem autocolante") : <Price value={stickerPrice} />}
-                </span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {([0, 1, 2, 3] as const).map((quantity) => (
-                  <button
-                    key={quantity}
-                    type="button"
-                    onClick={() => {
-                      dispatch(setStickerQuantity(quantity));
-                      if (quantity > 0) setToast(isPortuguese ? `Autocolante${quantity > 1 ? "s" : ""} adicionado${quantity > 1 ? "s" : ""}` : `Sticker${quantity > 1 ? "s" : ""} añadido${quantity > 1 ? "s" : ""}`);
-                    }}
-                    className={`focus-ring rounded-xl border py-2.5 text-xs font-black transition ${
-                      cart.stickerQuantity === quantity
-                        ? "border-[#ee5264] bg-[#fff0e8] text-[#ee5264]"
-                        : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"
-                    }`}
-                  >
-                    {quantity === 0 ? (
-                      "No"
-                    ) : (
-                      <>
-                        <span className="block">{quantity}</span>
-                        <span className="mt-0.5 block text-[10px] font-normal text-[#737b90]">
-                          {STICKER_PRICES[quantity].toFixed(2).replace(".", ",")} €
-                        </span>
-                      </>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => stickerFileRef.current?.click()}
-              className="focus-ring mt-3 flex w-full items-center gap-3 rounded-xl border border-dashed border-[#e7a59c] bg-white p-3 text-left transition hover:bg-[#fff0e8]"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff0e8] text-[#ee5264]">
-                <Icon name="plus" size={16} />
-              </span>
-              <span>
-                <span className="block text-xs font-black">
-                  {cart.stickerImage ? tx("Cambiar foto del sticker", "Alterar fotografia do autocolante") : tx("Subir foto propia para el sticker", "Carregar fotografia própria para o autocolante")}
-                </span>
-                <span className="block text-[10px] text-[#7c8191]">
-                  {tx("Tu foto se recorta automáticamente al círculo · JPG o PNG", "A tua fotografia será recortada automaticamente em círculo · JPG ou PNG")}
-                </span>
-              </span>
-            </button>
-            <input ref={stickerFileRef} onChange={handleStickerPhoto} type="file" accept="image/png,image/jpeg" className="hidden" />
-
-            <div className="mt-4">
-              <p className="text-[10px] font-black uppercase tracking-[.13em] text-[#9297a4]">{tx("Inspiración", "Inspiração")}</p>
-              <div className="mt-2 grid grid-cols-4 gap-2">
-                {stickerGallery.map((item) => (
-                  <div key={item.id} className="overflow-hidden rounded-xl bg-[#f8efe8]">
-                    <img src={item.image} alt={item.label} className="aspect-square w-full object-cover" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ENVELOPE PERSONALIZED MESSAGE */}
-          <div className="rounded-[26px] border border-[#eadbd3] bg-[#fffaf5] p-5 sm:p-7">
-            <span className="text-[10px] font-black tracking-[.18em] text-[#ee5264]">03 · {tx("MENSAJE EN EL EXTERIOR DEL SOBRE", "MENSAGEM NO EXTERIOR DO ENVELOPE")}</span>
-            <div className="mt-2 flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-black">{tx("Texto personalizado en el sobre", "Texto personalizado no envelope")}</h3>
-                <p className="mt-0.5 text-xs text-[#737b90]">
-                  {tx("Imprime una frase especial en el exterior del sobre. Será lo primero que vean (+1,00 €).", "Imprime uma frase especial no exterior do envelope. Será a primeira coisa que verão (+1,00 €).")}
-                </p>
-              </div>
-              <span className="text-sm font-black text-[#ee5264]">
-                <Price value={ENVELOPE_TEXT_PRICE} />
-              </span>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-[#e5d8d0] bg-white p-4">
-              <div className="border-b border-[#e5d8d0] pb-3 text-center">
-                <span className="text-[9px] font-black uppercase tracking-[.16em] text-[#9297a4]">{tx("VISTA PREVIA DEL SOBRE", "PRÉ-VISUALIZAÇÃO DO ENVELOPE")}</span>
-                <p className="serif mx-auto mt-2 min-h-6 max-w-[400px] text-base font-bold italic text-[#182443]">
-                  {cart.envelopeText || tx("Tu dedicatoria especial aparecerá aquí…", "A tua dedicatória especial aparecerá aqui…")}
-                </p>
-              </div>
-              <textarea
-                value={cart.envelopeText}
-                onChange={(e) => dispatch(setEnvelopeText(e.target.value))}
-                maxLength={80}
-                rows={2}
-                placeholder={tx("Ej.: Para alguien que ilumina todos mis días ✨", "Ex.: Para alguém que ilumina todos os meus dias ✨")}
-                className="focus-ring mt-3 w-full resize-none rounded-xl border border-[#dfd3cc] bg-white p-2.5 text-xs text-[#182443]"
-              />
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-[10px] text-[#9297a4]">{cart.envelopeText.length}/80</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!cart.envelopeTextAdded && !cart.envelopeText.trim()) {
-                      return setToast(tx("Escribe primero el texto del sobre", "Escreve primeiro o texto do envelope"));
-                    }
-                    dispatch(setEnvelopeTextAdded(!cart.envelopeTextAdded));
-                    setToast(cart.envelopeTextAdded ? tx("Texto del sobre eliminado", "Texto do envelope removido") : tx("Texto del sobre añadido (+1,00 €)", "Texto do envelope adicionado (+1,00 €)"));
-                  }}
-                  className={`focus-ring rounded-full px-4 py-2 text-xs font-black transition ${
-                    cart.envelopeTextAdded
-                      ? "border border-[#ee5264] bg-white text-[#ee5264]"
-                      : "bg-[#182443] text-white hover:bg-[#ee5264]"
-                  }`}
-                >
-                  {cart.envelopeTextAdded ? tx("Eliminar del pedido", "Remover da encomenda") : tx("Añadir por 1,00 €", "Adicionar por 1,00 €")}
-                </button>
-              </div>
-            </div>
+          <div className="flex justify-between text-white/80">
+            <span>{tx("Tamaño", "Tamanho")} {cardSizeText(cart.card.size)}</span>
+            {sizeCents ? <Price value={sizeCents / 100} /> : <span>{tx("Incluido", "Incluído")}</span>}
           </div>
         </div>
-
-        {/* Order Summary Aside */}
-        <aside className="h-fit rounded-[24px] bg-[#182443] p-6 text-white sm:p-7 lg:sticky lg:top-24">
-          <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">{tx("RESUMEN DEL PEDIDO", "RESUMO DA ENCOMENDA")}</p>
-          <h3 className="mt-1 text-2xl font-black">{tx("Tu selección", "A tua seleção")}</h3>
-
-          <div className="mt-6 space-y-3.5 border-b border-white/10 pb-5 text-sm">
-            <div className="flex justify-between text-white/80">
-              <span>{cardProduct?.name || template.name} ({cart.card.size})</span>
-              <Price value={cardPrice} />
-            </div>
-            <div className="flex justify-between text-white/80">
-              <span>{cart.card.packaging === "gift" ? tx("Packaging regalo", "Embalagem para presente") : tx("Sobre estándar", "Envelope standard")}</span>
-              {packagingPrice ? <Price value={packagingPrice} /> : <span>{tx("Gratis", "Grátis")}</span>}
-            </div>
-            <div className="flex justify-between text-white/80">
-              <span>{tx("Formato", "Formato")} {cart.card.size}</span>
-              {sizePrice ? <Price value={sizePrice} /> : <span>{tx("Incluido", "Incluído")}</span>}
-            </div>
-            {cart.stickerQuantity > 0 && (
-              <div className="flex justify-between text-white/80">
-                <span>{tx("Stickers personalizados", "Autocolantes personalizados")} × {cart.stickerQuantity}</span>
-                <Price value={stickerPrice} />
-              </div>
-            )}
-
-            {cart.envelopeTextAdded && (
-              <div className="flex justify-between text-white/80">
-                <span>{tx("Mensaje impreso en el sobre", "Mensagem impressa no envelope")}</span>
-                <Price value={ENVELOPE_TEXT_PRICE} />
-              </div>
-            )}
-          </div>
-
-          <div className="mt-5 flex justify-between text-lg font-black">
-            <span>{tx("Subtotal", "Subtotal")}</span>
-            <Price value={totalWithCard} />
-          </div>
-
-          <p className="mt-3 text-xs text-white/60">
-            {totalWithCard >= 35
-              ? tx("🎉 ¡Enhorabuena! Tu pedido supera los 35 € y tiene envío gratis.", "🎉 Parabéns! A tua encomenda ultrapassa os 35 € e tem envio grátis.")
-              : tx(`Añade ${(35 - totalWithCard).toFixed(2).replace(".", ",")} € más para conseguir envío gratis.`, `Adiciona mais ${(35 - totalWithCard).toFixed(2).replace(".", ",")} € para obteres envio grátis.`)}
-          </p>
-
-          <div className="mt-6 space-y-3">
-            <button
-              type="button"
-              disabled={addingToCart}
-              onClick={onAddToCart}
-              className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-wait disabled:opacity-70"
-            >
-              {addingToCart ? <><Spinner size={16} />{tx("Verificando sesión…", "A verificar a sessão…")}</> : <>{tx("Añadir a la cesta", "Adicionar ao carrinho")} <Icon name="bag" size={17} /></>}
-            </button>
-            <button
-              type="button"
-              onClick={onBack}
-              className="focus-ring flex w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-xs font-black text-white transition hover:bg-white/20"
-            >
-              {tx("Volver a Vista previa", "Voltar à pré-visualização")}
-            </button>
-          </div>
-        </aside>
-      </div>
+        <div className="mt-5 flex justify-between text-lg font-black">
+          <span>{tx("Subtotal", "Subtotal")}</span>
+          <Price value={totalCents / 100} />
+        </div>
+        {missingCents !== null && <p className="mt-3 text-xs text-white/60">
+          {freeShipping
+            ? tx("🎉 Tu pedido tiene envío gratis.", "🎉 A tua encomenda tem envio grátis.")
+            : tx(`Añade ${(missingCents / 100).toFixed(2).replace(".", ",")} € más para conseguir envío gratis.`, `Adiciona mais ${(missingCents / 100).toFixed(2).replace(".", ",")} € para obteres envio grátis.`)}
+        </p>}
+        <div className="mt-6 space-y-3">
+          <button
+            type="button"
+            disabled={addingToCart}
+            onClick={onAddToCart}
+            className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-wait disabled:opacity-70"
+          >
+            {addingToCart ? <><Spinner size={16} />{tx("Verificando sesión…", "A verificar a sessão…")}</> : <>{tx("Añadir a la cesta", "Adicionar ao carrinho")} <Icon name="bag" size={17} /></>}
+          </button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="focus-ring flex w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-xs font-black text-white transition hover:bg-white/20"
+          >
+            {tx("Volver a Vista previa", "Voltar à pré-visualização")}
+          </button>
+        </div>
+      </aside>
     </section>
   );
 }

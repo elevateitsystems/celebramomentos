@@ -18,11 +18,8 @@ export function toCartItem(line: { id: string; quantity: number; productId?: str
     product: payload.product ?? null,
     productPriceCents: payload.productPriceCents ?? null,
     productName: payload.productName ?? null,
+    // Retired extras (stickers, envelope text, gift packaging) in older payloads are ignored.
     card: payload.card as CartItem["card"],
-    stickerQuantity: payload.stickerQuantity ?? 0,
-    stickerImage: payload.stickerImage ?? null,
-    envelopeText: payload.envelopeText ?? "",
-    envelopeTextAdded: Boolean(payload.envelopeTextAdded),
   };
 }
 
@@ -42,10 +39,6 @@ export async function upsertCartLine(customerId: string, item: CartItem) {
     productPriceCents: resolved.productPriceCents,
     productName: resolved.productName,
     card: item.card,
-    stickerQuantity: item.stickerQuantity,
-    stickerImage: item.stickerImage,
-    envelopeText: item.envelopeText,
-    envelopeTextAdded: item.envelopeTextAdded,
   } satisfies Omit<CartItem, "id" | "quantity">;
   const data = {
     customerId,
