@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { prisma } from "@/lib/server/prisma";
-import { PRODUCT_KINDS, isProductKind } from "@/lib/products";
+import { PRODUCT_KINDS, isProductKind, variantAttributes } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +22,14 @@ export async function GET(request: Request) {
         basePriceCents: true,
         metadata: true,
         images: { select: { asset: { select: { url: true } } }, orderBy: { sortOrder: "asc" } },
-        variants: { where: { active: true }, select: { id: true, name: true, priceCents: true }, orderBy: { createdAt: "asc" } },
+        variants: { where: { active: true }, select: { id: true, name: true, priceCents: true, attributes: true }, orderBy: { createdAt: "asc" } },
         options: { select: { id: true, key: true, name: true, required: true, config: true }, orderBy: { key: "asc" } },
       },
       orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
     });
-    return NextResponse.json({ products }, { headers: { "Cache-Control": "no-store" } });
+    // Expose only the per-size photo count from the stored attributes.
+    const catalog = products.map((product) => ({ ...product, variants: product.variants.map(({ attributes, ...variant }) => ({ ...variant, photoCount: variantAttributes(attributes).photoCount })) }));
+    return NextResponse.json({ products: catalog }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return handleApiError(error);
   }

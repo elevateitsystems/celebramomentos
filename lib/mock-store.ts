@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { templates, type Packaging } from "./data";
+import { templates } from "./data";
 import type { CartItem, CartState } from "./store";
 
 export const MOCK_DB_KEY = "celebra-momentos-mock-db-v1";
@@ -29,10 +29,8 @@ export type MockOrder = {
   payment: "card" | "paypal";
   status: MockOrderStatus;
   delivery: "standard" | "express";
-  packaging: Packaging;
   card: CartState["card"];
   items: CartItem[];
-  extras: { stickerQuantity: number; envelopeText: string; envelopeTextAdded: boolean };
   shipping: { name: string; phone: string; recipient: string; address: string; city: string; postalCode: string; country: "ES" | "PT"; billingAddress?: string };
 };
 
@@ -73,7 +71,6 @@ export type MockDb = {
   messages: MockMessage[];
   templates: MockTemplate[];
   templatePrices: Record<string, number>;
-  packagingPrices: Record<Packaging, number>;
   products: MockProduct[];
 };
 
@@ -87,7 +84,6 @@ function defaultDb(): MockDb {
     messages: [],
     templates: templates.map((item) => ({ id: item.id, name: item.name, eyebrow: item.eyebrow, description: item.description, price: item.price, imageCount: item.imageCount, active: true })),
     templatePrices: Object.fromEntries(templates.map((item) => [item.id, item.price])),
-    packagingPrices: { standard: 0, gift: 2.5 },
     products: [],
   };
 }
@@ -104,7 +100,6 @@ function normalizeDb(value: Partial<MockDb>): MockDb {
     messages: value.messages || base.messages,
     templates: value.templates || base.templates,
     templatePrices: { ...base.templatePrices, ...(value.templatePrices || {}) },
-    packagingPrices: { ...base.packagingPrices, ...(value.packagingPrices || {}) },
     products: value.products || base.products,
   };
 }

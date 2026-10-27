@@ -1,11 +1,11 @@
 import type { Prisma } from "@prisma/client";
-import { templates, PACKAGING_PRICES, SIZE_PRICES, STICKER_PRICES, ENVELOPE_TEXT_PRICE, MAGNET_PACK_PRICES_CENTS } from "@/lib/data";
-import { MAX_PRODUCT_PHOTOS, PRODUCT_KIND_INFO, productPhotoCount, type CatalogProduct } from "@/lib/products";
-import { getDeliveryPrice } from "@/lib/shipping";
+import { CARD_SIZES, templates } from "@/lib/data";
+import { DEFAULT_POD_PROVIDER, MAX_PRODUCT_PHOTOS, PRODUCT_KIND_INFO, isPodProvider, requiredPhotoCount, variantAttributes, type CatalogProduct } from "@/lib/products";
+import { getDeliveryPriceCents } from "@/lib/shipping";
 import type { CartItem, CatalogSelection, ProductSelection } from "@/lib/store";
 import { prisma } from "./prisma";
 import { CatalogError } from "./errors";
-import { getWallArtPrices } from "./settings";
+import { getCardSizePrices, getDeliveryRates } from "./settings";
 
 export async function ensureCatalog() {
   await Promise.all(templates.map((template) => prisma.postcardTemplate.upsert({
@@ -45,11 +45,13 @@ async function resolveCatalogSelection(selection: CatalogSelection): Promise<Cat
   if (!product) throw new CatalogError(UNAVAILABLE_PRODUCT);
   let priceCents = product.basePriceCents;
   let variantName: string | null = null;
+  let variant: { photoCount: number | null; podSku: string | null; provider: string | null } | null = null;
   if (product.variants.length) {
-    const variant = product.variants.find((item) => item.id === selection.variantId);
-    if (!variant) throw new CatalogError("Elige un tamaño disponible para este producto.", 400);
-    priceCents = variant.priceCents;
-    variantName = variant.name;
+    const chosen = product.variants.find((item) => item.id === selection.variantId);
+    if (!chosen) throw new CatalogError("Elige un tamaño disponible para este producto.", 400);
+    priceCents = chosen.priceCents;
+    variantName = chosen.name;
+    variant = variantAttributes(chosen.attributes);
   } else if (selection.variantId) {
     throw new CatalogError("El tamaño elegido ya no está disponible.", 400);
   }
@@ -70,7 +72,8 @@ async function resolveCatalogSelection(selection: CatalogSelection): Promise<Cat
     if (!adminKeys.has(key) && value.trim()) options[key] = value.trim();
   }
   const photos = selection.photos.slice(0, MAX_PRODUCT_PHOTOS);
-  const requiredPhotos = productPhotoCount({ metadata: product.metadata as CatalogProduct["metadata"] });
+  const metadata = product.metadata as CatalogProduct["metadata"];
+  const requiredPhotos = requiredPhotoCount({ metadata }, variant);
   if (photos.filter(Boolean).length < requiredPhotos) throw new CatalogError(requiredPhotos === 1 ? "Sube tu fotografía para este producto." : `Sube ${requiredPhotos} fotografías para este producto.`, 400);
   return {
     ...selection,
@@ -80,6 +83,8 @@ async function resolveCatalogSelection(selection: CatalogSelection): Promise<Cat
     name: product.name,
     detail: [variantName, ...Object.values(options)].filter(Boolean).join(" · ") || PRODUCT_KIND_INFO[selection.productKind].es,
     image: product.images[0]?.asset.url || null,
+    provider: variant?.provider || (isPodProvider(metadata?.provider) ? metadata.provider : DEFAULT_POD_PROVIDER[selection.productKind]),
+    sku: variant?.podSku || null,
   };
 }
 
@@ -90,28 +95,25 @@ export type ResolvedCartLine = {
   product: ProductSelection | null;
   productPriceCents: number | null;
   productName: string | null;
+  // Cards: Prodigi SKU of the chosen card size.
+  cardSizeSku: string | null;
 };
 
 // Prices and validates a cart line from server-side data only; client snapshots are ignored.
 export async function resolveCartLine(item: CartItem): Promise<ResolvedCartLine> {
   const selection = item.product;
-  if (selection?.kind === "CATALOG") {
+  if (selection) {
+    if (selection.kind !== "CATALOG") throw new CatalogError(UNAVAILABLE_PRODUCT);
     const product = await resolveCatalogSelection(selection);
-    return { unitPriceCents: product.priceCents, productId: product.productId, templateSlug: null, product, productPriceCents: null, productName: null };
+    return { unitPriceCents: product.priceCents, productId: product.productId, templateSlug: null, product, productPriceCents: null, productName: null, cardSizeSku: null };
   }
-  if (selection?.kind === "WALL_ART") {
-    const priceCents = (await getWallArtPrices())[selection.sizeId];
-    return { unitPriceCents: priceCents, productId: null, templateSlug: null, product: { ...selection, priceCents }, productPriceCents: null, productName: null };
-  }
-  if (selection?.kind === "MAGNET") {
-    const priceCents = MAGNET_PACK_PRICES_CENTS[selection.packSize];
-    return { unitPriceCents: priceCents, productId: null, templateSlug: null, product: { ...selection, priceCents }, productPriceCents: null, productName: null };
-  }
-  // Everything else is a Card: it must use an active Card template, and an
-  // attached admin product must be an active Card product.
+  // Everything else is a Card: it must use an active Card template, a card
+  // size from PRODUCTS.pdf, and an attached admin product must be an active Card product.
   const templateSlug = item.card?.templateId;
   const template = templateSlug ? await prisma.postcardTemplate.findFirst({ where: { slug: templateSlug, active: true }, select: { priceCents: true } }) : null;
   if (!templateSlug || !template) throw new CatalogError("Esta plantilla de tarjeta ya no está disponible.");
+  const size = CARD_SIZES.find((option) => option.id === item.card.size);
+  if (!size) throw new CatalogError("Elige un tamaño de tarjeta disponible.", 400);
   let baseCents = template.priceCents;
   let productName: string | null = null;
   if (item.productId) {
@@ -120,17 +122,18 @@ export async function resolveCartLine(item: CartItem): Promise<ResolvedCartLine>
     baseCents = product.basePriceCents;
     productName = product.name;
   }
-  const extras = PACKAGING_PRICES[item.card.packaging] + SIZE_PRICES[item.card.size] + STICKER_PRICES[item.stickerQuantity] + (item.envelopeTextAdded ? ENVELOPE_TEXT_PRICE : 0);
+  const sizeCents = (await getCardSizePrices())[size.id];
   return {
-    unitPriceCents: baseCents + Math.round(extras * 100),
+    unitPriceCents: baseCents + sizeCents,
     productId: item.productId || null,
     templateSlug,
     product: null,
     productPriceCents: item.productId ? baseCents : null,
     productName,
+    cardSizeSku: size.sku,
   };
 }
 
-export function deliveryCents(method: CartItem["card"]["delivery"], merchandiseCents: number) {
-  return Math.round(getDeliveryPrice(method, merchandiseCents / 100) * 100);
+export async function deliveryCents(method: CartItem["card"]["delivery"], merchandiseCents: number) {
+  return getDeliveryPriceCents(await getDeliveryRates(), method, merchandiseCents);
 }

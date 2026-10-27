@@ -30,7 +30,17 @@ export function isCardTemplateSlug(value: unknown): value is CardTemplateSlug {
   return typeof value === "string" && (CARD_TEMPLATE_SLUGS as readonly string[]).includes(value);
 }
 
-export const MAX_PRODUCT_PHOTOS = 9;
+// Calendars take one photo per month.
+export const MAX_PRODUCT_PHOTOS = 12;
+
+// Print-on-demand shops that fulfil each product (feedback 26 Oct / PRODUCTS.pdf).
+export const POD_PROVIDERS = ["PRODIGI", "PRINTFUL", "GELATO", "ALERIO_PRINT"] as const;
+export type PodProvider = (typeof POD_PROVIDERS)[number];
+export const POD_PROVIDER_LABELS: Record<PodProvider, string> = { PRODIGI: "Prodigi", PRINTFUL: "Printful", GELATO: "Gelato", ALERIO_PRINT: "Alerio Print" };
+export const DEFAULT_POD_PROVIDER: Record<ProductKind, PodProvider> = { POSTCARD: "PRODIGI", MAGNET: "PRODIGI", MUG: "PRINTFUL", PHONE_CASE: "ALERIO_PRINT", CALENDAR: "GELATO", WALL_ART: "GELATO" };
+export function isPodProvider(value: unknown): value is PodProvider {
+  return typeof value === "string" && (POD_PROVIDERS as readonly string[]).includes(value);
+}
 
 export type ProductOptionConfig = { choices: string[] };
 
@@ -43,15 +53,32 @@ export type CatalogProduct = {
   kind: ProductKind;
   featured: boolean;
   basePriceCents: number;
-  metadata: { templateSlug?: string; photoCount?: number } | null;
+  metadata: { templateSlug?: string; photoCount?: number; provider?: string } | null;
   images: { asset: { url: string | null } }[];
-  variants: { id: string; name: string; priceCents: number }[];
+  // photoCount overrides the product's photo count for this size (e.g. a pack of 3 magnets).
+  variants: { id: string; name: string; priceCents: number; photoCount: number | null }[];
   options: { id: string; key: string; name: string; required: boolean; config: ProductOptionConfig | null }[];
 };
 
 export function productPhotoCount(product: Pick<CatalogProduct, "metadata">) {
   const count = Number(product.metadata?.photoCount);
   return Number.isInteger(count) && count >= 1 ? Math.min(count, MAX_PRODUCT_PHOTOS) : 1;
+}
+
+export function requiredPhotoCount(product: Pick<CatalogProduct, "metadata">, variant: { photoCount: number | null } | null) {
+  const count = Number(variant?.photoCount);
+  return Number.isInteger(count) && count >= 1 ? Math.min(count, MAX_PRODUCT_PHOTOS) : productPhotoCount(product);
+}
+
+// Reads the photo count / POD fields stored in ProductVariant.attributes.
+export function variantAttributes(attributes: unknown) {
+  const value = (attributes && typeof attributes === "object" && !Array.isArray(attributes) ? attributes : {}) as { photoCount?: unknown; podSku?: unknown; provider?: unknown };
+  const photoCount = Number(value.photoCount);
+  return {
+    photoCount: Number.isInteger(photoCount) && photoCount >= 1 ? Math.min(photoCount, MAX_PRODUCT_PHOTOS) : null,
+    podSku: typeof value.podSku === "string" && value.podSku ? value.podSku : null,
+    provider: isPodProvider(value.provider) ? value.provider : null,
+  };
 }
 
 export function productCardTemplate(product: Pick<CatalogProduct, "metadata">): CardTemplateSlug {

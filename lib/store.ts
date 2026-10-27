@@ -1,7 +1,7 @@
 "use client";
 
 import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import type { CardSize, DeliveryMethod, DesignCategoryId, Packaging, RecipientMode, WallArtSizeId } from "./data";
+import { CARD_SIZE_IDS, DEFAULT_CARD_SIZE, type CardSize, type DeliveryMethod, type DesignCategoryId, type RecipientMode } from "./data";
 import type { StudioProductKind } from "./products";
 import { defaultEmojiPosition, type EmojiElement, type EmojiPosition, type EmojiTone } from "./emojis";
 
@@ -26,7 +26,6 @@ export type CardCustomization = {
     photoPosition: "center" | "top" | "bottom" | "left" | "right";
     size: CardSize;
     delivery: DeliveryMethod;
-    packaging: Packaging;
     recipientMode: RecipientMode;
     magazineDate?: string;
     magazineCategory?: string;
@@ -35,8 +34,9 @@ export type CardCustomization = {
     magazineFooter?: string;
 };
 
-// Studio products (Wall Art, Magnets and admin-created catalog products) reuse
-// the cart line but carry their own options instead of a postcard design.
+// Studio products (every category except Cards) are admin-created catalog
+// products. They reuse the cart line but carry their own options instead of a
+// postcard design.
 // priceCents, name and detail are display snapshots only; the server always
 // recalculates them from the database.
 export type CatalogSelection = {
@@ -50,11 +50,11 @@ export type CatalogSelection = {
   detail: string;
   image: string | null;
   priceCents: number;
+  // Set by the server for fulfilment: the print shop and its SKU for the chosen size.
+  provider?: string | null;
+  sku?: string | null;
 };
-export type ProductSelection =
-  | { kind: "WALL_ART"; sizeId: WallArtSizeId; photos: (string | null)[]; priceCents: number }
-  | { kind: "MAGNET"; packSize: 4 | 9; shape: "square" | "round"; photos: (string | null)[]; priceCents: number }
-  | CatalogSelection;
+export type ProductSelection = CatalogSelection;
 
 export type CartItem = {
   id: string;
@@ -65,10 +65,6 @@ export type CartItem = {
   productPriceCents?: number | null;
   productName?: string | null;
   card: CardCustomization;
-  stickerQuantity: 0 | 1 | 2 | 3;
-  stickerImage: string | null;
-  envelopeText: string;
-  envelopeTextAdded: boolean;
 };
 
 export type CartItemDraft = Omit<CartItem, "id" | "quantity"> & { id?: string; quantity?: number };
@@ -76,10 +72,6 @@ export type CartItemDraft = Omit<CartItem, "id" | "quantity"> & { id?: string; q
 export type CartState = {
   card: CardCustomization;
   items: CartItem[];
-  stickerQuantity: 0 | 1 | 2 | 3;
-  stickerImage: string | null;
-  envelopeText: string;
-  envelopeTextAdded: boolean;
   discountCode: string;
 };
 
@@ -105,9 +97,8 @@ const initialState: CartState = {
     photoDataUrls: [null, null, null, null],
     photoZoom: 1,
     photoPosition: "center",
-    size: "A4",
+    size: DEFAULT_CARD_SIZE,
     delivery: "standard",
-    packaging: "standard",
     recipientMode: "recipient",
     magazineDate: "26 SEPTIEMBRE 2026 • Nº 01",
     magazineCategory: "LA NOTICIA DEL DÍA",
@@ -116,15 +107,12 @@ const initialState: CartState = {
     magazineFooter: "ROBERTO GARCÍA CELEBRA CON SU FAMILIA",
   },
   items: [],
-  stickerQuantity: 0,
-  stickerImage: null,
-  envelopeText: "",
-  envelopeTextAdded: false,
   discountCode: "",
 };
 
 const cloneCard = (card: CardCustomization): CardCustomization => ({
   ...card,
+  size: (CARD_SIZE_IDS as string[]).includes(card.size) ? card.size : DEFAULT_CARD_SIZE,
   emojiPosition: { ...(card.emojiPosition || defaultEmojiPosition) },
   emojiElements: Array.isArray(card.emojiElements) ? card.emojiElements.map((item) => ({ ...item, position: { ...item.position } })) : [],
   photoDataUrls: Array.isArray(card.photoDataUrls) ? [...card.photoDataUrls] : [],
@@ -164,12 +152,7 @@ const cartSlice = createSlice({
     setPhotoPosition: (state, action: PayloadAction<"center" | "top" | "bottom" | "left" | "right">) => { state.card.photoPosition = action.payload; },
     setSize: (state, action: PayloadAction<CardSize>) => { state.card.size = action.payload; },
     setDelivery: (state, action: PayloadAction<DeliveryMethod>) => { state.card.delivery = action.payload; },
-    setPackaging: (state, action: PayloadAction<Packaging>) => { state.card.packaging = action.payload; },
     setRecipientMode: (state, action: PayloadAction<RecipientMode>) => { state.card.recipientMode = action.payload; },
-    setStickerQuantity: (state, action: PayloadAction<0 | 1 | 2 | 3>) => { state.stickerQuantity = action.payload; },
-    setStickerImage: (state, action: PayloadAction<string | null>) => { state.stickerImage = action.payload; },
-    setEnvelopeText: (state, action: PayloadAction<string>) => { state.envelopeText = action.payload.slice(0, 80); },
-    setEnvelopeTextAdded: (state, action: PayloadAction<boolean>) => { state.envelopeTextAdded = action.payload; },
     setMagazineDate: (state, action: PayloadAction<string>) => { state.card.magazineDate = action.payload; },
     setMagazineCategory: (state, action: PayloadAction<string>) => { state.card.magazineCategory = action.payload; },
     setMagazineBadge: (state, action: PayloadAction<string>) => { state.card.magazineBadge = action.payload; },
@@ -178,10 +161,6 @@ const cartSlice = createSlice({
     setDiscountCode: (state, action: PayloadAction<string>) => { state.discountCode = action.payload; },
     resetCurrentDraft: (state) => {
       state.card = cloneCard(initialState.card);
-      state.stickerQuantity = 0;
-      state.stickerImage = null;
-      state.envelopeText = "";
-      state.envelopeTextAdded = false;
     },
     saveCartItem: (state, action: PayloadAction<CartItemDraft>) => {
       const id = action.payload.id || `cart-item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -193,10 +172,6 @@ const cartSlice = createSlice({
         productPriceCents: action.payload.productPriceCents ?? null,
         productName: action.payload.productName ?? null,
         card: cloneCard(action.payload.card),
-        stickerQuantity: action.payload.stickerQuantity,
-        stickerImage: action.payload.stickerImage,
-        envelopeText: action.payload.envelopeText,
-        envelopeTextAdded: action.payload.envelopeTextAdded,
       };
       const existingIndex = state.items.findIndex((current) => current.id === id);
       if (existingIndex >= 0) state.items[existingIndex] = item;
@@ -206,10 +181,6 @@ const cartSlice = createSlice({
       const item = state.items.find((current) => current.id === action.payload);
       if (!item) return;
       state.card = cloneCard(item.card);
-      state.stickerQuantity = item.stickerQuantity;
-      state.stickerImage = item.stickerImage;
-      state.envelopeText = item.envelopeText;
-      state.envelopeTextAdded = item.envelopeTextAdded;
     },
     setCartItemQuantity: (state, action: PayloadAction<{ id: string; quantity: number }>) => {
       const item = state.items.find((current) => current.id === action.payload.id);
@@ -225,16 +196,29 @@ const cartSlice = createSlice({
     },
     hydrateCart: (state, action: PayloadAction<CartState>) => {
       const savedCard = action.payload?.card || state.card;
-      const card = { ...state.card, ...savedCard, frameId: savedCard.frameId === "romantic-red" ? "geometric-heart" : savedCard.frameId, packaging: savedCard.packaging || "standard" };
+      const card = cloneCard(cleanCard({ ...state.card, ...savedCard, frameId: savedCard.frameId === "romantic-red" ? "geometric-heart" : savedCard.frameId }));
       // Remove the old built-in graduation-cap emoji from carts saved before
       // emojis became optional. User-added emojis remain untouched.
       if (card.emoji === "🎓") card.emoji = "";
       card.emojiElements = (Array.isArray(card.emojiElements) ? card.emojiElements : []).filter((item) => !(item.id === "emoji-initial" && item.emoji === "🎓"));
       card.photoDataUrls = Array.isArray(card.photoDataUrls) ? card.photoDataUrls : [card.photoDataUrl || null];
-      const items = Array.isArray(action.payload.items)
-        ? action.payload.items.filter((item) => item && item.card).map((item) => ({ ...item, quantity: Math.max(1, item.quantity || 1), card: cloneCard({ ...state.card, ...item.card, frameId: item.card.frameId === "romantic-red" ? "geometric-heart" : item.card.frameId, packaging: item.card.packaging || "standard" }) }))
+      // Saved carts may come from older versions: drop retired extras (stickers,
+      // envelope text, gift packaging) and the old built-in Wall Art/Magnet lines,
+      // which are no longer sold.
+      const items = Array.isArray(action.payload?.items)
+        ? action.payload.items
+          .filter((item) => item && item.card && (!item.product || item.product.kind === "CATALOG"))
+          .map((item): CartItem => ({
+            id: item.id,
+            quantity: Math.max(1, item.quantity || 1),
+            productId: item.productId ?? null,
+            product: item.product ?? null,
+            productPriceCents: item.productPriceCents ?? null,
+            productName: item.productName ?? null,
+            card: cloneCard(cleanCard({ ...state.card, ...item.card, frameId: item.card.frameId === "romantic-red" ? "geometric-heart" : item.card.frameId })),
+          }))
         : [];
-      return { ...state, ...action.payload, items, card };
+      return { card, items, discountCode: typeof action.payload?.discountCode === "string" ? action.payload.discountCode : "" };
     },
     resetCart: () => initialState,
   },
@@ -247,6 +231,12 @@ const languageSlice = createSlice({
 });
 
 export const defaultCardCustomization = (): CardCustomization => cloneCard(initialState.card);
+
+// Keeps only current CardCustomization fields (drops e.g. the retired "packaging").
+function cleanCard(card: CardCustomization & Record<string, unknown>): CardCustomization {
+  const keys = Object.keys(initialState.card).concat(["magazineDate", "magazineCategory", "magazineBadge", "magazineHeadlineTag", "magazineFooter"]);
+  return Object.fromEntries(Object.entries(card).filter(([key]) => keys.includes(key))) as CardCustomization;
+}
 
 export const {
   setCardCategory,
@@ -273,12 +263,7 @@ export const {
   setPhotoPosition,
   setSize,
   setDelivery,
-  setPackaging,
   setRecipientMode,
-  setStickerQuantity,
-  setStickerImage,
-  setEnvelopeText,
-  setEnvelopeTextAdded,
   setMagazineDate,
   setMagazineCategory,
   setMagazineBadge,
