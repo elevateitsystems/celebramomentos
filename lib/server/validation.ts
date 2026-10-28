@@ -101,7 +101,8 @@ export const productVariantSchema = z.object({
 });
 export const productOptionSchema = z.object({
   name: z.string().trim().min(1).max(60),
-  choices: z.array(z.string().trim().min(1).max(80)).min(1).max(30),
+  // Phone model lists run past 100 choices (Alerio Print sells 138 models of the clear case).
+  choices: z.array(z.string().trim().min(1).max(80)).min(1).max(200),
   required: z.boolean().optional(),
 });
 export const productSchema = z.object({
@@ -121,6 +122,12 @@ export const productSchema = z.object({
     photoCount: z.number().int().min(1).max(MAX_PRODUCT_PHOTOS).optional(),
     // Print shop that fulfils the product (Prodigi, Printful, Gelato, Alerio Print).
     provider: z.enum(POD_PROVIDERS).optional(),
+    // Non-card products: the print shop's recommended file for customer photos.
+    printFile: z.object({
+      width: z.number().int().min(1).max(20000),
+      height: z.number().int().min(1).max(20000),
+      transparentPng: z.boolean().optional(),
+    }).strict().nullable().optional(),
   }).strict().optional().nullable(),
   variants: z.array(productVariantSchema).max(30).optional(),
   options: z.array(productOptionSchema).max(10).optional(),

@@ -44,6 +44,23 @@ export function isPodProvider(value: unknown): value is PodProvider {
 
 export type ProductOptionConfig = { choices: string[] };
 
+// Print shop's recommended file for the customer photo, in pixels at 300 dpi
+// (e.g. Alerio Print clear case 750 × 1590). transparentPng: clear cases show
+// the case through transparent areas of a PNG.
+export type PrintFile = { width: number; height: number; transparentPng?: boolean };
+
+export function productPrintFile(metadata: unknown): PrintFile | null {
+  const value = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? (metadata as { printFile?: unknown }).printFile : null;
+  if (!value || typeof value !== "object") return null;
+  const { width, height, transparentPng } = value as Record<string, unknown>;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || Number(width) < 1 || Number(height) < 1) return null;
+  return { width: Number(width), height: Number(height), ...(transparentPng === true ? { transparentPng: true } : {}) };
+}
+
+// Option choices are labels only; a price written into one ("3 (24.99 €)") is
+// never charged. Packs and sizes with their own price must be variants.
+export const PRICE_IN_TEXT = /€|\beur\b|\d+[.,]\d{2}\b/i;
+
 // Shape returned by GET /api/products.
 export type CatalogProduct = {
   id: string;
@@ -53,7 +70,7 @@ export type CatalogProduct = {
   kind: ProductKind;
   featured: boolean;
   basePriceCents: number;
-  metadata: { templateSlug?: string; photoCount?: number; provider?: string } | null;
+  metadata: { templateSlug?: string; photoCount?: number; provider?: string; printFile?: PrintFile | null } | null;
   images: { asset: { url: string | null } }[];
   // photoCount overrides the product's photo count for this size (e.g. a pack of 3 magnets).
   variants: { id: string; name: string; priceCents: number; photoCount: number | null }[];
