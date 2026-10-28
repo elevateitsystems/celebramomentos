@@ -193,7 +193,7 @@ function ProductsMegaMenu({ active = false }: { active?: boolean }) {
     {
       name: tx("Arte de pared", "Arte de parede"),
       href: "/wall-art",
-      desc: tx("Tu foto enmarcada · 11 tamaños", "A tua foto emoldurada · 11 tamanhos"),
+      desc: tx("Tu foto enmarcada · diferentes tamaños", "A tua foto emoldurada · diferentes tamanhos"),
     },
     {
       name: tx("Imanes", "Ímanes"),

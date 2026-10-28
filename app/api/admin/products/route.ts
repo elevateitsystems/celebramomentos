@@ -7,7 +7,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireAdmin } from "@/lib/server/auth";
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { productSchema } from "@/lib/server/validation";
-import { DEFAULT_CARD_TEMPLATE, DEFAULT_POD_PROVIDER, PRODUCT_KIND_INFO, PRODUCT_KINDS, isPodProvider, isProductKind, optionKey, type ProductKind } from "@/lib/products";
+import { DEFAULT_CARD_TEMPLATE, DEFAULT_POD_PROVIDER, PRICE_IN_TEXT, PRODUCT_KIND_INFO, PRODUCT_KINDS, isPodProvider, isProductKind, optionKey, productPrintFile, type ProductKind } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,11 @@ const adminInclude = {
   options: { orderBy: { key: "asc" } },
 } satisfies Prisma.ProductInclude;
 
+// Saving a product runs one query per size inside the transaction (Wall Art has
+// 25 sizes). Against the remote Neon database that takes longer than Prisma's
+// default 5 s interactive-transaction timeout, which rolled every such save back.
+const PRODUCT_WRITE_TX = { maxWait: 10_000, timeout: 30_000 };
+
 // Storefront pages read products through /api/products at request time; this
 // also drops any cached render of the affected category pages.
 function revalidateStorefront(kinds: string[]) {
@@ -30,8 +35,9 @@ function revalidateStorefront(kinds: string[]) {
 
 // Card templates belong to Cards only; sizes and options belong to studio products only.
 function normalizeForKind(kind: ProductKind, data: ProductPatch, currentMetadata: Prisma.JsonValue | null) {
-  const current = (currentMetadata && typeof currentMetadata === "object" && !Array.isArray(currentMetadata) ? currentMetadata : {}) as { templateSlug?: string; photoCount?: number; provider?: string };
+  const current = (currentMetadata && typeof currentMetadata === "object" && !Array.isArray(currentMetadata) ? currentMetadata : {}) as { templateSlug?: string; photoCount?: number; provider?: string; printFile?: unknown };
   const merged = { ...current, ...(data.metadata || {}) };
+  const printFile = productPrintFile(merged);
   const provider = isPodProvider(merged.provider) ? merged.provider : DEFAULT_POD_PROVIDER[kind];
   if (kind === "POSTCARD") {
     // Card sizes (5x7 / A5) and their prices are shared by every card and set in admin Settings.
@@ -39,7 +45,7 @@ function normalizeForKind(kind: ProductKind, data: ProductPatch, currentMetadata
     return { metadata: { templateSlug: merged.templateSlug || DEFAULT_CARD_TEMPLATE, provider }, variants: [], options: [] };
   }
   if (data.metadata?.templateSlug) return { error: "Card templates (Tradicional, Collage, Magazine) can only be used by Cards." };
-  return { metadata: { ...(merged.photoCount ? { photoCount: merged.photoCount } : {}), provider }, variants: data.variants, options: data.options };
+  return { metadata: { ...(merged.photoCount ? { photoCount: merged.photoCount } : {}), provider, ...(printFile ? { printFile } : {}) }, variants: data.variants, options: data.options };
 }
 
 async function validateReferences(data: ProductPatch) {
@@ -53,6 +59,8 @@ async function validateReferences(data: ProductPatch) {
   }
   const names = data.options?.map((option) => optionKey(option.name)) || [];
   if (new Set(names).size !== names.length) return "Each option needs a different name";
+  const pricedOption = data.options?.find((option) => option.choices.some((choice) => PRICE_IN_TEXT.test(choice)));
+  if (pricedOption) return `Option "${pricedOption.name}" has prices in its choices, but option choices are never charged. Add each pack or size with its price under "Sizes & prices" instead.`;
   return null;
 }
 
@@ -144,7 +152,7 @@ export async function POST(request: NextRequest) {
       if (normalized.options?.length) await syncOptions(tx, created.id, normalized.options);
       await tx.auditLog.create({ data: { adminUserId: auditUserId(admin!), action: "CREATE", entity: "Product", entityId: created.id, metadata: { slug: created.slug, kind: created.kind } } });
       return tx.product.findUniqueOrThrow({ where: { id: created.id }, include: adminInclude });
-    });
+    }, PRODUCT_WRITE_TX);
     revalidateStorefront([product.kind]);
     return NextResponse.json({ product }, { status: 201 });
   } catch (error) {
@@ -189,7 +197,7 @@ export async function PATCH(request: NextRequest) {
       if (normalized.options !== undefined) await syncOptions(tx, id, normalized.options);
       await tx.auditLog.create({ data: { adminUserId: auditUserId(admin!), action: "UPDATE", entity: "Product", entityId: id, metadata: { fields: Object.keys(data) } } });
       return tx.product.findUniqueOrThrow({ where: { id }, include: adminInclude });
-    });
+    }, PRODUCT_WRITE_TX);
     revalidateStorefront([current.kind, product.kind]);
     return NextResponse.json({ product });
   } catch (error) {
@@ -213,7 +221,7 @@ export async function DELETE(request: NextRequest) {
       await tx.product.delete({ where: { id } });
       await tx.auditLog.create({ data: { adminUserId: auditUserId(admin!), action: "DELETE", entity: "Product", entityId: id, metadata: { name: product.name, kind: product.kind } } });
       return product.kind;
-    });
+    }, PRODUCT_WRITE_TX);
     revalidateStorefront([kind]);
     return NextResponse.json({ ok: true, deleted: true });
   } catch (error) {

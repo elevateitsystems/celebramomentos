@@ -675,12 +675,12 @@ export default function Home() {
                   <div className="absolute inset-0 bg-gradient-to-t from-[#182443]/80 via-[#182443]/20 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-6">
                     <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f8c75e]">
-                      {es ? "11 TAMAÑOS" : "11 TAMANHOS"}
+                      {es ? "DIFERENTES TAMAÑOS" : "DIFERENTES TAMANHOS"}
                     </p>
                     <h3 className="serif mt-2 text-2xl font-bold text-white">
                       {es
-                        ? "Del 10 × 15 cm al A1, tú eliges el tamaño"
-                        : "Do 10 × 15 cm ao A1, tu escolhes o tamanho"}
+                        ? "Del más pequeño al más grande, tú eliges el tamaño"
+                        : "Do mais pequeno ao maior, tu escolhes o tamanho"}
                     </h3>
                     <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-white/80 transition group-hover:text-[#f8c75e]">
                       {es ? "Elegir tamaño" : "Escolher tamanho"}{" "}
