@@ -6,6 +6,7 @@ import { BrandLoader } from "@/components/loading";
 import { Spinner, Toast } from "@/components/site";
 import { CARD_SIZES, DEFAULT_CARD_SIZE_PRICES, SOCIAL_LINK_DEFAULTS, SOCIAL_LINK_KEYS, type CardSize, type SocialLinkKey } from "@/lib/data";
 import { invalidatePublicSettings } from "@/lib/public-settings";
+import { HOMEPAGE_IMAGES_KEY } from "@/lib/homepage-images";
 import { DEFAULT_DELIVERY_RATES, type DeliveryRates } from "@/lib/shipping";
 
 type Setting = { key: string; value: string };
@@ -75,7 +76,8 @@ export default function AdminSettingsPage() {
       if (!shippingResponse.ok) { const body = await shippingResponse.json(); throw new Error(`Delivery rates: ${body.error || "Unable to save"}`); }
       const entries = { ...settings, [CARD_SIZE_PRICES_KEY]: JSON.stringify(priceCents), admin_notifications: String(notifications), maintenance_mode: String(maintenance) };
       for (const [key, value] of Object.entries(entries)) {
-        if (key === "id") continue;
+        // homepage_images is saved by Homepage images; re-saving a stale copy here would undo it.
+        if (key === "id" || key === HOMEPAGE_IMAGES_KEY) continue;
         const response = await fetch("/api/admin/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, value }) });
         if (!response.ok) { const body = await response.json(); throw new Error(`${key}: ${body.error || "Unable to save settings"}`); }
       }

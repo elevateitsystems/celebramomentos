@@ -3,6 +3,8 @@
 type ShowcaseCardProps = {
   variant: "graduation" | "romantic";
   language: "es" | "pt";
+  // The admin's photo for this card (admin → Homepage); the built-in photo otherwise.
+  image?: string;
 };
 
 const photoAlt = {
@@ -10,7 +12,7 @@ const photoAlt = {
   romantic: { es: "Pareja abrazándose en un jardín", pt: "Casal abraçado num jardim" },
 } as const;
 
-export function ShowcaseCard({ variant, language }: ShowcaseCardProps) {
+export function ShowcaseCard({ variant, language, image }: ShowcaseCardProps) {
   const graduation = variant === "graduation";
   const title = language === "pt" ? "Feliz aniversário" : "Feliz cumpleaños";
 
@@ -19,7 +21,7 @@ export function ShowcaseCard({ variant, language }: ShowcaseCardProps) {
       <div className="absolute inset-[7%] rounded-[12px] bg-[#f8f0e8] shadow-inner" />
       <img src={graduation ? "/images/floral-clean.png" : "/images/romantic-heart-frame.png"} alt="" aria-hidden="true" className={`absolute inset-0 ${graduation ? "z-0" : "z-20"} h-full w-full object-fill`} />
       <div className="absolute inset-x-[16%] top-[13%] z-10 h-[53%] overflow-hidden rounded-[10px] bg-[#eadfd7] shadow-[0_8px_18px_rgba(74,43,35,.16)]">
-        <img src={graduation ? "/images/graduation-celebration.png" : "/images/romantic-couple.png"} alt={photoAlt[variant][language]} className="h-full w-full object-cover" style={{ objectPosition: graduation ? "center 35%" : "center 45%" }} />
+        <img src={image || (graduation ? "/images/graduation-celebration.png" : "/images/romantic-couple.png")} alt={photoAlt[variant][language]} className="h-full w-full object-cover" style={{ objectPosition: graduation ? "center 35%" : "center 45%" }} />
       </div>
       <div className="absolute inset-x-[18%] bottom-[13%] z-30 text-center">
         <div className="mx-auto inline-block max-w-full rounded-[7px] bg-[#f8c75e] px-[5%] py-[2.5%] shadow-sm">

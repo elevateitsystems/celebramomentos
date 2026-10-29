@@ -1,4 +1,5 @@
 import { CARD_SIZE_IDS, DEFAULT_CARD_SIZE_PRICES, SOCIAL_LINK_DEFAULTS, SOCIAL_LINK_KEYS, type CardSize, type SocialLinkKey } from "@/lib/data";
+import { HOMEPAGE_IMAGES_KEY, parseHomepageImages, type HomepageImages } from "@/lib/homepage-images";
 import { DEFAULT_DELIVERY_RATES, type DeliveryRates } from "@/lib/shipping";
 import { prisma } from "./prisma";
 
@@ -68,4 +69,10 @@ export async function getPublicSettings(): Promise<PublicSettings> {
     return [key, stored === "" ? "" : validSocialUrl(stored) ? stored : SOCIAL_LINK_DEFAULTS[key]];
   })) as Record<SocialLinkKey, string>;
   return { social, cardSizePrices: parseCardSizePrices(byKey[CARD_SIZE_PRICES_KEY]) || { ...DEFAULT_CARD_SIZE_PRICES }, delivery };
+}
+
+// Admin-uploaded home page images (admin → Homepage). Slots without one use their built-in image.
+export async function getHomepageImages(): Promise<HomepageImages> {
+  const row = await prisma.siteSetting.findUnique({ where: { key: HOMEPAGE_IMAGES_KEY }, select: { value: true } });
+  return parseHomepageImages(row?.value);
 }

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "./icons";
 
-const nav = [["Overview", "/admin", "spark"], ["Products", "/admin/products", "bag"], ["Templates", "/admin/templates", "heart"], ["Orders", "/admin/orders", "truck"], ["Customers", "/admin/customers", "user"], ["Messages", "/admin/messages", "mail"], ["Discounts", "/admin/discounts", "tag"], ["Settings", "/admin/settings", "edit"]];
+const nav = [["Overview", "/admin", "spark"], ["Products", "/admin/products", "bag"], ["Templates", "/admin/templates", "heart"], ["Homepage", "/admin/homepage", "spark"], ["Orders", "/admin/orders", "truck"], ["Customers", "/admin/customers", "user"], ["Messages", "/admin/messages", "mail"], ["Discounts", "/admin/discounts", "tag"], ["Settings", "/admin/settings", "edit"]];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
