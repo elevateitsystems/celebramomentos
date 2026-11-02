@@ -66,7 +66,8 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
   const template = templates.find((item) => item.id === card.templateId) || templates[0];
   const frame = frames.find((item) => item.id === card.frameId) || frames[0];
   const image = card.photoDataUrls[0] || card.photoDataUrl || "/images/sticker-family.jpg";
-  const surfaceClass = compact ? "aspect-[.9/1]" : "aspect-[.82/1]";
+  // Full-size pages have the printed card's shape (5 × 7" / A5 with bleed, 1530 × 2160 px).
+  const surfaceClass = compact ? "aspect-[.9/1]" : "aspect-[17/24]";
   const imageStyle = { objectPosition: card.photoPosition, transform: `scale(${card.photoZoom})` };
   const messageClass = compact ? "text-[10px] leading-tight" : "text-[clamp(18px,3.5vw,42px)] leading-[1.02]";
   const isTraditional = Boolean(template.longText);

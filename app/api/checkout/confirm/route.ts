@@ -4,8 +4,11 @@ import { handleApiError, jsonError } from "@/lib/server/http";
 import { serializeOrder } from "@/lib/server/orders";
 import { prisma } from "@/lib/server/prisma";
 import { stripe } from "@/lib/server/stripe";
+import { handlePaidOrderInBackground } from "@/lib/pod/fulfillment";
 
 export const runtime = "nodejs";
+// Leaves time for the print shop submission that continues after the response.
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const { error, customer } = await requireCustomer();
@@ -27,6 +30,8 @@ export async function POST(request: NextRequest) {
         if (order.discountUsages.length) await tx.discount.update({ where: { id: order.discountUsages[0].discountId }, data: { usedCount: { increment: 1 } } });
         await tx.cartLine.deleteMany({ where: { customerId: customer.id } });
       });
+      // Verified with Stripe above (session retrieved server-side, amount and currency checked).
+      handlePaidOrderInBackground(order.id);
     } else if (session.status === "expired" && order.status === "PENDING") {
       await prisma.$transaction([
         prisma.order.update({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } }),

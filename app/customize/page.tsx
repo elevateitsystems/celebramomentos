@@ -1,6 +1,7 @@
 "use client";
 
 import { getSessionUser } from "@/lib/client-session";
+import { trackPixel } from "@/lib/meta-pixel";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -107,6 +108,8 @@ export default function CustomizePage() {
   }, [selectedProductId]);
 
   const template = templates.find((item) => item.id === (chosenTemplateId || cart.card.templateId)) || templates[0];
+  // One ViewContent per card design shown.
+  useEffect(() => { trackPixel("ViewContent", { content_ids: [selectedProductId || template.id], content_name: template.name, content_type: "product", currency: "EUR", value: template.price }); }, [selectedProductId, template.id, template.name, template.price]);
   const frame = frames.find((item) => item.id === (chosenFrameId || cart.card.frameId)) || frames[0];
   const isMagazine = Boolean(template.magazineStyle);
   const isTraditional = Boolean(template.longText);
@@ -245,6 +248,7 @@ export default function CustomizePage() {
         setToast(tx("Estamos cargando la tarjeta seleccionada. Inténtalo de nuevo en un momento.", "Estamos a carregar o cartão selecionado. Tenta novamente dentro de momentos."));
         return;
       }
+      if (!editItemId) trackPixel("AddToCart", { content_ids: [selectedProductId || template.id], content_name: cardProduct?.name || template.name, content_type: "product", currency: "EUR", value: (cardProduct?.priceCents ?? Math.round(template.price * 100)) / 100, contents: [{ id: selectedProductId || template.id, quantity: 1 }] });
       dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, productId: selectedProductId, productPriceCents: cardProduct?.priceCents ?? null, productName: cardProduct?.name ?? null, card: cart.card }));
       router.push("/cart");
     } catch {

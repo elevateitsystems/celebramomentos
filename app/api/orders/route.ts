@@ -12,7 +12,7 @@ export async function GET() {
   try {
     const orders = await prisma.order.findMany({
       where: { customerId: customer.id },
-      include: { items: true },
+      include: { items: true, fulfillments: { select: { mode: true, status: true, carrier: true, trackingNumber: true, trackingUrl: true } } },
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json({ orders: orders.map(serializeOrder) });

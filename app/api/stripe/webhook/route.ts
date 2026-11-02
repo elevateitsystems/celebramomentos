@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/server/prisma";
 import { stripe } from "@/lib/server/stripe";
+import { handlePaidOrderInBackground } from "@/lib/pod/fulfillment";
 
 export const runtime = "nodejs";
+// Leaves time for the print shop submission that continues after the response.
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const signature = request.headers.get("stripe-signature");
@@ -46,5 +49,8 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message.includes("Unique constraint")) return NextResponse.json({ received: true });
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
+  // The payment is verified (signed Stripe event): send the order to the print shops.
+  // handlePaidOrder checks the order itself and is safe to run more than once.
+  if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") handlePaidOrderInBackground(orderId);
   return NextResponse.json({ received: true });
 }

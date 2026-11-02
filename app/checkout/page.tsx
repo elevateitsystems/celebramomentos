@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -13,8 +13,9 @@ import { Price, SiteFooter, SiteHeader, StatusBadge, Toast } from "@/components/
 import { amountUntilFreeShippingCents, getDeliveryPriceCents, qualifiesForFreeShipping } from "@/lib/shipping";
 import { describeProductSelection, getCartItemUnitTotal } from "@/lib/cart";
 import { useCartQuote } from "@/lib/cart-quote";
+import { trackPixel } from "@/lib/meta-pixel";
 import { usePublicSettings } from "@/lib/public-settings";
-import { RootState, setAllItemsDelivery } from "@/lib/store";
+import { RootState, setAllItemsDelivery, type CardDesign, type CartItem } from "@/lib/store";
 import { cardSizeText, templates } from "@/lib/data";
 
 const checkoutSchema = z.object({
@@ -37,6 +38,7 @@ type CheckoutForm = z.infer<typeof checkoutSchema>;
 export default function CheckoutPage() {
   const dispatch = useDispatch();
   const cart = useSelector((state: RootState) => state.cart);
+  const language = useSelector((state: RootState) => state.language.language);
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string } | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [paymentError, setPaymentError] = useState("");
@@ -59,6 +61,13 @@ export default function CheckoutPage() {
   const delivery = getDeliveryPriceCents(settings.delivery, deliveryMethod, merchandiseCents) / 100;
   const discountValue = cart.discountCode.trim().toUpperCase() === "HOLA10" ? (merchandiseSubtotal + delivery) * 0.1 : 0;
   const total = merchandiseSubtotal + delivery - discountValue;
+  // One InitiateCheckout per visit to the checkout with a non-empty cart.
+  const checkoutTracked = useRef(false);
+  useEffect(() => {
+    if (checkoutTracked.current || !items.length || total <= 0) return;
+    checkoutTracked.current = true;
+    trackPixel("InitiateCheckout", { currency: "EUR", value: total, num_items: items.reduce((sum, item) => sum + item.quantity, 0), content_type: "product", content_ids: items.map((item) => item.product?.productId || item.productId || item.card.templateId) });
+  }, [items, total]);
   const { register, handleSubmit, watch, reset, formState: { errors, isSubmitting } } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema), defaultValues: { name: "", email: "", payment: "card", country: "ES" } });
   const selectedPayment = watch("payment");
   useEffect(() => { let active = true; void getSessionUser().then((user) => { if (active && user) { setCurrentUser(user); reset({ name: user.name, email: user.email, payment: "card", country: "ES" }); } }); return () => { active = false; }; }, [reset]);
@@ -80,22 +89,39 @@ export default function CheckoutPage() {
 
   const submitOrder = async (data: CheckoutForm) => {
     setPaymentError("");
+    trackPixel("AddPaymentInfo", { currency: "EUR", value: total, payment_type: data.payment === "paypal" ? "paypal" : "card", num_items: items.reduce((sum, item) => sum + item.quantity, 0) });
     try {
       const first = rows[0];
       if (!first) throw new Error("Tu cesta está vacía. Añade un producto antes de pagar.");
       const uploadDataUrl = async (value: string | null, fileName: string) => {
         if (!value || !value.startsWith("data:image/")) return value;
-        const blob = await (await fetch(value)).blob();
+        return uploadBlob(await (await fetch(value)).blob(), fileName);
+      };
+      const uploadBlob = async (blob: Blob, fileName: string) => {
         const form = new FormData(); form.append("file", blob, fileName); form.append("kind", "CUSTOMER_UPLOAD");
         const response = await fetch("/api/uploads", { method: "POST", body: form }); const body = await response.json();
         if (!response.ok || !body.asset?.url) throw new Error(body.error || "No se pudo guardar una imagen");
         return body.asset.url as string;
       };
+      // The final card pages, rendered from the design as the customer sees it, are the
+      // artwork the print shop needs. A failed export never blocks the payment: the
+      // order is then held in admin, which can render it again from the saved design.
+      const renderDesign = async (card: CartItem["card"]): Promise<CardDesign | undefined> => {
+        try {
+          const { renderCardDesign } = await import("@/components/card-design-export");
+          const panels = await renderCardDesign(card, language);
+          return { panels: await Promise.all(panels.map(async (panel) => ({ side: panel.side, width: panel.width, height: panel.height, url: await uploadBlob(panel.blob, `design-${panel.side}.jpg`) }))) };
+        } catch (reason) {
+          console.error("Card design export failed", reason);
+          return undefined;
+        }
+      };
       const persistedItems = await Promise.all(items.map(async (item) => {
+        const design = item.product ? undefined : await renderDesign(item.card);
         const photoDataUrls = await Promise.all((item.card.photoDataUrls || []).map((value, index) => uploadDataUrl(value, `photo-${index}.jpg`)));
         const photoDataUrl = await uploadDataUrl(item.card.photoDataUrl, "photo-cover.jpg");
         const product = item.product ? { ...item.product, photos: await Promise.all(item.product.photos.map((value, index) => uploadDataUrl(value, `product-${index}.jpg`))) } : null;
-        return { ...item, product, card: { ...item.card, photoDataUrl, photoDataUrls } };
+        return { ...item, product, card: { ...item.card, photoDataUrl, photoDataUrls, design } };
       }));
       const existingResponse = await fetch("/api/cart", { cache: "no-store" });
       if (!existingResponse.ok) throw new Error("Inicia sesión para continuar al pago.");

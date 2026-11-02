@@ -7,6 +7,7 @@ import { Icon } from "@/components/icons";
 import { BrandLoader } from "@/components/loading";
 import { SiteFooter, SiteHeader } from "@/components/site";
 import { clearCartItems } from "@/lib/store";
+import { trackPurchaseOnce } from "@/lib/meta-pixel";
 
 export default function CheckoutSuccessPage() {
   const [state, setState] = useState<"loading" | "paid" | "pending" | "error">("loading");
@@ -17,7 +18,8 @@ export default function CheckoutSuccessPage() {
     const sessionId = new URLSearchParams(window.location.search).get("session_id");
     if (!sessionId) { setState("error"); return; }
     fetch("/api/checkout/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) })
-      .then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Unable to confirm payment"); setOrderNumber(body.order?.id || ""); if (body.paid) dispatch(clearCartItems()); setState(body.paid ? "paid" : "pending"); })
+      .then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Unable to confirm payment"); setOrderNumber(body.order?.id || ""); if (body.paid) { dispatch(clearCartItems()); // Server-verified Stripe payment: order number and total come from the database.
+        trackPurchaseOnce(body.order?.id || "", Number(body.order?.amount)); } setState(body.paid ? "paid" : "pending"); })
       .catch(() => setState("error"));
   }, [dispatch]);
 
