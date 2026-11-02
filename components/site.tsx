@@ -67,6 +67,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { Icon } from "./icons";
 import { translations } from "@/lib/data";
 import { getSessionUser } from "@/lib/client-session";
+import { openCookieSettings } from "@/lib/consent";
 import { usePublicSettings } from "@/lib/public-settings";
 import { RootState, setLanguage } from "@/lib/store";
 
@@ -481,6 +482,7 @@ export function SiteFooter() {
             <Link href="/#story" className="hover:text-[#ee5264]">{tx("Nosotros", "Sobre nós")}</Link>
             <Link href="/privacy" className="hover:text-[#ee5264]">{tx("Privacidad", "Privacidade")}</Link>
             <Link href="/cookies" className="hover:text-[#ee5264]">Cookies</Link>
+            <button type="button" onClick={openCookieSettings} className="text-left hover:text-[#ee5264]">{tx("Preferencias de cookies", "Preferências de cookies")}</button>
             <Link href="/terms" className="hover:text-[#ee5264]">{tx("Términos", "Termos")}</Link>
             <Link href="/contact" className="hover:text-[#ee5264]">{tx("Contacto", "Contacto")}</Link>
           </div>

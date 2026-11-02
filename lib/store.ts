@@ -32,7 +32,12 @@ export type CardCustomization = {
     magazineBadge?: string;
     magazineHeadlineTag?: string;
     magazineFooter?: string;
+    // Set only on the copy sent at checkout: the card pages rendered from this design.
+    design?: CardDesign;
 };
+
+export type CardDesignSide = "front" | "inside-left" | "inside-right" | "back";
+export type CardDesign = { panels: { side: CardDesignSide; url: string; width: number; height: number }[] };
 
 // Studio products (every category except Cards) are admin-created catalog
 // products. They reuse the cart line but carry their own options instead of a
@@ -282,5 +287,8 @@ export const {
 } = cartSlice.actions;
 export const { setLanguage, hydrateLanguage } = languageSlice.actions;
 export const store = configureStore({ reducer: { cart: cartSlice.reducer, language: languageSlice.reducer } });
+// A separate store holding one card, so the card previews can render a design other
+// than the one open in the editor (used to export the card pages).
+export const createCardStore = (card: CardCustomization, language: LanguageState["language"]) => configureStore({ reducer: { cart: cartSlice.reducer, language: languageSlice.reducer }, preloadedState: { cart: { ...initialState, card: cloneCard(card) }, language: { language } } });
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

@@ -6,6 +6,8 @@ import { PayPalError } from "@/lib/server/paypal";
 import { finalizePayPalPayment } from "@/lib/server/paypal-checkout";
 
 export const runtime = "nodejs";
+// Leaves time for the print shop submission that continues after the response.
+export const maxDuration = 60;
 
 const bodySchema = z.object({ paypalOrderId: z.string().trim().min(5).max(64).regex(/^[A-Z0-9]+$/i) });
 

@@ -86,10 +86,12 @@ export const SOCIAL_LINK_KEYS = Object.keys(SOCIAL_LINK_DEFAULTS) as SocialLinkK
 // Card sizes sold through Prodigi (PRODUCTS.pdf). The price added to the
 // template price for each size is set in admin Settings (SiteSetting
 // "card_size_prices", size id → cents).
+// panel: one page of the card at 300 dpi with bleed, in px. Prodigi's print area for
+// these SKUs is four such pages side by side (6120 × 2160 and 7086 × 2526 px).
 export const CARD_SIZES = [
-  { id: "5x7", label: "5 × 7\"", dimensions: "12,7 × 17,8 cm", sku: "CLASSIC-GRE-FEDR-7X5-BLA" },
-  { id: "A5", label: "A5", dimensions: "14,8 × 21 cm", sku: "CLASSIC-GRE-FEDR-A5-BLA" },
-] as const satisfies readonly { id: CardSize; label: string; dimensions: string; sku: string }[];
+  { id: "5x7", label: "5 × 7\"", dimensions: "12,7 × 17,8 cm", sku: "CLASSIC-GRE-FEDR-7X5-BLA", panel: { width: 1530, height: 2160 } },
+  { id: "A5", label: "A5", dimensions: "14,8 × 21 cm", sku: "CLASSIC-GRE-FEDR-A5-BLA", panel: { width: 1772, height: 2526 } },
+] as const satisfies readonly { id: CardSize; label: string; dimensions: string; sku: string; panel: { width: number; height: number } }[];
 export const CARD_SIZE_IDS = CARD_SIZES.map((size) => size.id) as [CardSize, ...CardSize[]];
 export const DEFAULT_CARD_SIZE: CardSize = "5x7";
 export const DEFAULT_CARD_SIZE_PRICES: Record<CardSize, number> = { "5x7": 0, A5: 0 };

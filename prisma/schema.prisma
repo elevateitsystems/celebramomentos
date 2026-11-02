@@ -43,6 +43,28 @@ enum AssetKind {
   CUSTOMER_UPLOAD
   BANNER
   OTHER
+  PRINT_FILE
+}
+
+// Print-on-demand shops (lib/pod). Same values as POD_PROVIDERS in lib/products.ts.
+enum PodProvider {
+  PRODIGI
+  GELATO
+  PRINTFUL
+  ALERIO_PRINT
+}
+
+// Life cycle of one order's items at one print shop.
+enum PodFulfillmentStatus {
+  NEEDS_ATTENTION // missing print file, unmapped variant or missing provider setup: an admin must act
+  READY           // print-ready and waiting to be sent
+  SUBMITTING      // a submission is in flight (also the lock against duplicate submissions)
+  SUBMITTED       // accepted by the print shop (as a draft or a live order, see `mode`)
+  IN_PRODUCTION
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  FAILED          // the last attempt failed; it is retried automatically and can be retried by an admin
 }
 
 model AdminUser {
@@ -242,6 +264,7 @@ model Order {
   payments              Payment[]
   assets                OrderAsset[]
   discountUsages        DiscountUsage[]
+  fulfillments          PodFulfillment[]
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
   @@index([status, createdAt])
@@ -269,8 +292,61 @@ model OrderItem {
   quantity       Int
   unitPriceCents Int
   personalization Json?
+  // Print-on-demand: the shop, its product reference (SKU, productUid, variant id…),
+  // the print-ready files [{ area, url, source, width, height }] and open problems.
+  podFulfillmentId String?
+  podFulfillment   PodFulfillment? @relation(fields: [podFulfillmentId], references: [id], onDelete: SetNull)
+  podProvider      PodProvider?
+  podProductRef    String?
+  podArtwork       Json?
+  podIssues        Json?
   createdAt      DateTime         @default(now())
   @@index([orderId])
+  @@index([podFulfillmentId])
+}
+
+// The part of an order that one print shop produces. Created only after the
+// payment is verified on the server; (orderId, provider) is unique so an order
+// can never be sent twice to the same shop.
+model PodFulfillment {
+  id              String               @id @default(cuid())
+  orderId         String
+  order           Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider        PodProvider
+  status          PodFulfillmentStatus @default(READY)
+  // "draft" (test: Gelato draft / Printful unconfirmed / Prodigi sandbox) or "live" (real production order).
+  mode            String               @default("draft")
+  // Sent to the shop as its idempotency key / external reference.
+  reference       String               @unique
+  providerOrderId String?
+  providerStatus  String?
+  shippingMethod  String?
+  carrier         String?
+  trackingNumber  String?
+  trackingUrl     String?
+  attempts        Int                  @default(0)
+  lastError       String?
+  lastResponse    Json?
+  nextAttemptAt   DateTime?
+  submittedAt     DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  lastSyncedAt    DateTime?
+  items           OrderItem[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  @@unique([orderId, provider])
+  @@index([status, nextAttemptAt])
+  @@index([provider, status])
+  @@index([providerOrderId])
+}
+
+// Webhook deliveries already handled, so a repeated delivery is acknowledged without side effects.
+model PodWebhookEvent {
+  id         String      @id
+  provider   PodProvider
+  type       String?
+  receivedAt DateTime    @default(now())
 }
 
 model OrderAsset {

@@ -65,6 +65,11 @@ export const cartLineSchema = z.object({
     magazineBadge: z.string().optional(),
     magazineHeadlineTag: z.string().optional(),
     magazineFooter: z.string().optional(),
+    // Card pages rendered in the browser at checkout. Only references to uploads; the
+    // server checks each one against its own upload records before using it.
+    design: z.object({
+      panels: z.array(z.object({ side: z.enum(["front", "inside-left", "inside-right", "back"]), url: z.string().url().max(2000).startsWith("https://"), width: z.number().int().positive().max(20000), height: z.number().int().positive().max(20000) })).max(4),
+    }).optional(),
   }),
 });
 export const cartQuantitySchema = z.object({ id: z.string().min(1), quantity: z.number().int().min(1).max(99) });
@@ -152,6 +157,7 @@ export const checkoutSchema = z.object({
   shippingMethodId: z.string().cuid().optional(),
   discountCode: z.string().max(40).optional(),
 });
-export const uploadSchema = z.object({ fileName: z.string().min(1).max(255), mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), sizeBytes: z.number().int().positive().max(10 * 1024 * 1024), kind: z.enum(["PRODUCT_IMAGE", "TEMPLATE_IMAGE", "CUSTOMER_UPLOAD", "BANNER", "OTHER"]) });
+// PDFs are accepted only as admin print files (PRINT_FILE), checked in /api/uploads.
+export const uploadSchema = z.object({ fileName: z.string().min(1).max(255), mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "application/pdf"]), sizeBytes: z.number().int().positive().max(10 * 1024 * 1024), kind: z.enum(["PRODUCT_IMAGE", "TEMPLATE_IMAGE", "CUSTOMER_UPLOAD", "BANNER", "OTHER", "PRINT_FILE"]) });
 const deliveryRateSchema = z.object({ priceCents: z.number().int().min(0).max(100_000), freeFromCents: z.number().int().min(0).max(10_000_000).nullable() });
 export const deliveryRatesSchema = z.object({ standard: deliveryRateSchema, express: deliveryRateSchema });

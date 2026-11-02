@@ -3,6 +3,7 @@ import { markOrderFailed } from "./checkout";
 import { serializeOrder } from "./orders";
 import { PayPalError, approvalUrl, capturePayPalOrder, firstCapture, getPayPalOrder, toCents, type PayPalOrder } from "./paypal";
 import { prisma } from "./prisma";
+import { handlePaidOrderInBackground } from "@/lib/pod/fulfillment";
 
 export type PayPalResult =
   | { status: "paid" | "pending" | "cancelled" | "failed"; order: ReturnType<typeof serializeOrder>; message?: string }
@@ -58,7 +59,11 @@ async function applyPayPalOrder(payment: CustomerPayment, paypalOrder: PayPalOrd
       if (order.customerId) await tx.cartLine.deleteMany({ where: { customerId: order.customerId } });
     });
     const refreshed = await prisma.order.findUniqueOrThrow({ where: { id: order.id }, select: { status: true } });
-    if (PAID_STATUSES.has(refreshed.status)) return result(payment, "paid");
+    if (PAID_STATUSES.has(refreshed.status)) {
+      // Capture COMPLETED and matched to the order above: send it to the print shops.
+      handlePaidOrderInBackground(order.id);
+      return result(payment, "paid");
+    }
     console.error("PayPal capture completed for a closed order", { orderId: order.id, captureId: capture.id });
     return result(payment, "pending", { message: "Hemos recibido tu pago y lo estamos revisando. Contacta con nosotros indicando tu número de pedido." });
   }

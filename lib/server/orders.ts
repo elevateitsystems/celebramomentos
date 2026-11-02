@@ -19,6 +19,8 @@ export function serializeOrder(order: {
   createdAt: Date;
   shippingAddress: unknown;
   items: { name: string; quantity: number }[];
+  // Print shop shipments; only live (real) print orders are shown to customers.
+  fulfillments?: { mode: string; status: string; carrier: string | null; trackingNumber: string | null; trackingUrl: string | null }[];
 }) {
   const shipping = (order.shippingAddress && typeof order.shippingAddress === "object" ? order.shippingAddress : {}) as Record<string, string>;
   return {
@@ -31,6 +33,9 @@ export function serializeOrder(order: {
     amount: order.totalCents / 100,
     status: storefrontStatus[order.status],
     orderStatus: order.status,
+    tracking: (order.fulfillments || [])
+      .filter((item) => item.mode === "live" && (item.trackingNumber || item.trackingUrl))
+      .map((item) => ({ carrier: item.carrier, number: item.trackingNumber, url: item.trackingUrl && /^https:\/\//.test(item.trackingUrl) ? item.trackingUrl : null })),
     shipping: {
       name: shipping.name || "",
       phone: shipping.phone || "",

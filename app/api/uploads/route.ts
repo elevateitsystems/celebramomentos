@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
 
     const admin = await requireAdmin(["OWNER", "ADMIN", "EDITOR"]);
     const customer = await getCustomerSession();
-    if ((input.kind === "PRODUCT_IMAGE" || input.kind === "TEMPLATE_IMAGE" || input.kind === "BANNER") && admin.error) return admin.error;
+    if ((input.kind === "PRODUCT_IMAGE" || input.kind === "TEMPLATE_IMAGE" || input.kind === "BANNER" || input.kind === "PRINT_FILE") && admin.error) return admin.error;
+    if (input.mimeType === "application/pdf" && input.kind !== "PRINT_FILE") return jsonError("PDF files are only accepted as print files", 400);
     if (input.kind === "CUSTOMER_UPLOAD" && !customer && admin.error) return jsonError("Unauthorized", 401);
 
     const body = Buffer.from(await file.arrayBuffer());

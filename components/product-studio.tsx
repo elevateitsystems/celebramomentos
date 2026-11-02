@@ -8,6 +8,7 @@ import { Icon } from "@/components/icons";
 import { AuthRequiredModal, PageIntro, SiteFooter, SiteHeader, Spinner } from "@/components/site";
 import { MAGNET_SAMPLE_PHOTOS } from "@/lib/data";
 import { getSessionUser } from "@/lib/client-session";
+import { trackPixel } from "@/lib/meta-pixel";
 import { MAX_PRODUCT_PHOTOS, productPrintFile, requiredPhotoCount, type CatalogProduct, type PrintFile, type StudioProductKind } from "@/lib/products";
 import { RootState, defaultCardCustomization, saveCartItem, type CatalogSelection, type ProductSelection } from "@/lib/store";
 import { PosterHanger, hangerColorFrom, orientationFrom } from "@/components/poster-hanger";
@@ -93,6 +94,7 @@ function useStudioCart(kind: StudioProductKind) {
       setAuthPrompt(true);
       return;
     }
+    if (!editingItem) trackPixel("AddToCart", { content_ids: [product.productId], content_name: product.name, content_type: "product", currency: "EUR", value: product.priceCents / 100, contents: [{ id: product.productId, quantity: 1 }] });
     dispatch(saveCartItem({ id: editingItem?.id, quantity: editingItem?.quantity, product, card: { ...defaultCardCustomization(), delivery } }));
     // Keep the button disabled while navigating so the item cannot be added twice.
     router.push("/cart");
@@ -135,6 +137,15 @@ function useStudioCatalog(kind: StudioProductKind) {
     setRequestedId(selection.productId);
     setConfig({ productId: selection.productId, variantId: selection.variantId, options: selection.options });
   };
+
+  // One ViewContent per product shown (not per size change).
+  const viewed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selected || viewed.current === selected.id) return;
+    viewed.current = selected.id;
+    const prices = selected.variants.length ? selected.variants.map((item) => item.priceCents) : [selected.basePriceCents];
+    trackPixel("ViewContent", { content_ids: [selected.id], content_name: selected.name, content_type: "product", currency: "EUR", value: Math.min(...prices) / 100 });
+  }, [selected]);
 
   const ready = Boolean(selected && config.productId === selected.id);
   const variant = selected?.variants.find((item) => item.id === config.variantId) || null;

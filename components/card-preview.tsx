@@ -23,7 +23,7 @@ type CardPreviewProps = {
   photoZoom?: number;
   photoPosition?: "center" | "top" | "bottom" | "left" | "right";
   frameId?: string | null;
-  // 5x7 and A5 share the same proportions, so the preview shape does not change.
+  // 5x7 and A5 share the same proportions (about 17 : 24 with bleed), so the preview shape does not change.
   size?: CardSize;
   compact?: boolean;
   className?: string;
@@ -103,7 +103,8 @@ export function CardPreview({
   const legacyElement: EmojiElement = { id: "legacy-emoji", emoji, tone: emojiTone ?? savedCard.emojiTone ?? "natural", size: emojiSize ?? savedCard.emojiSize ?? 28, position: emojiPosition ?? savedCard.emojiPosition ?? defaultEmojiPosition };
   const elements = emojiElements ?? (savedCard.templateId === templateId ? savedCard.emojiElements : [legacyElement]);
   const canMoveEmoji = Boolean(onEmojiElementPositionChange || onEmojiPositionChange) && !compact;
-  const surfaceClass = compact ? template.magazineStyle ? "aspect-square" : "aspect-[.9/1]" : "aspect-[.82/1]";
+  // Full-size pages have the printed card's shape (5 × 7" / A5 with bleed, 1530 × 2160 px).
+  const surfaceClass = compact ? template.magazineStyle ? "aspect-square" : "aspect-[.9/1]" : "aspect-[17/24]";
 
   const updatePosition = (id: string, position: EmojiPosition) => {
     onEmojiElementPositionChange?.(id, position);
