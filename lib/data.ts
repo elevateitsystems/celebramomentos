@@ -26,6 +26,8 @@ export type Template = {
   requiresFrame: boolean;
   longText?: boolean;
   magazineStyle?: boolean;
+  // Image uploaded in admin → Templates. When set it replaces the drawn preview.
+  customImage?: string | null;
 };
 
 export type Frame = {
@@ -51,12 +53,19 @@ export const designCategories: DesignCategory[] = [
   { id: "enhorabuena", name: "Cumpleaños, enhorabuena", namePt: "Aniversário, parabéns", description: "Cumpleaños, logros y noticias que merecen un aplauso.", descriptionPt: "Aniversários, conquistas e notícias que merecem aplausos.", symbol: "☀" },
 ];
 
+// Frames that were retired: a saved design keeps its old id, so it is mapped to the
+// frame that replaced it instead of silently falling back to the first one.
+export const FRAME_ALIASES: Record<string, string> = { "romantic-red": "geometric-heart", "romantic-heart": "birthday-lights" };
+
+export const resolveFrameId = (id: string | null | undefined) => (id && FRAME_ALIASES[id]) || id || null;
+export const resolveFrame = (id: string | null | undefined) => frames.find((item) => item.id === resolveFrameId(id)) || frames[0];
+
 export const frames: Frame[] = [
   { id: "floral", name: "Flores para ti", namePt: "Flores para ti", image: "/images/floral-clean.png" },
   { id: "classic", name: "Siempre contigo", namePt: "Sempre contigo", image: "/images/frame.jpg" },
   { id: "geometric-heart", name: "Corazones geométricos", namePt: "Corações geométricos", image: "/images/geometric-heart-frame.png" },
   { id: "balloon-frame", name: "Marco de globos", namePt: "Moldura de balões", image: "/images/balloon-frame.png" },
-  { id: "romantic-heart", name: "Corazón romántico", namePt: "Coração romântico", image: "/images/romantic-heart-frame.png" },
+  { id: "birthday-lights", name: "Feliz cumpleaños", namePt: "Feliz aniversário", image: "/images/birthday-lights-frame.png" },
 ];
 
 

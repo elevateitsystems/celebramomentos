@@ -11,7 +11,7 @@ import { Icon } from "@/components/icons";
 import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/components/postcard-preview";
 import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
 import { PageIntro, Price, SiteFooter, SiteHeader, Spinner, Toast } from "@/components/site";
-import { CARD_SIZES, DEFAULT_CARD_SIZE, cardSizeText, designCategories, frames, templates } from "@/lib/data";
+import { CARD_SIZES, DEFAULT_CARD_SIZE, cardSizeText, designCategories, frames, resolveFrame, templates } from "@/lib/data";
 import { usePublicSettings } from "@/lib/public-settings";
 import { amountUntilFreeShippingCents, qualifiesForFreeShipping } from "@/lib/shipping";
 import { type EmojiOption } from "@/lib/emojis";
@@ -110,7 +110,7 @@ export default function CustomizePage() {
   const template = templates.find((item) => item.id === (chosenTemplateId || cart.card.templateId)) || templates[0];
   // One ViewContent per card design shown.
   useEffect(() => { trackPixel("ViewContent", { content_ids: [selectedProductId || template.id], content_name: template.name, content_type: "product", currency: "EUR", value: template.price }); }, [selectedProductId, template.id, template.name, template.price]);
-  const frame = frames.find((item) => item.id === (chosenFrameId || cart.card.frameId)) || frames[0];
+  const frame = resolveFrame(chosenFrameId || cart.card.frameId);
   const isMagazine = Boolean(template.magazineStyle);
   const isTraditional = Boolean(template.longText);
   const isCollage = template.id === "template-2";
@@ -1028,6 +1028,25 @@ export default function CustomizePage() {
     </>
   );
 }
+// Images uploaded in admin → Templates, by template slug. Empty until they load, so the
+// drawn preview is shown meanwhile.
+function useTemplateImages() {
+  const [images, setImages] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let active = true;
+    fetch("/api/templates", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        const stored = body?.templates as { slug: string; images?: { asset: { url: string | null } }[] }[] | undefined;
+        if (!active || !stored) return;
+        setImages(Object.fromEntries(stored.map((item) => [item.slug, item.images?.[0]?.asset.url]).filter((pair): pair is [string, string] => Boolean(pair[1]))));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+  return images;
+}
+
 function TemplateStep({
   selectedId,
   onSelect,
@@ -1047,6 +1066,7 @@ function TemplateStep({
     "/images/sticker-lifestyle-dog.jpg",
   ];
   const traditionalPreviewPhotos = ["/images/traditional-birthday-preview.png", ...previewPhotos.slice(1)];
+  const templateImages = useTemplateImages();
 
   return (
     <section aria-labelledby="template-step-title">
@@ -1080,7 +1100,8 @@ function TemplateStep({
             >
               <span className="relative block aspect-[1.12/1] overflow-hidden bg-[#fffaf5] p-3">
                 <span className={`mx-auto block h-full overflow-hidden rounded shadow-lg transition duration-300 group-hover:scale-[1.02] ${item.magazineStyle ? "aspect-square" : "aspect-[.82/1]"}`}>
-                  <CardPreview compact templateId={item.id} message={item.magazineStyle ? (isPortuguese ? "Feliz aniversário" : "Feliz cumpleaños") : (isPortuguese ? "Parabéns" : "Enhorabuena")} emojiElements={[]} photoDataUrls={item.magazineStyle || item.id === "template-2" ? Array(item.imageCount).fill(null) : Array.from({ length: item.imageCount }, (_, photoIndex) => traditionalPreviewPhotos[photoIndex % traditionalPreviewPhotos.length])} photoFit={item.id === "template-3" ? "cover" : undefined} />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {templateImages[item.id] ? <img src={templateImages[item.id]} alt={isPortuguese ? item.namePt || item.name : item.name} className="h-full w-full object-cover" /> : <CardPreview compact templateId={item.id} message={item.magazineStyle ? (isPortuguese ? "Feliz aniversário" : "Feliz cumpleaños") : (isPortuguese ? "Parabéns" : "Enhorabuena")} emojiElements={[]} photoDataUrls={item.magazineStyle || item.id === "template-2" ? Array(item.imageCount).fill(null) : Array.from({ length: item.imageCount }, (_, photoIndex) => traditionalPreviewPhotos[photoIndex % traditionalPreviewPhotos.length])} photoFit={item.id === "template-3" ? "cover" : undefined} />}
                 </span>
                 <span
                   className={`absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white ${

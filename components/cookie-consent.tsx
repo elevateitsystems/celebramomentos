@@ -7,7 +7,7 @@ import { useSelector } from "react-redux";
 import { OPEN_SETTINGS_EVENT, readConsent, saveConsent } from "@/lib/consent";
 import type { RootState } from "@/lib/store";
 
-// Consent banner for optional cookies (Meta Pixel). Shown until the visitor
+// Consent banner for optional cookies (Google Analytics via GTM, and the Meta Pixel). Shown until the visitor
 // chooses; "Preferencias de cookies" in the footer opens it again.
 export function CookieConsent() {
   const es = useSelector((state: RootState) => state.language.language) === "es";
@@ -29,8 +29,8 @@ export function CookieConsent() {
     <p className="text-sm font-black text-[#182443]">{es ? "Tu privacidad" : "A tua privacidade"}</p>
     <p className="mt-1 text-xs leading-5 text-[#59627b]">
       {es
-        ? "Usamos cookies técnicas para que la web funcione. Con tu permiso, usamos también el píxel de Meta para medir nuestros anuncios. Puedes cambiar tu elección cuando quieras."
-        : "Usamos cookies técnicos para que o site funcione. Com a tua autorização, usamos também o píxel da Meta para medir os nossos anúncios. Podes mudar a tua escolha quando quiseres."}{" "}
+        ? "Usamos cookies técnicas para que la web funcione. Con tu permiso, usamos también Google Analytics (a través de Google Tag Manager) para entender cómo se usa la web y el píxel de Meta para medir nuestros anuncios. Puedes cambiar tu elección cuando quieras."
+        : "Usamos cookies técnicos para que o site funcione. Com a tua autorização, usamos também o Google Analytics (através do Google Tag Manager) para perceber como o site é usado e o píxel da Meta para medir os nossos anúncios. Podes mudar a tua escolha quando quiseres."}{" "}
       <Link href="/cookies" className="font-black text-[#182443] underline underline-offset-2">{es ? "Política de cookies" : "Política de cookies"}</Link>
     </p>
     <div className="mt-3 flex flex-wrap justify-end gap-2">

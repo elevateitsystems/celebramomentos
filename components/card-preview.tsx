@@ -2,7 +2,7 @@
 
 import { type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { useSelector } from "react-redux";
-import { frames, templates, type CardSize } from "@/lib/data";
+import { resolveFrame, templates, type CardSize } from "@/lib/data";
 import { defaultEmojiPosition, emojiToneFilters, type EmojiElement, type EmojiPosition, type EmojiTone } from "@/lib/emojis";
 import type { RootState } from "@/lib/store";
 import { MagazineFront } from "./magazine-card";
@@ -53,6 +53,9 @@ export function frameOpeningStyle(frameId: string) {
       return { top: "9%", right: "9%", bottom: "9%", left: "9%" };
     case "romantic-heart":
       return { top: "8%", right: "8%", bottom: "8%", left: "8%" };
+    // Asymmetric: dotted strip on the left, "HAPPY" band on the right, ribbon at the bottom.
+    case "birthday-lights":
+      return { top: "9.5%", right: "20%", bottom: "17.5%", left: "19.5%" };
     case "floral":
     default:
       return { top: "8%", right: "8%", bottom: "8%", left: "8%" };
@@ -63,7 +66,7 @@ export function frameOpeningStyle(frameId: string) {
 // the photo to keep every part of the frame visible. Opaque frame files keep
 // their existing layer so their white inner opening is not painted over the photo.
 export function frameOverlayClass(frameId: string) {
-  return frameId === "geometric-heart" || frameId === "romantic-heart" ? "z-20" : "z-0";
+  return frameId === "geometric-heart" || frameId === "romantic-heart" || frameId === "birthday-lights" ? "z-20" : "z-0";
 }
 
 export function CardPreview({
@@ -96,7 +99,7 @@ export function CardPreview({
   const savedCard = useSelector((state: RootState) => state.cart.card);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const template = templates.find((item) => item.id === templateId) || templates[0];
-  const frame = frames.find((item) => item.id === (frameId ?? savedCard.frameId)) || frames[0];
+  const frame = resolveFrame(frameId ?? savedCard.frameId);
   const designRef = useRef<HTMLDivElement>(null);
   const effectivePhotoUrls = photoDataUrls ?? (savedCard.templateId === templateId ? savedCard.photoDataUrls : undefined);
   const photos = Array.from({ length: template.imageCount }, (_, index) => effectivePhotoUrls?.[index] ?? (index === 0 ? photoDataUrl : null) ?? null);

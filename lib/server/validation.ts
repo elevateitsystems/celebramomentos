@@ -147,6 +147,8 @@ export const templateSchema = z.object({
   active: z.boolean().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
 });
+// Cover image of a template: an asset already uploaded through /api/uploads.
+export const templateImageSchema = z.object({ templateId: z.string().cuid(), assetId: z.string().cuid(), alt: z.string().trim().max(300).nullable().optional() });
 export const settingSchema = z.object({ key: z.string().trim().min(1).max(120), value: z.string().max(5000), isSecret: z.boolean().optional() });
 export const discountSchema = z.object({ code: z.string().trim().min(3).max(40).regex(/^[a-zA-Z0-9_-]+$/), percentage: z.number().int().min(1).max(100).optional().nullable(), amountCents: z.number().int().nonnegative().optional().nullable(), minOrderCents: z.number().int().nonnegative().optional().nullable(), maxUses: z.number().int().positive().optional().nullable(), expiresAt: z.string().datetime().optional().nullable(), active: z.boolean().optional() }).refine((data) => Boolean(data.percentage) !== Boolean(data.amountCents), { message: "Set either percentage or amountCents" });
 export const checkoutSchema = z.object({

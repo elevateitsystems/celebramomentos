@@ -54,7 +54,8 @@ export const HOMEPAGE_IMAGE_SLOTS = [
   slot("transform.card-after", "transformations", "Card · finished product", "/images/uVWMM.jpg", [1, 1], "800 × 800 px (square)"),
 
   slot("made.graduation", "made", "Floral birthday card · photo", "/images/graduation-celebration.png", [1, 1], "800 × 800 px (square)"),
-  slot("made.romantic", "made", "Heart frame card · photo", "/images/romantic-couple.png", [1, 1], "800 × 800 px (square)"),
+  // The id stays "made.romantic" so images uploaded before the frame changed are kept.
+  slot("made.romantic", "made", "Birthday frame card · photo", "/images/romantic-couple.png", [1, 1], "800 × 800 px (square)"),
   slot("made.magazine", "made", "Magazine card · cover photo", "/images/roberto-match-contact-sheet.png", [148, 100], "1200 × 810 px (landscape)", true),
 ] as const;
 

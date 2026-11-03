@@ -970,7 +970,7 @@ export default function Home({ homepageImages }: { homepageImages: HomepageImage
             />
             <div className="mx-auto mt-10 grid max-w-[1180px] gap-6 sm:grid-cols-2 lg:grid-cols-3">
               <ShowcaseCard variant="graduation" language={language} image={homepageImages["made.graduation"]} />
-              <ShowcaseCard variant="romantic" language={language} image={homepageImages["made.romantic"]} />
+              <ShowcaseCard variant="birthday" language={language} image={homepageImages["made.romantic"]} />
               <MagazineShowcaseCard language={language} image={homepageImages["made.magazine"]} />
             </div>
             <p className="mt-7 text-center text-sm font-black">
@@ -1098,11 +1098,49 @@ export default function Home({ homepageImages }: { homepageImages: HomepageImage
             </div>
           </div>
         </section>
+
+        <section id="sustainability" className="border-t border-[#ece0d6] bg-white py-16 md:py-24">
+          <div className="container">
+            <SectionHeading
+              eyebrow={es ? "HECHO CON CUIDADO" : "FEITO COM CUIDADO"}
+              title={es ? "Bonito para ti, mejor para el planeta" : "Bonito para ti, melhor para o planeta"}
+              body={
+                es
+                  ? "Trabajamos con imprentas que producen bajo pedido y cuidan cada material."
+                  : "Trabalhamos com gráficas que produzem por encomenda e cuidam de cada material."
+              }
+            />
+            <ul className="mx-auto mt-10 grid max-w-[1000px] gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+              {SUSTAINABILITY.map((item) => (
+                <li key={item.icon} className="flex gap-4">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef6ef] text-[#2f7d4f]">
+                    <MomentIcon name={item.icon} size={21} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-black text-[#182443]">{es ? item.es.title : item.pt.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-[#737b90]">{es ? item.es.body : item.pt.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
       </main>
       <SiteFooter />
     </>
   );
 }
+
+// Sustainability promises shown at the bottom of the home page. These describe how the
+// print shops work, so check them with the shops before changing the wording.
+const SUSTAINABILITY = [
+  { icon: "package", es: { title: "Hecho bajo pedido", body: "Producimos solo lo que pides: sin stock ni excedentes." }, pt: { title: "Feito por encomenda", body: "Produzimos apenas o que pedes: sem stock nem excedentes." } },
+  { icon: "droplet", es: { title: "Impresión al agua", body: "Tintas de base acuosa, sin disolventes agresivos." }, pt: { title: "Impressão à base de água", body: "Tintas à base de água, sem solventes agressivos." } },
+  { icon: "tree", es: { title: "Papel de origen responsable", body: "De bosques gestionados de forma sostenible." }, pt: { title: "Papel de origem responsável", body: "De florestas geridas de forma sustentável." } },
+  { icon: "leaf", es: { title: "100 % vegano", body: "Sin materiales de origen animal." }, pt: { title: "100 % vegano", body: "Sem materiais de origem animal." } },
+  { icon: "recycle", es: { title: "Materiales reciclables", body: "Pensados para reciclarse al final de su vida." }, pt: { title: "Materiais recicláveis", body: "Pensados para serem reciclados no fim de vida." } },
+  { icon: "gift", es: { title: "Envío sin plástico", body: "Embalamos sin plásticos de un solo uso." }, pt: { title: "Envio sem plástico", body: "Embalamos sem plásticos de uso único." } },
+] as const;
 
 function SectionHeading({
   eyebrow,
@@ -1290,6 +1328,24 @@ function MomentIcon({
       <>
         <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
         <circle cx="12" cy="13" r="3" />
+      </>
+    ),
+    droplet: (
+      <path d="M12 2.7 6.7 8a7.5 7.5 0 1 0 10.6 0Z" />
+    ),
+    leaf: (
+      <>
+        <path d="M11 20A7 7 0 0 1 4 13c0-5.5 4.5-9 16-9 0 10-4.6 14-12 14Z" />
+        <path d="M4 21c2.5-5.5 6.5-9 12-11" />
+      </>
+    ),
+    recycle: (
+      <>
+        <path d="M12 3.5 14.6 8H9.4Z" />
+        <path d="M18.6 10.8 21 15h-5.2" />
+        <path d="M5.4 10.8 3 15h5.2" />
+        <path d="M8.2 20.5h7.6" />
+        <path d="M15.8 15v5.5l3.2-3M8.2 15v5.5L5 17.5" />
       </>
     ),
     pen: (

@@ -1,7 +1,7 @@
 "use client";
 
 import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { CARD_SIZE_IDS, DEFAULT_CARD_SIZE, type CardSize, type DeliveryMethod, type DesignCategoryId, type RecipientMode } from "./data";
+import { CARD_SIZE_IDS, DEFAULT_CARD_SIZE, resolveFrameId, type CardSize, type DeliveryMethod, type DesignCategoryId, type RecipientMode } from "./data";
 import type { StudioProductKind } from "./products";
 import { defaultEmojiPosition, type EmojiElement, type EmojiPosition, type EmojiTone } from "./emojis";
 
@@ -201,7 +201,7 @@ const cartSlice = createSlice({
     },
     hydrateCart: (state, action: PayloadAction<CartState>) => {
       const savedCard = action.payload?.card || state.card;
-      const card = cloneCard(cleanCard({ ...state.card, ...savedCard, frameId: savedCard.frameId === "romantic-red" ? "geometric-heart" : savedCard.frameId }));
+      const card = cloneCard(cleanCard({ ...state.card, ...savedCard, frameId: resolveFrameId(savedCard.frameId) }));
       // Remove the old built-in graduation-cap emoji from carts saved before
       // emojis became optional. User-added emojis remain untouched.
       if (card.emoji === "🎓") card.emoji = "";
@@ -220,7 +220,7 @@ const cartSlice = createSlice({
             product: item.product ?? null,
             productPriceCents: item.productPriceCents ?? null,
             productName: item.productName ?? null,
-            card: cloneCard(cleanCard({ ...state.card, ...item.card, frameId: item.card.frameId === "romantic-red" ? "geometric-heart" : item.card.frameId })),
+            card: cloneCard(cleanCard({ ...state.card, ...item.card, frameId: resolveFrameId(item.card.frameId) })),
           }))
         : [];
       return { card, items, discountCode: typeof action.payload?.discountCode === "string" ? action.payload.discountCode : "" };
