@@ -176,12 +176,13 @@ export function MagazineInsideLeftView({ compact, surfaceClass, photoDataUrl, te
 
 export function MagazineInsideRightView({ compact, surfaceClass, photoDataUrls = [], text }: { compact: boolean; surfaceClass: string; photoDataUrls?: (string | null)[]; text?: string }) {
   return <div className={`relative overflow-hidden border-[clamp(2px,.45vw,5px)] border-[#db1822] bg-[#fffdf8] ${surfaceClass}`}>
-    <MagazinePhoto quadrant="team" alt="Fotografía interior derecha" photoDataUrl={photoDataUrls[0]} className="absolute left-[7%] top-[8%] h-[41%] w-[56%] rounded-lg bg-cover" />
-    <MagazinePhoto quadrant="family" alt="Segunda fotografía interior derecha" photoDataUrl={photoDataUrls[1]} className="absolute right-[7%] top-[8%] h-[41%] w-[27%] rounded-lg bg-cover" />
-    <div className="absolute inset-x-[7%] top-[55%] rounded-[6px] bg-[#f8c927] px-[5%] py-[5%] text-center">
-      <p className={`font-serif font-black italic leading-none tracking-[-.04em] text-[#182443] ${compact ? "text-[10px]" : "text-[clamp(18px,3.4vw,36px)]"}`}>{text || magazineInsideRight}</p>
+    {/* One large photo at the top, the dedication in the middle, a second large photo below. */}
+    <MagazinePhoto quadrant="team" alt="Fotografía superior del interior derecho" photoDataUrl={photoDataUrls[0]} className="absolute inset-x-[7%] top-[6%] h-[33%] rounded-lg bg-cover" />
+    <div className="absolute inset-x-[7%] top-[41.5%] flex h-[16%] items-center justify-center overflow-hidden rounded-[6px] bg-[#f8c927] px-[5%] text-center">
+      <p className={`font-serif font-black italic leading-tight tracking-[-.04em] text-[#182443] ${compact ? "line-clamp-2 text-[9px]" : "line-clamp-3 text-[clamp(15px,2.9vw,30px)]"}`}>{text || magazineInsideRight}</p>
     </div>
-    <span className={`absolute bottom-[7%] right-[8%] font-black text-[#f1c62d] ${compact ? "text-xl" : "text-[clamp(28px,6vw,60px)]"}`}>★</span>
+    <MagazinePhoto quadrant="family" alt="Fotografía inferior del interior derecho" photoDataUrl={photoDataUrls[1]} className="absolute inset-x-[7%] bottom-[6%] h-[33%] rounded-lg bg-cover" />
+    <span className={`absolute bottom-[9%] right-[10%] z-10 font-black text-[#f1c62d] drop-shadow-[0_2px_4px_rgba(0,0,0,.45)] ${compact ? "text-lg" : "text-[clamp(24px,5vw,52px)]"}`}>★</span>
   </div>;
 }
 

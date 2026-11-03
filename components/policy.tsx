@@ -48,7 +48,7 @@ export function PolicyPage({ type }: { type: "privacy" | "cookies" | "terms" }) 
         ],
         [
           "3. Cookies analíticas y de preferencias (Opcionales)",
-          "Nos permiten cuantificar el número de usuarios y realizar la medición y análisis estadístico del uso que hacen del configurador. Estas cookies se activan únicamente si el usuario presta su consentimiento expreso mediante el banner de cookies disponible en su primera visita.",
+          "Nos permiten cuantificar el número de usuarios y realizar la medición y análisis estadístico del uso que hacen del configurador. Utilizamos Google Analytics 4, cargado mediante Google Tag Manager (Google Ireland Limited), y el píxel de Meta (Meta Platforms Ireland Limited) para medir nuestras campañas publicitarias. Estas cookies se activan únicamente si el usuario presta su consentimiento expreso mediante el banner de cookies disponible en su primera visita, y puede retirarlo en cualquier momento desde “Preferencias de cookies” en el pie de página.",
         ],
         [
           "4. Cómo configurar o desactivar las cookies en tu navegador",

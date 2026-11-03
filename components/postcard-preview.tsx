@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSelector } from "react-redux";
 import { CardPreview, frameOpeningStyle, frameOverlayClass } from "./card-preview";
 import { Icon } from "./icons";
-import { designCategories, frames, templates } from "@/lib/data";
+import { designCategories, resolveFrame, templates } from "@/lib/data";
 import type { RootState } from "@/lib/store";
 import { MagazineInsideLeftView, MagazineInsideRightView } from "./magazine-card";
 
@@ -30,7 +30,7 @@ export function PostcardPreviewWindow() {
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const [activeSide, setActiveSide] = useState<PostcardSide>("front");
   const template = templates.find((item) => item.id === card.templateId) || templates[0];
-  const frame = frames.find((item) => item.id === card.frameId) || frames[0];
+  const frame = resolveFrame(card.frameId);
   const category = designCategories.find((item) => item.id === card.categoryId) || designCategories[0];
   const localizedSides = sides(isPortuguese);
   const active = localizedSides.find((item) => item.id === activeSide) || localizedSides[0];
@@ -64,7 +64,7 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
   const card = useSelector((state: RootState) => state.cart.card);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const template = templates.find((item) => item.id === card.templateId) || templates[0];
-  const frame = frames.find((item) => item.id === card.frameId) || frames[0];
+  const frame = resolveFrame(card.frameId);
   const image = card.photoDataUrls[0] || card.photoDataUrl || "/images/sticker-family.jpg";
   // Full-size pages have the printed card's shape (5 × 7" / A5 with bleed, 1530 × 2160 px).
   const surfaceClass = compact ? "aspect-[.9/1]" : "aspect-[17/24]";

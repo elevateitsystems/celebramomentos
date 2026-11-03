@@ -1,6 +1,7 @@
 "use client";
 
-// Cookie consent for optional cookies (marketing: Meta Pixel). Technical cookies
+// Cookie consent for optional cookies (analytics: Google Analytics via Google Tag
+// Manager; marketing: the Meta Pixel). Technical cookies
 // (session, cart, language) do not need consent. The choice lives in this
 // browser only; nothing optional loads until the visitor accepts.
 const KEY = "celebra-cookie-consent-v1";
