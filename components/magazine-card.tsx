@@ -114,7 +114,6 @@ export function MagazineFront({
 
         {/* Overlaid playful doodles matching reference */}
         <span className={`absolute left-[6%] bottom-[10%] z-10 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] ${compact ? "text-[8px]" : "text-[clamp(14px,2.2vw,26px)]"}`}>♡</span>
-        <span className={`absolute right-[5%] top-[12%] z-10 rotate-12 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] ${compact ? "text-[12px]" : "text-[clamp(20px,3.2vw,36px)]"}`}>⚽</span>
         <span className={`absolute right-[8%] bottom-[8%] z-10 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] ${compact ? "text-[9px]" : "text-[clamp(13px,2vw,24px)]"}`}>★</span>
         <span className={`absolute left-[18%] bottom-[6%] z-10 text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] ${compact ? "text-[7px]" : "text-[clamp(10px,1.5vw,18px)]"}`}>✦</span>
       </div>

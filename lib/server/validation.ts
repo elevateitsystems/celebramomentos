@@ -65,6 +65,9 @@ export const cartLineSchema = z.object({
     magazineBadge: z.string().optional(),
     magazineHeadlineTag: z.string().optional(),
     magazineFooter: z.string().optional(),
+    frontTextScale: z.number().min(0.5).max(2.5).optional(),
+    frontTextAlign: z.enum(["left", "center", "right"]).optional(),
+    frontTextPosition: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(20).max(100) }).nullable().optional(),
     // Card pages rendered in the browser at checkout. Only references to uploads; the
     // server checks each one against its own upload records before using it.
     design: z.object({

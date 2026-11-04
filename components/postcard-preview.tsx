@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { CardPreview, frameOpeningStyle, frameOverlayClass } from "./card-preview";
 import { Icon } from "./icons";
 import { designCategories, resolveFrame, templates } from "@/lib/data";
-import type { RootState } from "@/lib/store";
+import { setFrontTextPosition, type RootState } from "@/lib/store";
 import { MagazineInsideLeftView, MagazineInsideRightView } from "./magazine-card";
 
 export type PostcardSide = "front" | "inside-left" | "inside-right" | "back";
@@ -60,7 +60,9 @@ export function PostcardPreviewWindow() {
     </div>
   </div>;
 }
-export function PostcardSideView({ side, compact }: { side: PostcardSide; compact: boolean }) {
+// editableText: the cover text can be dragged on this view (the editor's live preview).
+export function PostcardSideView({ side, compact, editableText = false }: { side: PostcardSide; compact: boolean; editableText?: boolean }) {
+  const dispatch = useDispatch();
   const card = useSelector((state: RootState) => state.cart.card);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
   const template = templates.find((item) => item.id === card.templateId) || templates[0];
@@ -75,7 +77,7 @@ export function PostcardSideView({ side, compact }: { side: PostcardSide; compac
   const accent = template.magazineStyle ? "#e51f2a" : "#ee5264";
 
   if (side === "front") {
-    return <CardPreview compact={compact} templateId={template.id} message={card.frontHeadline || card.message} emojiElements={card.emojiElements} photoDataUrl={card.photoDataUrl} photoDataUrls={card.photoDataUrls} photoZoom={card.photoZoom} photoPosition={card.photoPosition} size={card.size} />;
+    return <CardPreview compact={compact} templateId={template.id} message={card.frontHeadline || card.message} emojiElements={card.emojiElements} photoDataUrl={card.photoDataUrl} photoDataUrls={card.photoDataUrls} photoZoom={card.photoZoom} photoPosition={card.photoPosition} size={card.size} textScale={card.frontTextScale ?? 1} textAlign={card.frontTextAlign ?? "center"} textPosition={card.frontTextPosition ?? null} onTextPositionChange={editableText && !template.magazineStyle ? (position) => dispatch(setFrontTextPosition(position)) : undefined} />;
   }
 
   if (side === "back") {
