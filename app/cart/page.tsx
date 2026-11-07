@@ -12,7 +12,7 @@ import { describeProductSelection, getCartItemUnitTotal } from "@/lib/cart";
 import { useCartQuote } from "@/lib/cart-quote";
 import { usePublicSettings } from "@/lib/public-settings";
 import { RootState, loadCartItem, removeCartItem, setCartItemQuantity, setDiscountCode } from "@/lib/store";
-import { cardSizeText, templates } from "@/lib/data";
+import { cardSizeText, discountPercent, templates } from "@/lib/data";
 
 export default function CartPage() {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function CartPage() {
   const missingForFree = amountUntilFreeShippingCents(settings.delivery, deliveryMethod, merchandiseCents);
   const delivery = items[0] ? getDeliveryPriceCents(settings.delivery, deliveryMethod, merchandiseCents) / 100 : 0;
   const subtotal = merchandiseSubtotal + delivery;
-  const discountValue = discount.trim().toUpperCase() === "HOLA10" ? subtotal * 0.1 : 0;
+  const discountValue = subtotal * discountPercent(discount) / 100;
   const total = subtotal - discountValue;
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 

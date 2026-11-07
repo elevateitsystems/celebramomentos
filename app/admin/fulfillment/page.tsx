@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminPageHeader, AdminShell } from "@/components/admin";
 import { BrandLoader } from "@/components/loading";
 import { Price, Spinner, StatusBadge, Toast } from "@/components/site";
-import { POD_PROVIDER_LABELS, type PodProvider } from "@/lib/products";
+import { isPodProvider, podProviderLabel, POD_PROVIDER_LABELS, type PodProvider } from "@/lib/products";
 import type { CardCustomization } from "@/lib/store";
 
 type Issue = { code: string; severity: "blocker" | "warning"; message: string };
@@ -12,7 +12,7 @@ type Reference = { label: string; side?: string; url: string; width?: number; he
 type Slot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; description?: string; width?: number; height?: number; format?: string; fit?: "fill" | "pad" | "aspect" | "original"; original?: string | null; verified?: { width: number; height: number } | null; references?: Reference[] };
 type Item = { id: string; name: string; quantity: number; podProductRef: string | null; podArtwork: Slot[]; podIssues: Issue[]; card: CardCustomization | null; kind: string | null; photos: (string | null)[] };
 type Fulfillment = {
-  id: string; provider: PodProvider; status: string; mode: string; reference: string; providerOrderId: string | null; providerStatus: string | null;
+  id: string; provider: string; status: string; mode: string; reference: string; providerOrderId: string | null; providerStatus: string | null;
   carrier: string | null; trackingNumber: string | null; trackingUrl: string | null; attempts: number; lastError: string | null; nextAttemptAt: string | null;
   submittedAt: string | null; lastSyncedAt: string | null; createdAt: string;
   order: { id: string; number: string; email: string; status: string; totalCents: number; createdAt: string; shippingAddress: Record<string, string> };
@@ -69,9 +69,9 @@ export default function AdminFulfillmentPage() {
   const selected = data?.fulfillments.find((item) => item.id === selectedId) || null;
   const config = data?.config;
 
-  return <AdminShell><AdminPageHeader eyebrow="FULFILMENT" title="Print orders" body="Paid orders split by print shop (Prodigi, Gelato, Printful, AlerioPrint): what was sent, its status and tracking, and anything that needs you." />
+  return <AdminShell><AdminPageHeader eyebrow="FULFILMENT" title="Print orders" body="Paid orders split by print shop (Prodigi, Gelato, Printful, Printeers): what was sent, its status and tracking, and anything that needs you." />
     {config && <section className={`mt-6 rounded-2xl border p-4 text-sm ${config.mode === "live" ? "border-[#bfe6cf] bg-[#f3fbf6]" : "border-[#f0dfaa] bg-[#fffbec]"}`}>
-      <p className="font-black">{config.mode === "live" ? "Live mode — print orders are real and charged by the print shops." : "Draft mode — nothing is produced or charged: Gelato and Printful orders are drafts, Prodigi uses its sandbox, AlerioPrint is not sent."}</p>
+      <p className="font-black">{config.mode === "live" ? "Live mode — print orders are real and charged by the print shops." : "Draft mode — nothing is produced or charged: Gelato and Printful orders are drafts, Prodigi uses its sandbox, Printeers uses its test environment."}</p>
       <p className="mt-1 text-xs font-bold text-[#737b90]">Automatic sending after payment: {config.autoSubmit ? "on" : "off"} · Webhooks: {config.webhooks ? "set up" : "POD_WEBHOOK_SECRET missing"} · Daily sync job: {config.cron ? "set up" : "CRON_SECRET missing"}</p>
       <div className="mt-3 flex flex-wrap gap-2">{PROVIDERS.map((name) => <span key={name} title={config.providers[name] || "Ready"} className={`rounded-full px-3 py-1 text-[11px] font-black ${config.providers[name] ? "bg-[#fff0e8] text-[#c94758]" : "bg-[#e8f5ed] text-[#24714b]"}`}>{POD_PROVIDER_LABELS[name]}: {config.providers[name] ? "not available" : "ready"}</span>)}</div>
       {PROVIDERS.filter((name) => config.providers[name]).map((name) => <p key={name} className="mt-1 text-[11px] text-[#737b90]"><b>{POD_PROVIDER_LABELS[name]}</b>: {config.providers[name]}</p>)}
@@ -96,7 +96,7 @@ export default function AdminFulfillmentPage() {
         : <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left"><thead><tr className="border-b border-[#e4e7ee] bg-[#fafbfc] text-[10px] uppercase tracking-[.14em] text-[#9297a4]"><th className="px-5 py-3">Order</th><th className="px-5 py-3">Print shop</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Shop order</th><th className="px-5 py-3">Tracking</th><th className="px-5 py-3">Last problem</th></tr></thead>
           <tbody>{data.fulfillments.map((item) => <tr key={item.id} onClick={() => setSelectedId(item.id)} className="cursor-pointer border-b border-[#eef0f4] text-sm hover:bg-[#fafbfc]">
             <td className="px-5 py-4"><span className="block font-black">{item.order.number}</span><span className="block text-[11px] text-[#9297a4]">{item.order.email} · {date(item.order.createdAt)}</span></td>
-            <td className="whitespace-nowrap px-5 py-4 font-bold">{POD_PROVIDER_LABELS[item.provider]}{item.mode === "draft" && <span className="ml-2 rounded bg-[#fff6e0] px-1.5 py-0.5 text-[10px] font-black text-[#8a5a00]">DRAFT</span>}</td>
+            <td className="whitespace-nowrap px-5 py-4 font-bold">{podProviderLabel(item.provider)}{item.mode === "draft" && <span className="ml-2 rounded bg-[#fff6e0] px-1.5 py-0.5 text-[10px] font-black text-[#8a5a00]">DRAFT</span>}</td>
             <td className="whitespace-nowrap px-5 py-4"><StatusBadge tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</StatusBadge></td>
             <td className="px-5 py-4 text-xs"><span className="block font-bold">{item.providerOrderId || "—"}</span><span className="text-[#9297a4]">{item.providerStatus || ""}</span></td>
             <td className="px-5 py-4 text-xs">{item.trackingUrl ? <a href={item.trackingUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="font-black text-[#ee5264] underline">{item.trackingNumber || "Track"}</a> : item.trackingNumber || "—"}</td>
@@ -119,7 +119,7 @@ function Detail({ item, mode, busy, onClose, act, onToast }: { item: Fulfillment
   return <div className="fixed inset-0 z-50"><button className="absolute inset-0 bg-[#182443]/25" onClick={onClose} aria-label="Close" />
     <section className="absolute bottom-0 right-0 top-0 w-full max-w-[560px] overflow-y-auto bg-white p-6 shadow-2xl sm:p-8">
       <button type="button" onClick={onClose} className="float-right text-xs font-black text-[#737b90]">Close</button>
-      <p className="pt-8 text-[10px] font-black tracking-widest text-[#ee5264]">{POD_PROVIDER_LABELS[item.provider].toUpperCase()} · {item.mode === "draft" ? "DRAFT" : "LIVE"}</p>
+      <p className="pt-8 text-[10px] font-black tracking-widest text-[#ee5264]">{podProviderLabel(item.provider).toUpperCase()} · {item.mode === "draft" ? "DRAFT" : "LIVE"}</p>
       <h2 className="mt-2 text-2xl font-black">{item.order.number}</h2>
       <div className="mt-3 flex flex-wrap items-center gap-2"><StatusBadge tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</StatusBadge><Price value={item.order.totalCents / 100} /><span className="text-xs text-[#737b90]">Order {item.order.status.toLowerCase()}</span></div>
       <dl className="mt-5 grid grid-cols-[130px_1fr] gap-x-3 gap-y-1.5 text-xs">
@@ -135,7 +135,8 @@ function Detail({ item, mode, busy, onClose, act, onToast }: { item: Fulfillment
       <div className="mt-5 flex flex-wrap gap-2">
         {canSend && button("send", item.status === "FAILED" ? "Retry now" : onlyWarnings && item.status === "NEEDS_ATTENTION" ? "Send anyway" : "Send to print shop", { action: "submit", id: item.id, allowWarnings: onlyWarnings }, "Sent to the print shop", "bg-[#ee5264] text-white", mode === "live" ? "This creates a real, paid order at the print shop. Continue?" : undefined)}
         {["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status) && button("recheck", "Check again", { action: "recheck", id: item.id }, "Checked again", "border border-[#dfd3cc] text-[#182443]")}
-        {item.providerOrderId && item.provider !== "ALERIO_PRINT" && button("sync", "Refresh status", { action: "sync", id: item.id }, "Status refreshed", "border border-[#dfd3cc] text-[#182443]")}
+        {item.providerOrderId && isPodProvider(item.provider) && button("sync", "Refresh status", { action: "sync", id: item.id }, "Status refreshed", "border border-[#dfd3cc] text-[#182443]")}
+        {["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status) && button("cancel", "Cancel print order", { action: "mark", id: item.id, status: "CANCELLED" }, "Print order cancelled", "border border-[#f3c6c2] text-[#c94758]", "Cancel this print order? It will not be sent to the print shop. The customer's order and payment are not changed.")}
         {item.mode === "draft" && item.status === "SUBMITTED" && (item.provider === "GELATO" || item.provider === "PRINTFUL") && button("confirm", "Confirm for production", { action: "confirm", id: item.id }, "Draft confirmed for production", "bg-[#24714b] text-white", "Confirm this draft? The print shop will produce and charge it.")}
       </div>
 
@@ -148,9 +149,9 @@ function Detail({ item, mode, busy, onClose, act, onToast }: { item: Fulfillment
         {line.podArtwork.map((slot, index) => <ArtworkSlot key={index} slot={slot} item={line} editable={["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status)} busy={busy} act={act} onToast={onToast} />)}
       </div>)}
 
-      {(item.provider === "ALERIO_PRINT" || item.status === "SUBMITTED" || item.status === "IN_PRODUCTION" || item.status === "SHIPPED") && item.providerOrderId && <div className="mt-6 rounded-2xl border border-[#e4e7ee] p-4">
+      {(item.status === "SUBMITTED" || item.status === "IN_PRODUCTION" || item.status === "SHIPPED") && item.providerOrderId && <div className="mt-6 rounded-2xl border border-[#e4e7ee] p-4">
         <p className="text-sm font-black">Update by hand</p>
-        <p className="mt-1 text-[11px] text-[#9297a4]">{item.provider === "ALERIO_PRINT" ? "AlerioPrint has no status API: copy the status and tracking from your Alerio account." : "Use only if the print shop status cannot be refreshed."}</p>
+        <p className="mt-1 text-[11px] text-[#9297a4]">Use only if the print shop status cannot be refreshed.</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <select value={tracking.status} onChange={(event) => setTracking({ ...tracking, status: event.target.value })} className="field !mt-0" aria-label="Status">{["SUBMITTED", "IN_PRODUCTION", "SHIPPED", "DELIVERED", "CANCELLED"].map((value) => <option key={value} value={value}>{STATUS_LABEL[value]}</option>)}</select>
           <input value={tracking.carrier} onChange={(event) => setTracking({ ...tracking, carrier: event.target.value })} placeholder="Carrier" className="field !mt-0" aria-label="Carrier" />

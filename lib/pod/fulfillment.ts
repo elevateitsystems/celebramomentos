@@ -7,11 +7,12 @@
 // - (orderId, provider) is unique and the READY/FAILED → SUBMITTING update is
 //   conditional, so an order is never sent twice even if several triggers race.
 // - A submission whose outcome is unknown is first looked up at the shop by reference
-//   (Prodigi idempotencyKey, Printful external_id, Alerio orderName, Gelato search).
+//   (Prodigi idempotencyKey, Printful external_id, Printeers customIdentifier, Gelato search).
 // - Failures never lose the order: it stays FAILED with the error and is retried.
 import { Prisma, type OrderItem, type PodFulfillment, type PodProvider } from "@prisma/client";
 import { waitUntil } from "@vercel/functions";
-import { DEFAULT_POD_PROVIDER, isPodProvider, variantAttributes } from "@/lib/products";
+import { normalizeCrop, type ImageCrop } from "@/lib/crop";
+import { POD_PROVIDERS, podProviderFor, variantAttributes } from "@/lib/products";
 import { prisma } from "@/lib/server/prisma";
 import { CARD_SIZES } from "@/lib/data";
 import type { CardDesignSide } from "@/lib/store";
@@ -24,7 +25,7 @@ import { podAdapter } from "./providers";
 import type { PodFulfillmentStatus, PodIssue, PodMode, ProviderOrderState, Recipient, SubmissionLine } from "./types";
 
 const PAID_ORDER = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
-const SHORT: Record<PodProvider, string> = { PRODIGI: "PRD", GELATO: "GEL", PRINTFUL: "PF", ALERIO_PRINT: "ALR" };
+const SHORT: Partial<Record<PodProvider, string>> = { PRODIGI: "PRD", GELATO: "GEL", PRINTFUL: "PF", PRINTEERS: "PRT" };
 const MAX_AUTO_ATTEMPTS = 6;
 // Orders paid before print-on-demand went live were handled by hand; never send them automatically.
 export const POD_ENABLED_SINCE = new Date("2026-11-01T00:00:00Z");
@@ -60,13 +61,15 @@ async function orderIsPaid(orderId: string) {
 
 type ItemPlan = { item: OrderItem; provider: PodProvider; productRef: string | null; artwork: ArtworkSlot[]; issues: PodIssue[] };
 
-async function planItem(item: OrderItem, previous: ArtworkSlot[]): Promise<ItemPlan> {
+// `fixedProvider`: an item that already has a print order keeps that order's shop when it is
+// planned again (an item kept from a print shop that is no longer used is not re-routed).
+async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedProvider?: PodProvider): Promise<ItemPlan> {
   const personalization = asObject(item.personalization);
   const product = asObject(personalization.product);
   const isCatalog = product.kind === "CATALOG";
   const kind = isCatalog ? String(product.productKind || "") : "POSTCARD";
   const declared = isCatalog ? product.provider : personalization.provider;
-  const provider: PodProvider = isPodProvider(declared) ? declared : DEFAULT_POD_PROVIDER[kind as keyof typeof DEFAULT_POD_PROVIDER] ?? "PRODIGI";
+  const provider: PodProvider = fixedProvider ?? podProviderFor(kind, declared);
   const variant = item.variantId ? await prisma.productVariant.findUnique({ where: { id: item.variantId }, select: { name: true, attributes: true } }) : null;
   const podSku = asString(product.sku) || (variant ? variantAttributes(variant.attributes).podSku : null);
   const photos = (Array.isArray(product.photos) ? product.photos : []).map((photo) => (typeof photo === "string" && /^https:\/\//.test(photo) ? photo : null));
@@ -81,6 +84,7 @@ async function planItem(item: OrderItem, previous: ArtworkSlot[]): Promise<ItemP
     photoCount: photos.filter(Boolean).length,
     cardSize: asString(personalization.cardSize),
     cardSku: asString(personalization.sku),
+    printeers: printeersSelection(product.printeers),
   });
   const issues = [...mapping.issues];
   const artwork: ArtworkSlot[] = [];
@@ -131,7 +135,7 @@ async function planItem(item: OrderItem, previous: ArtworkSlot[]): Promise<ItemP
       let failure: string | null = null;
       if (!stored) {
         if (!isCloudinaryUrl(source) || !files.has(source)) failure = "the photo is not an upload from this shop";
-        else stored = await renderPrintFile({ orderId: item.orderId, itemId: item.id, unit: unitIndex, area: spec.area, sourceUrl: source, spec }).catch((reason) => { failure = reason instanceof Error ? reason.message : "unknown error"; return null; });
+        else stored = await renderPrintFile({ orderId: item.orderId, itemId: item.id, unit: unitIndex, area: spec.area, sourceUrl: source, sourceSize: sizeOf(source), spec }).catch((reason) => { failure = reason instanceof Error ? reason.message : "unknown error"; return null; });
       }
       if (stored) {
         const verified = { width: stored.width, height: stored.height };
@@ -142,7 +146,7 @@ async function planItem(item: OrderItem, previous: ArtworkSlot[]): Promise<ItemP
       }
       // Never silently send an unchecked file: the order waits until it is rendered or an admin checks it.
       logPod("print file not rendered", { itemId: item.id, unit: unitIndex, area: spec.area, failure });
-      artwork.push({ unit: unitIndex, productRef: unit.productRef, area: spec.area, url: printFileUrl(source, spec), source: "customer", ...required, format: spec.format, fit: spec.fit, original: source, verified: null });
+      artwork.push({ unit: unitIndex, productRef: unit.productRef, area: spec.area, url: printFileUrl(source, spec, sizeOf(source)), source: "customer", ...required, format: spec.format, fit: spec.fit, original: source, verified: null });
       issues.push({ code: "print_file_unverified", severity: "warning", message: `${prefix}The final print file could not be saved (${failure}); a link to the customer's photo is used instead. Press “Check again” to retry, or open it before sending` });
     }
   }));
@@ -170,6 +174,20 @@ function cardDesignPages(panels: Record<string, unknown>[], size: string | null,
   return pages;
 }
 
+// The Printeers part of a phone case selection, as validated by the server at checkout.
+function printeersSelection(value: unknown) {
+  const data = asObject(value);
+  const reference = asString(data.productReference);
+  if (!reference) return null;
+  const mm = asObject(data.printMm);
+  const crop = asObject(data.crop);
+  return {
+    productReference: reference,
+    printMm: typeof mm.width === "number" && typeof mm.height === "number" ? { width: mm.width, height: mm.height } : null,
+    crop: Object.keys(crop).length ? normalizeCrop(crop as Partial<ImageCrop>) : null,
+  };
+}
+
 function statusFor(issues: PodIssue[], configurationProblem: string | null): PodFulfillmentStatus {
   return issues.length || configurationProblem ? "NEEDS_ATTENTION" : "READY";
 }
@@ -189,7 +207,7 @@ export async function prepareFulfillments(orderId: string) {
     let fulfillment = order.fulfillments.find((item) => item.provider === provider);
     if (!fulfillment) {
       try {
-        fulfillment = await prisma.podFulfillment.create({ data: { orderId, provider, mode, reference: `${order.number}-${SHORT[provider]}`, status: statusFor(group.flatMap((plan) => plan.issues), problem), lastError: problem, shippingMethod: asString(asObject(order.items[0]?.personalization).delivery) || "standard" } });
+        fulfillment = await prisma.podFulfillment.create({ data: { orderId, provider, mode, reference: `${order.number}-${SHORT[provider] ?? "POD"}`, status: statusFor(group.flatMap((plan) => plan.issues), problem), lastError: problem, shippingMethod: asString(asObject(order.items[0]?.personalization).delivery) || "standard" } });
       } catch (reason) {
         // Another trigger created it at the same moment.
         if (!(reason instanceof Prisma.PrismaClientKnownRequestError && reason.code === "P2002")) throw reason;
@@ -210,7 +228,7 @@ export async function refreshReadiness(fulfillmentId: string, { replan = false }
   if (!fulfillment || !["NEEDS_ATTENTION", "READY", "FAILED"].includes(fulfillment.status)) return fulfillment;
   if (replan) {
     for (const item of fulfillment.items) {
-      const plan = await planItem(item, readArtwork(item.podArtwork));
+      const plan = await planItem(item, readArtwork(item.podArtwork), fulfillment.provider);
       await prisma.orderItem.update({ where: { id: item.id }, data: { podProductRef: plan.productRef, podArtwork: plan.artwork as unknown as Prisma.InputJsonValue, podIssues: plan.issues as unknown as Prisma.InputJsonValue } });
     }
   }
@@ -359,7 +377,7 @@ export async function syncFulfillment(fulfillmentId: string): Promise<SubmitResu
 const ARTWORK_BLOCKERS = ["missing_photos", "print_file_required", "print_file_invalid"];
 const NOT_SENT = ["NEEDS_ATTENTION", "READY", "FAILED"];
 
-// Manual status/tracking update (AlerioPrint has no status API).
+// Manual status/tracking update (and cancelling a print order that will not be sent).
 export async function markFulfillment(fulfillmentId: string, input: { status: PodFulfillmentStatus; carrier?: string | null; trackingNumber?: string | null; trackingUrl?: string | null }) {
   const fulfillment = await prisma.podFulfillment.findUniqueOrThrow({ where: { id: fulfillmentId }, include: { items: true } });
   // An order placed by hand at the shop still needs its print files; only cancelling skips that.
@@ -484,7 +502,7 @@ export async function runPodMaintenance({ budgetMs = 45_000 } = {}) {
     if (fulfillment.status === "FAILED") report.retried += 1; else if (result.ok) report.submitted += 1;
   }
 
-  const active = await prisma.podFulfillment.findMany({ where: { status: { in: ["SUBMITTED", "IN_PRODUCTION", "SHIPPED"] }, provider: { not: "ALERIO_PRINT" }, providerOrderId: { not: null }, OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: new Date(Date.now() - 3 * 3_600_000) } }] }, take: 25, orderBy: { lastSyncedAt: "asc" } });
+  const active = await prisma.podFulfillment.findMany({ where: { status: { in: ["SUBMITTED", "IN_PRODUCTION", "SHIPPED"] }, provider: { in: [...POD_PROVIDERS] }, providerOrderId: { not: null }, OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: new Date(Date.now() - 3 * 3_600_000) } }] }, take: 25, orderBy: { lastSyncedAt: "asc" } });
   for (const fulfillment of active) { if (!left()) break; if ((await syncFulfillment(fulfillment.id)).ok) report.synced += 1; }
   return report;
 }

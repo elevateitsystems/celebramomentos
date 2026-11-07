@@ -99,22 +99,31 @@ describe("Gelato mapping", () => {
   });
 });
 
-describe("AlerioPrint mapping", () => {
-  it("holds orders until AlerioPrint provides the model ids", () => {
-    const result = mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "ALERIO_PRINT", productName: "Funda transparente", options: { modelo: "iPhone 15" } }));
-    expect(result.issues[0].code).toBe("alerio_asset_missing");
-    expect(result.units[0].specs[0]).toMatchObject({ fit: "fill", width: 750, height: 1590, format: "png" });
+describe("Printeers mapping (phone cases)", () => {
+  const printeers = { productReference: "Product_soft_iphone15", printMm: { width: 71.5, height: 147.6 }, crop: { zoom: 1.5, x: 0.2, y: 0.8 } };
+
+  it("sends the chosen Printeers product with the customer's framed photo at 300 dpi of its print area", () => {
+    const result = mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "PRINTEERS", productName: "Funda Soft TPU", options: { modelo: "iPhone 15" }, printeers }));
+    expect(result.issues).toEqual([]);
+    expect(result.units).toEqual([{ productRef: "Product_soft_iphone15", specs: [{ area: "default", kind: "photo", photoIndex: 0, fit: "fill", width: 844, height: 1743, format: "jpg", crop: { zoom: 1.5, x: 0.2, y: 0.8 } }] }]);
   });
 
-  it("uses the MagSafe and tough print sizes from AlerioPrint", () => {
-    expect(mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "ALERIO_PRINT", productName: "Funda transparente MagSafe", options: { modelo: "iPhone 15" } })).units[0].specs[0]).toMatchObject({ width: 750, height: 1589 });
-    expect(mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "ALERIO_PRINT", productName: "Funda rígida Tough", options: { modelo: "iPhone 15" } })).units[0].specs[0]).toMatchObject({ width: 2000, height: 3400 });
+  it("holds cases ordered before their product was linked to Printeers", () => {
+    expect(mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "PRINTEERS", productName: "Funda transparente", options: { modelo: "iPhone 15" } })).issues[0].code).toBe("printeers_product_missing");
+  });
+
+  it("does not guess a print size Printeers did not give", () => {
+    expect(mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "PRINTEERS", printeers: { ...printeers, printMm: null } })).issues[0].code).toBe("printeers_print_area_missing");
+  });
+
+  it("never prepares anything for a print shop that is no longer used", () => {
+    expect(mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "ALERIO_PRINT", productName: "Funda transparente", options: { modelo: "iPhone 15" } }))).toMatchObject({ units: [], issues: [{ code: "provider_inactive", severity: "blocker" }] });
   });
 });
 
 describe("admin override", () => {
   it("lets a size's Print shop SKU replace the built-in mapping", () => {
-    expect(mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "ALERIO_PRINT", productName: "Funda transparente", podSku: "102:555", options: { modelo: "iPhone 15" } }))).toMatchObject({ issues: [], units: [{ productRef: "102:555" }] });
+    expect(mapOrderItem(ctx({ kind: "PHONE_CASE", provider: "PRINTEERS", podSku: "Product_override", printeers: { productReference: "Product_chosen", printMm: { width: 70, height: 150 }, crop: null } })).units[0].productRef).toBe("Product_override");
     expect(mapOrderItem(ctx({ variantName: "21 x 21.97 cm", podSku: "custom_uid" })).units[0].productRef).toBe("custom_uid");
   });
 });

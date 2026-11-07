@@ -87,7 +87,7 @@ export function PostcardSideView({ side, compact, editableText = false }: { side
       <div style={template.magazineStyle ? { top: "10%", right: "10%", bottom: "10%", left: "10%" } : frameOpeningStyle(frame.id)} className="absolute z-10 flex flex-col items-center justify-center text-center">
         <img src="/images/logo.png" alt="Celebra Momentos" className={compact ? "h-14 w-14 object-contain" : "h-32 w-32 object-contain sm:h-40 sm:w-40"} />
         <p className={`font-black text-[#182443] ${compact ? "mt-1 text-[7px]" : "mt-3 text-lg"}`}>Celebra Momentos</p>
-        <p className={`rounded-[7px] bg-[#f8c75e] px-[5%] py-[3%] font-serif font-bold text-[#182443] ${compact ? "mt-1 text-[7px]" : "mt-3 text-lg"}`}>{card.backText || (isPortuguese ? "Um cartão criado especialmente para alguém especial." : "Una tarjeta creada especialmente para alguien especial.")}</p>
+        <p className={`font-serif font-bold text-[#182443] ${template.magazineStyle ? "rounded-[7px] bg-[#f8c75e] px-[5%] py-[3%]" : "px-[5%]"} ${compact ? "mt-1 text-[7px]" : "mt-3 text-lg"}`}>{card.backText || (isPortuguese ? "Um cartão criado especialmente para alguém especial." : "Una tarjeta creada especialmente para alguien especial.")}</p>
       </div>
     </div>;
   }

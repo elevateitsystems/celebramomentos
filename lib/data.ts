@@ -90,6 +90,13 @@ export const SOCIAL_LINK_DEFAULTS = {
   social_google_business: "https://maps.app.goo.gl/oQbnJJoXMmoRDdKh8",
 } as const;
 export type SocialLinkKey = keyof typeof SOCIAL_LINK_DEFAULTS;
+
+// Percentage coupons the storefront previews before the server (the real authority, from the
+// Discount table) validates them at checkout. CELEBRA10 is the reusable "10% off your next
+// order for sharing your creation" code; it is granted manually, never automatically.
+export const SHARE_DISCOUNT_CODE = "CELEBRA10";
+export const PERCENT_DISCOUNT_CODES: Record<string, number> = { HOLA10: 10, [SHARE_DISCOUNT_CODE]: 10 };
+export const discountPercent = (code: string) => PERCENT_DISCOUNT_CODES[code.trim().toUpperCase()] ?? 0;
 export const SOCIAL_LINK_KEYS = Object.keys(SOCIAL_LINK_DEFAULTS) as SocialLinkKey[];
 
 // Card sizes sold through Prodigi (PRODUCTS.pdf). The price added to the

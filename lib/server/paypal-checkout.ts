@@ -4,6 +4,7 @@ import { serializeOrder } from "./orders";
 import { PayPalError, approvalUrl, capturePayPalOrder, firstCapture, getPayPalOrder, toCents, type PayPalOrder } from "./paypal";
 import { prisma } from "./prisma";
 import { handlePaidOrderInBackground } from "@/lib/pod/fulfillment";
+import { sendOrderConfirmationInBackground } from "@/lib/server/order-email";
 
 export type PayPalResult =
   | { status: "paid" | "pending" | "cancelled" | "failed"; order: ReturnType<typeof serializeOrder>; message?: string }
@@ -62,6 +63,7 @@ async function applyPayPalOrder(payment: CustomerPayment, paypalOrder: PayPalOrd
     if (PAID_STATUSES.has(refreshed.status)) {
       // Capture COMPLETED and matched to the order above: send it to the print shops.
       handlePaidOrderInBackground(order.id);
+      sendOrderConfirmationInBackground(order.id);
       return result(payment, "paid");
     }
     console.error("PayPal capture completed for a closed order", { orderId: order.id, captureId: capture.id });

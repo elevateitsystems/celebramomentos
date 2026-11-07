@@ -1,5 +1,6 @@
 // Print files: what each shop needs and how a customer photo becomes one. Pure
 // functions (no I/O) so they can be unit tested.
+import { cropRect, type ImageCrop } from "@/lib/crop";
 import type { PodIssue } from "./types";
 
 // How a customer photo is turned into the shop's print file:
@@ -10,7 +11,8 @@ import type { PodIssue } from "./types";
 export type PhotoFit = "fill" | "pad" | "aspect" | "original";
 
 export type PrintSpec =
-  | { area: string; kind: "photo"; photoIndex: number; fit: PhotoFit; width: number; height: number; format: "jpg" | "png"; minDpiSize?: { widthMm: number; heightMm: number } }
+  // crop: how the customer framed the photo in the editor (fit "fill" only).
+  | { area: string; kind: "photo"; photoIndex: number; fit: PhotoFit; width: number; height: number; format: "jpg" | "png"; minDpiSize?: { widthMm: number; heightMm: number }; crop?: ImageCrop | null }
   // No automatic file exists (e.g. a greeting card layout or a 14-page calendar): an admin
   // attaches it. width/height: the file's required pixel size, when the shop gives one.
   | { area: string; kind: "admin"; description: string; width?: number; height?: number };
@@ -23,9 +25,16 @@ export function isCloudinaryUrl(url: string) {
 
 // Builds the print file URL with a Cloudinary transformation. q_100 keeps full
 // quality; nothing is applied to files that are not stored in Cloudinary.
-export function printFileUrl(sourceUrl: string, spec: Extract<PrintSpec, { kind: "photo" }>) {
+// A "fill" spec with the customer's crop (and the photo's size) cuts exactly the framed part
+// out first, then scales it to the print size.
+export function printFileUrl(sourceUrl: string, spec: Extract<PrintSpec, { kind: "photo" }>, sourceSize?: { width: number; height: number } | null) {
   const match = sourceUrl.match(CLOUDINARY_UPLOAD);
   if (!match || spec.fit === "original") return sourceUrl;
+  if (spec.fit === "fill" && spec.crop && sourceSize?.width && sourceSize.height) {
+    const rect = cropRect(sourceSize, spec.width / spec.height, spec.crop);
+    const crop = `c_crop,x_${Math.round(rect.left)},y_${Math.round(rect.top)},w_${Math.max(1, Math.round(rect.width))},h_${Math.max(1, Math.round(rect.height))}`;
+    return `${match[1]}${crop}/c_scale,w_${spec.width},h_${spec.height},q_100,f_${spec.format}/${match[2]}`;
+  }
   const transformation = spec.fit === "fill" ? `c_fill,g_center,w_${spec.width},h_${spec.height}`
     : spec.fit === "pad" ? `c_pad,b_white,w_${spec.width},h_${spec.height}`
     : `c_crop,g_center,ar_${spec.width}:${spec.height}`;
@@ -44,7 +53,9 @@ export function checkPhotoResolution(spec: Extract<PrintSpec, { kind: "photo" }>
     return dpi < 150 ? { code: "low_resolution", severity: "warning", message: `Photo gives about ${Math.round(dpi)} dpi at ${spec.minDpiSize.widthMm} × ${spec.minDpiSize.heightMm} mm (150 dpi minimum recommended)` } : null;
   }
   // fill crops to cover, pad fits inside: the upscale factor needed to reach the print size.
-  const scale = spec.fit === "fill" ? Math.max(spec.width / source.width, spec.height / source.height) : Math.min(spec.width / source.width, spec.height / source.height);
+  // A zoomed-in crop uses fewer of the photo's pixels, so it is measured on the crop itself.
+  const framed = spec.fit === "fill" && spec.crop ? cropRect(source, spec.width / spec.height, spec.crop) : null;
+  const scale = framed ? spec.width / framed.width : spec.fit === "fill" ? Math.max(spec.width / source.width, spec.height / source.height) : Math.min(spec.width / source.width, spec.height / source.height);
   return scale > 1.5 ? { code: "low_resolution", severity: "warning", message: `Photo is ${source.width} × ${source.height} px; the print file is ${spec.width} × ${spec.height} px (enlarged ${scale.toFixed(1)}×)` } : null;
 }
 

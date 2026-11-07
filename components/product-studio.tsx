@@ -9,6 +9,7 @@ import { AuthRequiredModal, PageIntro, SiteFooter, SiteHeader, Spinner } from "@
 import { MAGNET_SAMPLE_PHOTOS } from "@/lib/data";
 import { getSessionUser } from "@/lib/client-session";
 import { trackPixel } from "@/lib/meta-pixel";
+import { CROP_LIMITS, DEFAULT_CROP, cropRect, mmToPx, normalizeCrop, type ImageCrop } from "@/lib/crop";
 import { MAX_PRODUCT_PHOTOS, productPrintFile, requiredPhotoCount, type CatalogProduct, type PrintFile, type StudioProductKind } from "@/lib/products";
 import { RootState, defaultCardCustomization, saveCartItem, type CatalogSelection, type ProductSelection } from "@/lib/store";
 import { PosterHanger, hangerColorFrom, orientationFrom } from "@/components/poster-hanger";
@@ -159,10 +160,10 @@ function useStudioCatalog(kind: StudioProductKind) {
   };
   const hasOption = (pattern: RegExp) => Boolean(selected?.options.some((item) => pattern.test(item.name) || pattern.test(item.key)));
 
-  const toSelection = (photos: (string | null)[], studioOptions: Record<string, string>): CatalogSelection | null => {
+  const toSelection = (photos: (string | null)[], studioOptions: Record<string, string>, extra: Partial<CatalogSelection> = {}): CatalogSelection | null => {
     if (!selected || priceCents === null) return null;
     const chosen = Object.fromEntries(Object.entries({ ...studioOptions, ...options }).filter(([, value]) => value));
-    return { kind: "CATALOG", productKind: kind, productId: selected.id, variantId: variant?.id ?? null, options: chosen, photos, name: selected.name, detail: [variant?.name, ...Object.values(chosen)].filter(Boolean).join(" · "), image: selected.images[0]?.asset.url || null, priceCents };
+    return { ...extra, kind: "CATALOG", productKind: kind, productId: selected.id, variantId: variant?.id ?? null, options: chosen, photos, name: selected.name, detail: [variant?.name, ...Object.values(chosen)].filter(Boolean).join(" · "), image: selected.images[0]?.asset.url || null, priceCents };
   };
 
   return {
@@ -193,7 +194,9 @@ type StudioCatalog = ReturnType<typeof useStudioCatalog>;
 // plus the loading / empty / error states of the category.
 type VariantName = (variant: CatalogProduct["variants"][number]) => string;
 
-function CatalogControls({ studio, es, sizeLabel, variantName }: { studio: StudioCatalog; es: boolean; sizeLabel?: string; variantName?: VariantName }) {
+type OptionFilter = (option: CatalogProduct["options"][number]) => boolean;
+
+function CatalogControls({ studio, es, sizeLabel, variantName, hideOption }: { studio: StudioCatalog; es: boolean; sizeLabel?: string; variantName?: VariantName; hideOption?: OptionFilter }) {
   const { selected, catalog } = studio;
   if (catalog.loading && !selected) return <div className="mt-6 space-y-3" aria-label={es ? "Cargando producto" : "A carregar produto"}><div className="h-20 animate-pulse rounded-2xl bg-[#f6ece6]" /><div className="h-14 animate-pulse rounded-2xl bg-[#f6ece6]" /><div className="h-14 animate-pulse rounded-2xl bg-[#f6ece6]" /></div>;
   if (catalog.error && !selected) return <div role="alert" className="mt-6 rounded-2xl border border-[#f3c6c2] bg-[#fff0e8] p-4 text-sm font-bold text-[#c94758]">{catalog.error}<button type="button" onClick={catalog.reload} className="mt-3 block rounded-full bg-white px-4 py-2 text-xs font-black text-[#182443] shadow-sm">{es ? "Reintentar" : "Tentar novamente"}</button></div>;
@@ -215,7 +218,7 @@ function CatalogControls({ studio, es, sizeLabel, variantName }: { studio: Studi
         {selected.variants.map((variant) => <button key={variant.id} type="button" onClick={() => studio.setVariant(variant.id)} aria-pressed={studio.variant?.id === variant.id} className={`focus-ring rounded-xl border p-3 text-left transition ${studio.variant?.id === variant.id ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}><span className="block text-sm font-black text-[#182443]">{variantName ? variantName(variant) : variant.name}</span><span className="mt-1 block text-xs font-black text-[#ee5264]">{formatCents(variant.priceCents)}</span></button>)}
       </div>
     </fieldset>}
-    {selected.options.map((option) => {
+    {selected.options.filter((option) => !hideOption?.(option)).map((option) => {
       const choices = option.config?.choices || [];
       const value = studio.options[option.key] || "";
       const legend = <>{option.name}{option.required ? "" : <span className="font-bold text-[#9297a4]"> · {es ? "opcional" : "opcional"}</span>}</>;
@@ -238,11 +241,12 @@ function CatalogControls({ studio, es, sizeLabel, variantName }: { studio: Studi
 type StudioAction = { label: string; busy: boolean; disabled?: boolean; hint?: string; onClick: () => void; authPrompt: boolean; onCloseAuth: () => void; returnTo: string };
 
 // Add-to-cart action for the selected product.
-function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioCart>, es: boolean, photos: (string | null)[], studioOptions: Record<string, string>, returnTo: string): StudioAction | undefined {
+function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioCart>, es: boolean, photos: (string | null)[], studioOptions: Record<string, string>, returnTo: string, extra: { selection?: Partial<CatalogSelection>; hint?: string } = {}): StudioAction | undefined {
   if (!studio.selected) return undefined;
   const missingPhotos = Math.max(0, studio.photoCount - photos.filter(Boolean).length);
   const hint = !studio.ready ? undefined
     : missingPhotos ? (missingPhotos === 1 ? (es ? "Sube 1 fotografía más para continuar." : "Carrega mais 1 fotografia para continuar.") : (es ? `Sube ${missingPhotos} fotografías más para continuar.` : `Carrega mais ${missingPhotos} fotografias para continuar.`))
+    : extra.hint ? extra.hint
     : studio.missingOption ? (es ? `Elige una opción de "${studio.missingOption.name}".` : `Escolhe uma opção de "${studio.missingOption.name}".`)
     : undefined;
   return {
@@ -250,7 +254,7 @@ function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioC
     busy: cart.adding,
     disabled: !studio.ready || studio.priceCents === null || Boolean(hint),
     hint,
-    onClick: () => { const selection = studio.toSelection(photos, studioOptions); if (selection) void cart.addToCart(selection); },
+    onClick: () => { const selection = studio.toSelection(photos, studioOptions, extra.selection); if (selection) void cart.addToCart(selection); },
     authPrompt: cart.authPrompt,
     onCloseAuth: cart.closeAuthPrompt,
     returnTo,
@@ -263,8 +267,8 @@ function catalogPriceChip(studio: StudioCatalog, es: boolean) {
   return studio.priceCents === null ? "—" : formatCents(studio.priceCents);
 }
 
-function StudioShell({ eyebrow, title, body, controls, preview, es, studio, catalogTitle, action, sizeLabel, variantName }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; es: boolean; studio: StudioCatalog; catalogTitle: string; action?: StudioAction; sizeLabel?: string; variantName?: VariantName }) {
-  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{catalogPriceChip(studio, es)}</span></div><CatalogControls studio={studio} es={es} sizeLabel={sizeLabel} variantName={variantName} />{studio.selected && controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <><button type="button" onClick={action.onClick} disabled={action.busy || action.disabled} aria-busy={action.busy} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.busy ? <Spinner size={16} /> : null}{action.label} {!action.busy && <Icon name="arrow" size={16} />}</button>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <button type="button" disabled className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white opacity-50">{es ? "Añadir a la cesta" : "Adicionar ao carrinho"}</button>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{studio.catalog.products.length > 1 && <PublishedProducts catalog={studio.catalog} title={catalogTitle} es={es} selectedId={studio.selected?.id} onSelect={(product) => studio.select(product)} />}<SiteFooter />{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
+function StudioShell({ eyebrow, title, body, controls, preview, es, studio, catalogTitle, action, sizeLabel, variantName, hideOption }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; es: boolean; studio: StudioCatalog; catalogTitle: string; action?: StudioAction; sizeLabel?: string; variantName?: VariantName; hideOption?: OptionFilter }) {
+  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{catalogPriceChip(studio, es)}</span></div><CatalogControls studio={studio} es={es} sizeLabel={sizeLabel} variantName={variantName} hideOption={hideOption} />{studio.selected && controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <><button type="button" onClick={action.onClick} disabled={action.busy || action.disabled} aria-busy={action.busy} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.busy ? <Spinner size={16} /> : null}{action.label} {!action.busy && <Icon name="arrow" size={16} />}</button>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <button type="button" disabled className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white opacity-50">{es ? "Añadir a la cesta" : "Adicionar ao carrinho"}</button>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{studio.catalog.products.length > 1 && <PublishedProducts catalog={studio.catalog} title={catalogTitle} es={es} selectedId={studio.selected?.id} onSelect={(product) => studio.select(product)} />}<SiteFooter />{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
 }
 
 // Restores a cart line opened with ?edit=<id>.
@@ -383,7 +387,7 @@ export function MagnetsStudio() {
   return <StudioShell eyebrow={es ? "IMANES PERSONALIZADOS" : "ÍMANES PERSONALIZADOS"} title={es ? "Recuerdos que siempre tienes a la vista" : "Memórias sempre à vista"} body={es ? "Imanes rectangulares de 7,6 × 5,1 cm. Elige cuántos quieres y sube una foto para cada uno." : "Ímanes retangulares de 7,6 × 5,1 cm. Escolhe quantos queres e carrega uma foto para cada um."} controls={controls} preview={preview} es={es} studio={studio} catalogTitle={es ? "Más imanes" : "Mais ímanes"} sizeLabel={es ? "Cantidad de imanes" : "Quantidade de ímanes"} variantName={(variant) => (variant.photoCount ? `${variant.photoCount} ${variant.photoCount === 1 ? (es ? "imán" : "íman") : (es ? "imanes" : "ímanes")}` : variant.name)} action={catalogAction(studio, cart, es, photos.slice(0, count), {}, "/magnets")} />;
 }
 
-// ── Phone cases (Alerio Print / Gelato) ──────────────────────────────────────
+// ── Phone cases (Printeers) ──────────────────────────────────────
 
 const MODEL_OPTION = /modelo|model|móvil|movil|telem/i;
 
@@ -415,32 +419,217 @@ function CameraModule({ brand, lenses }: ReturnType<typeof phoneShape>) {
   </div>;
 }
 
+// Printeers phone models of a phone case product (Soft TPU, Wallet, Hard case…), loaded
+// from this site's API, which reads them live from Printeers. "admin" means the product is
+// not linked to Printeers yet, so its own "Modelo" list is used as before.
+type PhoneModelOption = { reference: string; name: string; available: boolean };
+type PhoneModelDetail = { reference: string; name: string; available: boolean; printMm: { width: number; height: number } | null; layers: { top: boolean; mask: boolean; bottom: boolean; mockup: boolean; maskWidthPx: number; maskHeightPx: number; maskOffsetXPx: number; maskOffsetYPx: number; maskCanvas?: boolean } | null };
+type ModelsState = { status: "loading" | "admin" | "ready" | "error"; models: PhoneModelOption[]; error?: string };
+
+function usePrinteersModels(productId: string | null, reloadKey: number): ModelsState {
+  const [state, setState] = useState<ModelsState>({ status: "loading", models: [] });
+  useEffect(() => {
+    if (!productId) return;
+    let active = true;
+    setState({ status: "loading", models: [] });
+    fetch(`/api/phone-cases/models?productId=${encodeURIComponent(productId)}`, { cache: "no-store" })
+      .then(async (response) => ({ ok: response.ok, body: await response.json().catch(() => ({})) }))
+      .then(({ ok, body }) => {
+        if (!active) return;
+        if (!ok) setState({ status: "error", models: [], error: body.error });
+        else if (body.source === "printeers") setState({ status: "ready", models: body.models || [] });
+        else setState({ status: "admin", models: [] });
+      })
+      .catch(() => { if (active) setState({ status: "error", models: [] }); });
+    return () => { active = false; };
+  }, [productId, reloadKey]);
+  return state;
+}
+
+function usePrinteersModel(productId: string | null, reference: string) {
+  const [state, setState] = useState<{ key: string; model: PhoneModelDetail | null; error: string | null }>({ key: "", model: null, error: null });
+  const key = productId && reference ? `${productId}:${reference}` : "";
+  useEffect(() => {
+    if (!key) return;
+    let active = true;
+    fetch(`/api/phone-cases/models?productId=${encodeURIComponent(productId!)}&model=${encodeURIComponent(reference)}`, { cache: "no-store" })
+      .then(async (response) => ({ ok: response.ok, body: await response.json().catch(() => ({})) }))
+      .then(({ ok, body }) => { if (active) setState({ key, model: ok ? body.model : null, error: ok ? null : body.error || "error" }); })
+      .catch(() => { if (active) setState({ key, model: null, error: "error" }); });
+    return () => { active = false; };
+  }, [key, productId, reference]);
+  return state.key === key ? { model: state.model, error: state.error, loading: false } : { model: null, error: null, loading: Boolean(key) };
+}
+
+// A photo framed by `crop` inside a box of the print area's shape, exactly as the print
+// file is cut (lib/crop.ts). With onCrop the photo can be dragged to reposition it.
+function CroppedPhoto({ src, aspect, crop, onCrop, alt, className = "", dimmed = false }: { src: string; aspect: number; crop: ImageCrop; onCrop?: (crop: ImageCrop) => void; alt: string; className?: string; dimmed?: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [natural, setNatural] = useState<{ src: string; width: number; height: number } | null>(null);
+  const size = natural?.src === src ? natural : null;
+  const rect = size ? cropRect(size, aspect, crop) : null;
+  const drag = useRef<{ x: number; y: number; crop: ImageCrop } | null>(null);
+  const move = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current || !size || !rect || !box.current || !onCrop) return;
+    const bounds = box.current.getBoundingClientRect();
+    // Room the photo can move in, in screen pixels (the photo is shown larger than the box).
+    const slackX = bounds.width * (size.width / rect.width) - bounds.width;
+    const slackY = bounds.height * (size.height / rect.height) - bounds.height;
+    const next = normalizeCrop({ zoom: drag.current.crop.zoom, x: slackX > 0.5 ? drag.current.crop.x - (event.clientX - drag.current.x) / slackX : drag.current.crop.x, y: slackY > 0.5 ? drag.current.crop.y - (event.clientY - drag.current.y) / slackY : drag.current.crop.y });
+    onCrop(next);
+  };
+  const style: React.CSSProperties = rect && size
+    ? { position: "absolute", maxWidth: "none", width: `${(size.width / rect.width) * 100}%`, height: `${(size.height / rect.height) * 100}%`, left: `${(-rect.left / rect.width) * 100}%`, top: `${(-rect.top / rect.height) * 100}%` }
+    : { width: "100%", height: "100%", objectFit: "cover" };
+  return <div
+    ref={box}
+    className={`relative overflow-hidden ${onCrop ? "cursor-grab touch-none active:cursor-grabbing" : ""} ${className}`}
+    onPointerDown={(event) => { if (!onCrop) return; drag.current = { x: event.clientX, y: event.clientY, crop }; event.currentTarget.setPointerCapture(event.pointerId); }}
+    onPointerMove={move}
+    onPointerUp={() => { drag.current = null; }}
+    onPointerCancel={() => { drag.current = null; }}
+  >
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src={src} alt={alt} draggable={false} onLoad={(event) => setNatural({ src, width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} className={`select-none ${dimmed ? "opacity-60" : ""}`} style={style} />
+  </div>;
+}
+
+// Mockup from the Printeers product layers: base image, the photo seen through the print
+// mask at the mask's place, then the top layer (camera cut-out, edges). Calls onFail when
+// the layers cannot be used, so the studio falls back to its drawn phone.
+function PrinteersCasePreview({ productId, model, photo, crop, onCrop, alt, onFail }: { productId: string; model: PhoneModelDetail; photo: string; crop: ImageCrop; onCrop: (crop: ImageCrop) => void; alt: string; onFail: () => void }) {
+  const layers = model.layers!;
+  const base = layers.bottom ? "bottom" : "mockup";
+  const src = (layer: string) => `/api/phone-cases/layer?productId=${encodeURIComponent(productId)}&model=${encodeURIComponent(model.reference)}&layer=${layer}`;
+  const [canvas, setCanvas] = useState<{ width: number; height: number } | null>(null);
+  const percent = (value: number, total: number) => `${(value / total) * 100}%`;
+  const mask = layers.mask ? `url("${src("mask")}")` : undefined;
+  return <div className="relative w-full max-w-[290px]">
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src={src(base)} alt="" aria-hidden="true" className="block w-full select-none" draggable={false} onLoad={(event) => setCanvas({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} onError={onFail} />
+    {/* Printeers API v1: the mask is a full-canvas image (same size as the other layers) and the print
+        area sits at the offset inside it, so the mask goes on a full-canvas box that holds the photo. */}
+    {canvas && layers.maskCanvas && <div className="absolute inset-0" style={{ WebkitMaskImage: mask, maskImage: mask, WebkitMaskSize: "100% 100%", maskSize: "100% 100%" }}>
+      <div className="absolute" style={{ left: percent(layers.maskOffsetXPx, canvas.width), top: percent(layers.maskOffsetYPx, canvas.height), width: percent(layers.maskWidthPx, canvas.width), height: percent(layers.maskHeightPx, canvas.height) }}>
+        <CroppedPhoto src={photo} aspect={model.printMm!.width / model.printMm!.height} crop={crop} onCrop={onCrop} alt={alt} className="h-full w-full" />
+      </div>
+    </div>}
+    {canvas && !layers.maskCanvas && <div className="absolute" style={{ left: percent(layers.maskOffsetXPx, canvas.width), top: percent(layers.maskOffsetYPx, canvas.height), width: percent(layers.maskWidthPx, canvas.width), height: percent(layers.maskHeightPx, canvas.height), WebkitMaskImage: mask, maskImage: mask, WebkitMaskSize: "100% 100%", maskSize: "100% 100%" }}>
+      <CroppedPhoto src={photo} aspect={model.printMm!.width / model.printMm!.height} crop={crop} onCrop={onCrop} alt={alt} className="h-full w-full" />
+    </div>}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    {canvas && layers.top && <img src={src("top")} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full select-none" draggable={false} onError={onFail} />}
+  </div>;
+}
+
 export function PhoneCaseStudio() {
   const es = useSelector((state: RootState) => state.language.language) === "es";
   const studio = useStudioCatalog("PHONE_CASE");
   const cart = useStudioCart("PHONE_CASE");
   const [photo, setPhoto] = useState<string | null>(null);
-  useCatalogEdit(cart.editing, studio, useCallback((selection: CatalogSelection) => setPhoto(selection.photos[0] || null), []));
-  const model = studio.optionValue(MODEL_OPTION) || "";
+  const [modelRef, setModelRef] = useState("");
+  const [crop, setCrop] = useState<ImageCrop>(DEFAULT_CROP);
+  const [reload, setReload] = useState(0);
+  const [layersFailed, setLayersFailed] = useState(false);
+  const productId = studio.selected?.id || null;
+  const restoring = useRef<string | null>(null);
+  useCatalogEdit(cart.editing, studio, useCallback((selection: CatalogSelection) => {
+    setPhoto(selection.photos[0] || null);
+    restoring.current = selection.printeers?.productReference || null;
+    setModelRef(selection.printeers?.productReference || "");
+    setCrop(selection.printeers?.crop ? normalizeCrop(selection.printeers.crop) : DEFAULT_CROP);
+  }, []));
+  // Another case type has other models: start again unless a cart line is being restored.
+  const lastProduct = useRef<string | null>(null);
+  useEffect(() => {
+    if (!productId || lastProduct.current === productId) return;
+    if (lastProduct.current !== null && !restoring.current) { setModelRef(""); setCrop(DEFAULT_CROP); }
+    lastProduct.current = productId;
+    restoring.current = null;
+  }, [productId]);
+
+  const catalog = usePrinteersModels(productId, reload);
+  const printeers = catalog.status === "ready";
+  const { model: detail, error: modelError, loading: modelLoading } = usePrinteersModel(printeers ? productId : null, modelRef);
+  useEffect(() => { setLayersFailed(false); }, [modelRef]);
+  const modelOption = studio.selected?.options.find((option) => MODEL_OPTION.test(option.name) || MODEL_OPTION.test(option.key)) || null;
+  const chooseModel = (reference: string) => {
+    setModelRef(reference);
+    setCrop(DEFAULT_CROP);
+    const name = catalog.models.find((item) => item.reference === reference)?.name || "";
+    // The model is also kept as the product's "Modelo" option, which shows it in the cart.
+    if (modelOption) studio.setOption(modelOption.key, name);
+  };
+  const modelName = printeers ? catalog.models.find((item) => item.reference === modelRef)?.name || detail?.name || "" : studio.optionValue(MODEL_OPTION) || "";
   const caseName = studio.variant?.name || "";
-  // Each Alerio Print case is its own product; its name (or the chosen type) sets the preview style.
+  // The case type (from its name) sets the drawn preview's style.
   const caseType = `${caseName} ${studio.selected?.name || ""}`;
-  const style = /clear|transparent/i.test(caseType) ? "clear" : /tough|rígida|rigida|resistente/i.test(caseType) ? "tough" : "snap";
+  const style = /clear|transparent/i.test(caseType) ? "clear" : /tough|rígida|rigida|resistente|hard/i.test(caseType) ? "tough" : "snap";
   const magsafe = /magsafe/i.test(caseType);
-  const shape = phoneShape(model);
-  const controls = <div className="mt-6 space-y-6"><PhotoSlots photos={[photo]} count={1} active={0} onActive={() => undefined} onPhoto={setPhoto} es={es} slotLabel={() => ""} printFile={studio.printFile} /></div>;
+  const shape = phoneShape(modelName);
+  const aspect = detail?.printMm ? detail.printMm.width / detail.printMm.height : null;
+  const printFile = printeers ? (detail?.printMm ? { width: mmToPx(detail.printMm.width), height: mmToPx(detail.printMm.height) } : null) : studio.printFile;
+  const alt = es ? "Vista previa de la funda" : "Pré-visualização da capa";
+  // Grouped by brand (the first word), keeping brands that have a single model.
+  const groups = (() => {
+    const byBrand = new Map<string, string[]>();
+    for (const item of catalog.models) { const brand = item.name.split(" ")[0]; byBrand.set(brand, [...(byBrand.get(brand) || []), item.name]); }
+    return byBrand.size > 1 ? Array.from(byBrand.entries()) : null;
+  })();
+  const byName = new Map(catalog.models.map((item) => [item.name, item]));
+  const modelSelect = (items: string[]) => items.map((name) => { const item = byName.get(name)!; return <option key={item.reference} value={item.reference} disabled={!item.available}>{name}{item.available ? "" : es ? " · agotado" : " · esgotado"}</option>; });
+
+  const hint = !printeers ? (catalog.status === "loading" ? (es ? "Cargando los modelos de móvil…" : "A carregar os modelos de telemóvel…") : catalog.status === "error" ? (es ? "No se pueden cargar los modelos ahora." : "Não é possível carregar os modelos agora.") : undefined)
+    : !modelRef ? (es ? "Elige tu modelo de móvil." : "Escolhe o teu modelo de telemóvel.")
+    : modelLoading ? (es ? "Cargando el modelo…" : "A carregar o modelo…")
+    : modelError || !detail ? (es ? "Este modelo ya no está disponible. Elige otro." : "Este modelo já não está disponível. Escolhe outro.")
+    : !detail.available ? (es ? "Este modelo está agotado ahora mismo." : "Este modelo está esgotado neste momento.")
+    : !detail.printMm ? (es ? "Este modelo no se puede personalizar ahora mismo." : "Este modelo não pode ser personalizado agora.")
+    : undefined;
+
+  const controls = <div className="mt-6 space-y-6">
+    {catalog.status === "loading" && <div className="h-14 animate-pulse rounded-2xl bg-[#f6ece6]" aria-label={es ? "Cargando modelos" : "A carregar modelos"} />}
+    {catalog.status === "error" && <div role="alert" className="rounded-2xl border border-[#f3c6c2] bg-[#fff0e8] p-4 text-sm font-bold text-[#c94758]">{catalog.error || (es ? "No se pueden cargar los modelos de móvil ahora." : "Não é possível carregar os modelos de telemóvel agora.")}<button type="button" onClick={() => setReload((value) => value + 1)} className="mt-3 block rounded-full bg-white px-4 py-2 text-xs font-black text-[#182443] shadow-sm">{es ? "Reintentar" : "Tentar novamente"}</button></div>}
+    {printeers && <label className="block text-sm font-black">{es ? "Modelo de móvil" : "Modelo de telemóvel"}
+      <select value={modelRef} onChange={(event) => chooseModel(event.target.value)} className="focus-ring mt-2 w-full rounded-xl border border-[#dfd3cc] bg-white p-3 text-sm font-bold text-[#182443]">
+        <option value="" disabled>{catalog.models.length ? (es ? "Elige tu modelo…" : "Escolhe o teu modelo…") : (es ? "No hay modelos disponibles" : "Não há modelos disponíveis")}</option>
+        {groups ? groups.map(([label, items]) => <optgroup key={label} label={label}>{modelSelect(items)}</optgroup>) : modelSelect(catalog.models.map((item) => item.name))}
+      </select>
+    </label>}
+    <PhotoSlots photos={[photo]} count={1} active={0} onActive={() => undefined} onPhoto={(value) => { setPhoto(value); setCrop(DEFAULT_CROP); }} es={es} slotLabel={() => ""} printFile={printFile} />
+    {printeers && photo && aspect && <div className="rounded-2xl border border-[#eadfd8] bg-white p-4">
+      <p className="text-xs font-black">{es ? "Encuadre de la foto" : "Enquadramento da foto"}</p>
+      <div className="mt-3 flex items-center gap-3">
+        <label htmlFor="case-zoom" className="shrink-0 text-[11px] font-black text-[#59627b]">Zoom</label>
+        <input id="case-zoom" type="range" min={CROP_LIMITS.minZoom} max={CROP_LIMITS.maxZoom} step={0.05} value={crop.zoom} onChange={(event) => setCrop(normalizeCrop({ ...crop, zoom: Number(event.target.value) }))} className="min-w-0 flex-1 accent-[#ee5264]" />
+        <span className="w-11 shrink-0 text-right text-[11px] font-black">{Math.round(crop.zoom * 100)}%</span>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] leading-4 text-[#7c8191]">{es ? "Arrastra la foto en la vista previa para colocarla." : "Arrasta a foto na pré-visualização para a posicionar."}</p>
+        <button type="button" onClick={() => setCrop(DEFAULT_CROP)} className="text-[11px] font-bold text-[#7c8191] underline underline-offset-4 hover:text-[#ee5264]">{es ? "Centrar" : "Centrar"}</button>
+      </div>
+    </div>}
+  </div>;
+
+  const drawnPhone = (content: React.ReactNode, sized = true) => <div className={`relative ${sized ? PHONE_SIZE[shape.size] : "w-[230px]"} overflow-hidden rounded-[42px] border-[9px] shadow-2xl transition-all ${style === "clear" ? "border-white/80 bg-white/30" : style === "tough" ? "border-[#10192e] bg-[#10192e] ring-2 ring-black/20" : "border-[#2b354f] bg-[#2b354f]"}`} style={sized ? undefined : { aspectRatio: aspect ? `${aspect}` : undefined }}>
+    {content}
+    {magsafe && <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-[5px] border-white/75 shadow-[0_0_0_1px_rgba(0,0,0,.08)]" aria-hidden="true" />}
+    <CameraModule {...shape} />
+  </div>;
+  const sample = studio.image || "/images/romantic-couple.png";
   const preview = (
     <div className="flex min-h-[560px] flex-col items-center justify-center gap-5 rounded-[22px] bg-gradient-to-br from-[#f7dacf] to-[#f4eadf] p-8">
-      <div className={`relative ${PHONE_SIZE[shape.size]} overflow-hidden rounded-[42px] border-[9px] shadow-2xl transition-all ${style === "clear" ? "border-white/80 bg-white/30" : style === "tough" ? "border-[#10192e] bg-[#10192e] ring-2 ring-black/20" : "border-[#2b354f] bg-[#2b354f]"}`}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photo || studio.image || "/images/romantic-couple.png"} alt={es ? "Vista previa de la funda" : "Pré-visualização da capa"} className={`h-full w-full object-cover ${style === "clear" ? "opacity-85" : ""} ${photo ? "" : "opacity-60"}`} />
-        {magsafe && <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-[5px] border-white/75 shadow-[0_0_0_1px_rgba(0,0,0,.08)]" aria-hidden="true" />}
-        <CameraModule {...shape} />
-      </div>
-      <p className={`rounded-full px-4 py-2 text-sm font-black shadow-sm ${model ? "bg-white text-[#182443]" : "bg-white/60 text-[#9297a4]"}`}>{model ? [model, caseName].filter(Boolean).join(" · ") : (es ? "Elige tu modelo de móvil" : "Escolhe o teu modelo de telemóvel")}</p>
+      {printeers && detail && aspect && photo && productId && detail.layers && (detail.layers.bottom || detail.layers.mockup) && !layersFailed
+        ? <PrinteersCasePreview productId={productId} model={detail} photo={photo} crop={crop} onCrop={setCrop} alt={alt} onFail={() => setLayersFailed(true)} />
+        : printeers && aspect && photo
+          // No usable Printeers layers: the drawn phone, at the exact print shape.
+          ? drawnPhone(<CroppedPhoto src={photo} aspect={aspect} crop={crop} onCrop={setCrop} alt={alt} className={`absolute inset-0 ${style === "clear" ? "opacity-85" : ""}`} />, false)
+          : drawnPhone(<>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={photo || sample} alt={alt} className={`h-full w-full object-cover ${style === "clear" ? "opacity-85" : ""} ${photo ? "" : "opacity-60"}`} /></>)}
+      <p className={`rounded-full px-4 py-2 text-sm font-black shadow-sm ${modelName ? "bg-white text-[#182443]" : "bg-white/60 text-[#9297a4]"}`}>{modelName ? [modelName, caseName].filter(Boolean).join(" · ") : (es ? "Elige tu modelo de móvil" : "Escolhe o teu modelo de telemóvel")}</p>
     </div>
   );
-  return <StudioShell eyebrow={es ? "FUNDAS DE MÓVIL PERSONALIZADAS" : "CAPAS DE TELEMÓVEL PERSONALIZADAS"} title={es ? "Tu funda a medida para tu móvil" : "A tua capa à medida para o teu telemóvel"} body={es ? "Elige el tipo de funda y tu modelo de móvil, y sube tu fotografía." : "Escolhe o tipo de capa e o teu modelo de telemóvel, e carrega a tua fotografia."} controls={controls} preview={preview} es={es} studio={studio} catalogTitle={es ? "Más fundas" : "Mais capas"} sizeLabel={es ? "Tipo de funda" : "Tipo de capa"} action={catalogAction(studio, cart, es, [photo], {}, "/phone-cases")} />;
+  const action = catalogAction(studio, cart, es, [photo], {}, "/phone-cases", printeers || catalog.status !== "admin" ? { hint, selection: printeers && modelRef ? { printeers: { productReference: modelRef, crop } } : {} } : {});
+  return <StudioShell eyebrow={es ? "FUNDAS DE MÓVIL PERSONALIZADAS" : "CAPAS DE TELEMÓVEL PERSONALIZADAS"} title={es ? "Tu funda a medida para tu móvil" : "A tua capa à medida para o teu telemóvel"} body={es ? "Elige el tipo de funda y tu modelo de móvil, y sube tu fotografía." : "Escolhe o tipo de capa e o teu modelo de telemóvel, e carrega a tua fotografia."} controls={controls} preview={preview} es={es} studio={studio} catalogTitle={es ? "Más fundas" : "Mais capas"} sizeLabel={es ? "Tipo de funda" : "Tipo de capa"} hideOption={printeers || catalog.status === "loading" || catalog.status === "error" ? (option) => MODEL_OPTION.test(option.name) || MODEL_OPTION.test(option.key) : undefined} action={action} />;
 }
 
 // ── Mugs (Printful ceramic mug with coloured handle and inside) ──────────────

@@ -2,6 +2,7 @@
 
 import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { CARD_SIZE_IDS, DEFAULT_CARD_SIZE, resolveFrameId, type CardSize, type DeliveryMethod, type DesignCategoryId, type RecipientMode } from "./data";
+import type { ImageCrop } from "./crop";
 import type { StudioProductKind } from "./products";
 import { defaultEmojiPosition, type EmojiElement, type EmojiPosition, type EmojiTone } from "./emojis";
 
@@ -69,6 +70,9 @@ export type CatalogSelection = {
   // Set by the server for fulfilment: the print shop and its SKU for the chosen size.
   provider?: string | null;
   sku?: string | null;
+  // Phone cases sold through Printeers: the chosen phone model (a Printeers product) and
+  // how the photo is framed. printMm is filled in by the server from the Printeers API.
+  printeers?: { productReference: string; crop: ImageCrop; printMm?: { width: number; height: number } | null } | null;
 };
 export type ProductSelection = CatalogSelection;
 

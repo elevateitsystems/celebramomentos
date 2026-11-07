@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/server/prisma";
 import { stripe } from "@/lib/server/stripe";
 import { handlePaidOrderInBackground } from "@/lib/pod/fulfillment";
+import { sendOrderConfirmationInBackground } from "@/lib/server/order-email";
 
 export const runtime = "nodejs";
 // Leaves time for the print shop submission that continues after the response.
@@ -51,6 +52,10 @@ export async function POST(request: NextRequest) {
   }
   // The payment is verified (signed Stripe event): send the order to the print shops.
   // handlePaidOrder checks the order itself and is safe to run more than once.
-  if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") handlePaidOrderInBackground(orderId);
+  if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
+    handlePaidOrderInBackground(orderId);
+    // Re-checks that the order is paid; sent at most once (see lib/server/order-email.ts).
+    sendOrderConfirmationInBackground(orderId);
+  }
   return NextResponse.json({ received: true });
 }
