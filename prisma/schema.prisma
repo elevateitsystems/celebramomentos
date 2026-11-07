@@ -51,7 +51,9 @@ enum PodProvider {
   PRODIGI
   GELATO
   PRINTFUL
+  // No longer used (phone cases moved to PRINTEERS); kept only so one historical order still loads.
   ALERIO_PRINT
+  PRINTEERS
 }
 
 // Life cycle of one order's items at one print shop.

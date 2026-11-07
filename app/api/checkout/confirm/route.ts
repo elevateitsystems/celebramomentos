@@ -5,6 +5,7 @@ import { serializeOrder } from "@/lib/server/orders";
 import { prisma } from "@/lib/server/prisma";
 import { stripe } from "@/lib/server/stripe";
 import { handlePaidOrderInBackground } from "@/lib/pod/fulfillment";
+import { sendOrderConfirmationInBackground } from "@/lib/server/order-email";
 
 export const runtime = "nodejs";
 // Leaves time for the print shop submission that continues after the response.
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
       });
       // Verified with Stripe above (session retrieved server-side, amount and currency checked).
       handlePaidOrderInBackground(order.id);
+      sendOrderConfirmationInBackground(order.id);
     } else if (session.status === "expired" && order.status === "PENDING") {
       await prisma.$transaction([
         prisma.order.update({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } }),

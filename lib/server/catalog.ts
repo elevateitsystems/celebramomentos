@@ -1,6 +1,9 @@
 import type { Prisma } from "@prisma/client";
-import { CARD_SIZES, templates } from "@/lib/data";
-import { DEFAULT_POD_PROVIDER, MAX_PRODUCT_PHOTOS, PRODUCT_KIND_INFO, isPodProvider, requiredPhotoCount, variantAttributes, type CatalogProduct } from "@/lib/products";
+import { CARD_SIZES, SHARE_DISCOUNT_CODE, templates } from "@/lib/data";
+import { normalizeCrop } from "@/lib/crop";
+import { PodApiError } from "@/lib/pod/http";
+import { linkedProductgroup, phoneModel, printeersCatalogReady } from "@/lib/pod/printeers/catalog";
+import { MAX_PRODUCT_PHOTOS, PRODUCT_KIND_INFO, podProviderFor, requiredPhotoCount, variantAttributes, type CatalogProduct } from "@/lib/products";
 import { getDeliveryPriceCents } from "@/lib/shipping";
 import type { CartItem, CatalogSelection, ProductSelection } from "@/lib/store";
 import { prisma } from "./prisma";
@@ -27,6 +30,12 @@ export async function ensureCatalog() {
     where: { code: "HOLA10" },
     update: {},
     create: { code: "HOLA10", percentage: 10, active: true },
+  });
+  // Reusable coupon for customers who share their creation (checked by hand, no usage cap).
+  await prisma.discount.upsert({
+    where: { code: SHARE_DISCOUNT_CODE },
+    update: {},
+    create: { code: SHARE_DISCOUNT_CODE, percentage: 10, active: true },
   });
 }
 
@@ -55,11 +64,18 @@ async function resolveCatalogSelection(selection: CatalogSelection): Promise<Cat
   } else if (selection.variantId) {
     throw new CatalogError("El tamaño elegido ya no está disponible.", 400);
   }
+  // Phone cases linked to Printeers: the phone model is a Printeers product of the linked
+  // group, checked live (it must exist, belong to that group and be orderable); the admin
+  // "Modelo" list is not used for them.
+  const printeers = await resolvePrinteersModel(selection, product.metadata);
+  const isModelOption = (option: { key: string; name: string }) => MODEL_OPTION.test(option.key) || MODEL_OPTION.test(option.name);
+
   // Admin-defined options must use one of their configured choices; the studio's
   // own customisation fields (phone model, finish, colour…) are recorded as given.
   const options: Record<string, string> = {};
   const adminKeys = new Set(product.options.map((option) => option.key));
   for (const option of product.options) {
+    if (printeers && isModelOption(option)) { options[option.key] = printeers.name; continue; }
     const value = selection.options[option.key]?.trim();
     if (!value) {
       if (option.required) throw new CatalogError(`Elige una opción para "${option.name}".`, 400);
@@ -71,6 +87,7 @@ async function resolveCatalogSelection(selection: CatalogSelection): Promise<Cat
   for (const [key, value] of Object.entries(selection.options)) {
     if (!adminKeys.has(key) && value.trim()) options[key] = value.trim();
   }
+  if (printeers && !product.options.some(isModelOption)) options.modelo = printeers.name;
   const photos = selection.photos.slice(0, MAX_PRODUCT_PHOTOS);
   const metadata = product.metadata as CatalogProduct["metadata"];
   const requiredPhotos = requiredPhotoCount({ metadata }, variant);
@@ -83,9 +100,33 @@ async function resolveCatalogSelection(selection: CatalogSelection): Promise<Cat
     name: product.name,
     detail: [variantName, ...Object.values(options)].filter(Boolean).join(" · ") || PRODUCT_KIND_INFO[selection.productKind].es,
     image: product.images[0]?.asset.url || null,
-    provider: variant?.provider || (isPodProvider(metadata?.provider) ? metadata.provider : DEFAULT_POD_PROVIDER[selection.productKind]),
+    provider: podProviderFor(selection.productKind, variant?.provider || metadata?.provider),
     sku: variant?.podSku || null,
+    // Only what the server checked is kept; anything else the browser sent is dropped.
+    printeers: printeers ? { productReference: printeers.reference, crop: normalizeCrop(selection.printeers?.crop), printMm: printeers.printMm } : null,
   };
+}
+
+const MODEL_OPTION = /modelo|model|móvil|movil|telem/i;
+
+// The Printeers model of a phone case selection, or null when the product is not linked
+// to Printeers (or Printeers is not configured), in which case the admin model list applies.
+async function resolvePrinteersModel(selection: CatalogSelection, metadata: unknown) {
+  if (selection.productKind !== "PHONE_CASE") return null;
+  const group = linkedProductgroup(metadata);
+  if (!group || !printeersCatalogReady()) return null;
+  const reference = selection.printeers?.productReference;
+  if (!reference) throw new CatalogError("Elige el modelo de tu móvil.", 400);
+  try {
+    const found = await phoneModel(group, reference);
+    if (!found) throw new CatalogError("Este modelo de funda ya no está disponible. Elige otro modelo.", 400);
+    if (!found.detail.available) throw new CatalogError(`La funda para ${found.detail.name} está agotada ahora mismo.`, 400);
+    if (!found.detail.printMm) throw new CatalogError("Este modelo de funda no se puede personalizar ahora mismo.", 400);
+    return found.detail;
+  } catch (reason) {
+    if (reason instanceof PodApiError) throw new CatalogError("No podemos comprobar la disponibilidad de la funda ahora mismo. Inténtalo de nuevo en unos minutos.", 503);
+    throw reason;
+  }
 }
 
 export type ResolvedCartLine = {

@@ -32,6 +32,9 @@ import {
   setFrame,
   setFrontHeadline,
   setFrontSubheadline,
+  setFrontTextAlign,
+  setFrontTextPosition,
+  setFrontTextScale,
   setInsideLeftText,
   setInsideRightText,
   setBackText,
@@ -44,6 +47,8 @@ import {
   setSize,
   setTemplate,
   updateEmojiElement,
+  FRONT_TEXT_SCALE,
+  type TextAlign,
 } from "@/lib/store";
 
 type FlowStep = "template" | "frame" | "customize" | "emojis" | "preview" | "summary";
@@ -217,6 +222,9 @@ export default function CustomizePage() {
     for (let index = 0; index < template.imageCount; index += 1) dispatch(setPhotoAt({ index, dataUrl: null }));
     dispatch(setPhotoZoom(1));
     dispatch(setPhotoPosition("center"));
+    dispatch(setFrontTextScale(1));
+    dispatch(setFrontTextAlign("center"));
+    dispatch(setFrontTextPosition(null));
     dispatch(setSize(DEFAULT_CARD_SIZE));
     setToast(isPortuguese ? "Personalização reposta" : "Personalización restablecida");
   };
@@ -523,6 +531,49 @@ export default function CustomizePage() {
                             {(cart.card.frontHeadline || cart.card.message).length}/240
                           </span>
                         </label>
+                      )}
+
+                      {!isMagazine && (
+                        <div className="rounded-2xl border border-[#eadfd8] bg-white p-4" role="group" aria-label={tx("Formato del texto de portada", "Formatação do texto da capa")}>
+                          <p className="text-xs font-black">{tx("Formato del texto", "Formatação do texto")}</p>
+                          <div className="mt-3 flex items-center gap-3">
+                            <label htmlFor="cover-text-size" className="shrink-0 text-[11px] font-black text-[#59627b]">{tx("Tamaño", "Tamanho")}</label>
+                            <input
+                              id="cover-text-size"
+                              type="range"
+                              min={FRONT_TEXT_SCALE.min}
+                              max={FRONT_TEXT_SCALE.max}
+                              step={FRONT_TEXT_SCALE.step}
+                              value={cart.card.frontTextScale ?? 1}
+                              onChange={(event) => dispatch(setFrontTextScale(Number(event.target.value)))}
+                              className="min-w-0 flex-1 accent-[#ee5264]"
+                            />
+                            <span className="w-11 shrink-0 text-right text-[11px] font-black text-[#182443]">{Math.round((cart.card.frontTextScale ?? 1) * 100)}%</span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <span className="text-[11px] font-black text-[#59627b]">{tx("Alineación", "Alinhamento")}</span>
+                            <div className="inline-flex rounded-full border border-[#dfd3cc] p-0.5">
+                              {([["left", tx("Izquierda", "Esquerda")], ["center", tx("Centro", "Centro")], ["right", tx("Derecha", "Direita")]] as [TextAlign, string][]).map(([value, label]) => {
+                                const active = (cart.card.frontTextAlign ?? "center") === value;
+                                return <button key={value} type="button" aria-pressed={active} aria-label={label} title={label} onClick={() => dispatch(setFrontTextAlign(value))} className={`flex h-8 w-9 items-center justify-center rounded-full transition ${active ? "bg-[#ee5264] text-white" : "text-[#59627b] hover:text-[#182443]"}`}>
+                                  <svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                                    {value === "left" && <><path d="M1 2h14M1 7h9M1 12h12" /></>}
+                                    {value === "center" && <><path d="M1 2h14M3.5 7h9M2 12h12" /></>}
+                                    {value === "right" && <><path d="M1 2h14M6 7h9M3 12h12" /></>}
+                                  </svg>
+                                </button>;
+                              })}
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-[11px] leading-4 text-[#7c8191]">{tx("Arrastra el texto sobre la vista previa para moverlo.", "Arrasta o texto sobre a pré-visualização para o mover.")}</p>
+                            {cart.card.frontTextPosition && (
+                              <button type="button" onClick={() => dispatch(setFrontTextPosition(null))} className="text-[11px] font-bold text-[#7c8191] underline underline-offset-4 hover:text-[#ee5264]">
+                                {tx("Volver a la posición original", "Voltar à posição original")}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       )}
 
                       {/* Photo 1 Upload */}
@@ -878,7 +929,7 @@ export default function CustomizePage() {
                     </span>
                   </div>
                   <div className="mx-auto max-w-[580px] overflow-hidden rounded-[18px]">
-                    <PostcardSideView side={activeSection} compact={false} />
+                    <PostcardSideView side={activeSection} compact={false} editableText />
                   </div>
                   <p className="mt-3 text-center text-xs text-[#7b7180]">
                     {tx("Tus cambios se reflejan al instante en esta cara. En el siguiente paso podrás añadir y mover todos tus emojis.", "As tuas alterações aparecem imediatamente nesta face. No passo seguinte poderás adicionar e mover todos os teus emojis.")}
@@ -968,6 +1019,9 @@ export default function CustomizePage() {
                       photoZoom={cart.card.photoZoom}
                       photoPosition={cart.card.photoPosition}
                       size={cart.card.size}
+                      textScale={cart.card.frontTextScale ?? 1}
+                      textAlign={cart.card.frontTextAlign ?? "center"}
+                      textPosition={cart.card.frontTextPosition ?? null}
                     />
                   </div>
                   <p className="mt-3 text-center text-xs text-[#7b7180]">

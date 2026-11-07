@@ -24,8 +24,8 @@ export function ShowcaseCard({ variant, language, image }: ShowcaseCardProps) {
         <img src={image || (graduation ? "/images/graduation-celebration.png" : "/images/birthday-celebration.png")} alt={photoAlt[variant][language]} className="h-full w-full object-cover" style={{ objectPosition: graduation ? "center 35%" : "center 30%" }} />
       </div>
       <div className={`absolute z-30 text-center ${graduation ? "inset-x-[18%] bottom-[13%]" : "left-[21%] right-[21%] bottom-[25%]"}`}>
-        <div className="mx-auto inline-block max-w-full rounded-[7px] bg-[#f8c75e] px-[5%] py-[2.5%] shadow-sm">
-          <p className={`break-words font-serif font-bold leading-tight text-[#182443] ${graduation ? "text-[clamp(11px,2vw,19px)]" : "text-[clamp(9px,1.7vw,17px)]"}`}>{title}</p>
+        <div className="mx-auto inline-block max-w-full px-[5%] py-[2.5%]">
+          <p style={{ textShadow: "0 0 .05em #fff, 0 0 .1em #fff, 0 0 .2em #fff, 0 0 .38em rgba(255,255,255,.95)" }} className={`break-words font-serif font-bold leading-tight text-[#182443] ${graduation ? "text-[clamp(11px,2vw,19px)]" : "text-[clamp(9px,1.7vw,17px)]"}`}>{title}</p>
         </div>
       </div>
       <span className={`absolute z-30 text-[clamp(20px,5vw,42px)] drop-shadow-sm ${graduation ? "right-[13%] top-[10%]" : "right-[24%] top-[11%]"}`}>{graduation ? "🎓" : "🎂"}</span>

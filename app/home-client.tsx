@@ -9,7 +9,7 @@ import { useSelector } from "react-redux";
 import { Icon } from "@/components/icons";
 import { CardPreview } from "@/components/card-preview";
 import { ShowcaseCard } from "@/components/showcase-card";
-import { SiteFooter, SiteHeader } from "@/components/site";
+import { SiteFooter, SiteHeader, SocialLinks } from "@/components/site";
 import { RootState } from "@/lib/store";
 
 type Category = {
@@ -973,10 +973,28 @@ export default function Home({ homepageImages }: { homepageImages: HomepageImage
               <ShowcaseCard variant="birthday" language={language} image={homepageImages["made.romantic"]} />
               <MagazineShowcaseCard language={language} image={homepageImages["made.magazine"]} />
             </div>
-            <p className="mt-7 text-center text-sm font-black">
-              {es ? "Comparte tu creación" : "Partilha a tua criação"}{" "}
-              <span className="text-[#ee5264]">#CelebraMomentos</span>
-            </p>
+            <div className="mx-auto mt-10 max-w-[760px] rounded-[28px] border border-[#eadbd3] bg-white p-6 text-center shadow-sm sm:p-9">
+              <p className="text-sm font-black sm:text-base">
+                {es ? "Comparte tu creación" : "Partilha a tua criação"}{" "}
+                <span className="text-[#ee5264]">#CelebraMomentos</span>
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#59627b] sm:text-base">
+                {es
+                  ? "Publica tu creación en Instagram o Facebook, etiquétanos con #CelebraMomentos y consigue un "
+                  : "Publica a tua criação no Instagram ou no Facebook, identifica-nos com #CelebraMomentos e recebe "}
+                <strong className="text-[#182443]">{es ? "10% de descuento en tu próximo pedido" : "10% de desconto na tua próxima encomenda"}</strong>.
+              </p>
+              <SocialLinks className="mt-5 justify-center" />
+              <p className="mt-5 text-xs leading-5 text-[#7c8191]">
+                {es
+                  ? "Revisamos cada publicación manualmente. Cuando la hayamos comprobado, te enviaremos tu código de descuento por email. "
+                  : "Revemos cada publicação manualmente. Depois de a confirmarmos, enviamos-te o teu código de desconto por email. "}
+                <Link href="/contact" className="font-black text-[#ee5264] underline underline-offset-4">
+                  {es ? "Envíanos el enlace de tu publicación" : "Envia-nos a ligação da tua publicação"}
+                </Link>
+                .
+              </p>
+            </div>
           </div>
         </section>
 

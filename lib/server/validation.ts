@@ -35,6 +35,11 @@ export const cartLineSchema = z.object({
       detail: z.string().max(400),
       image: z.string().max(2000).nullable(),
       priceCents: z.number().int().nonnegative(),
+      // Phone cases: the Printeers phone model and photo framing (checked again on the server).
+      printeers: z.object({
+        productReference: z.string().regex(/^[A-Za-z0-9_-]{3,80}$/),
+        crop: z.object({ zoom: z.number().min(1).max(4), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }),
+      }).nullable().optional(),
   }).optional().nullable(),
   productPriceCents: z.number().int().nonnegative().optional().nullable(),
   productName: z.string().max(200).optional().nullable(),
@@ -65,6 +70,9 @@ export const cartLineSchema = z.object({
     magazineBadge: z.string().optional(),
     magazineHeadlineTag: z.string().optional(),
     magazineFooter: z.string().optional(),
+    frontTextScale: z.number().min(0.5).max(2.5).optional(),
+    frontTextAlign: z.enum(["left", "center", "right"]).optional(),
+    frontTextPosition: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(20).max(100) }).nullable().optional(),
     // Card pages rendered in the browser at checkout. Only references to uploads; the
     // server checks each one against its own upload records before using it.
     design: z.object({
@@ -106,7 +114,7 @@ export const productVariantSchema = z.object({
 });
 export const productOptionSchema = z.object({
   name: z.string().trim().min(1).max(60),
-  // Phone model lists run past 100 choices (Alerio Print sells 138 models of the clear case).
+  // Long lists such as phone models (used by phone case products not linked to Printeers yet) run past 100 choices.
   choices: z.array(z.string().trim().min(1).max(80)).min(1).max(200),
   required: z.boolean().optional(),
 });
@@ -125,8 +133,10 @@ export const productSchema = z.object({
     templateSlug: z.enum(CARD_TEMPLATE_SLUGS).optional(),
     // Non-card products: how many customer photos the product needs.
     photoCount: z.number().int().min(1).max(MAX_PRODUCT_PHOTOS).optional(),
-    // Print shop that fulfils the product (Prodigi, Printful, Gelato, Alerio Print).
+    // Print shop that fulfils the product (Prodigi, Printful, Gelato, Printeers).
     provider: z.enum(POD_PROVIDERS).optional(),
+    // Phone cases: the Printeers product group per environment (references differ between them).
+    printeers: z.object({ test: z.string().regex(/^[A-Za-z0-9_-]{3,80}$/).nullable().optional(), live: z.string().regex(/^[A-Za-z0-9_-]{3,80}$/).nullable().optional() }).strict().nullable().optional(),
     // Non-card products: the print shop's recommended file for customer photos.
     printFile: z.object({
       width: z.number().int().min(1).max(20000),

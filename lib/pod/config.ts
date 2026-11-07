@@ -26,7 +26,7 @@ export function webhookSecret() {
   return value && value.length >= 24 ? value : null;
 }
 
-export function webhookUrl(provider: "prodigi" | "gelato" | "printful") {
+export function webhookUrl(provider: "prodigi" | "gelato" | "printful" | "printeers") {
   const secret = webhookSecret();
   return secret ? `${appUrl()}/api/webhooks/${provider}?token=${encodeURIComponent(secret)}` : null;
 }
@@ -48,9 +48,31 @@ export const printfulConfig = () => ({
   baseUrl: (env("PRINTFUL_BASE_URL") || "https://api.printful.com").replace(/\/+$/, ""),
 });
 
-export const alerioConfig = () => ({
-  apiKey: env("ALERIOPRINT_API_KEY"),
-  baseUrl: (env("ALERIOPRINT_BASE_URL") || "https://create.alerioprint.com/backend/api/external").replace(/\/+$/, ""),
-  // Delivery service id from GET /deliveries; 2 = "DHL Global Mail [with tracking]" (ships to ES and PT).
-  deliveryOption: Number(env("ALERIOPRINT_DELIVERY_OPTION") || 2),
-});
+// Printeers (phone cases), API v1: https://api-docs.printeers.com/reference/v1 (legacy; Printeers
+// announced on 2026-05-08 that V1 is retired one year after that date).
+// Draft mode uses the Printeers TEST environment, where orders are never produced or
+// invoiced; live mode uses production. A V1 credential is a partner code (the store code,
+// e.g. "TESTCODE") plus an API key, sent as X-IPP-PARTNERCODE / X-IPP-APIKEY. Test and
+// production credentials are different, so each mode has its own pair.
+// V1 paths have no version prefix (https://api.test-printeers.com/stock, checked 2026-11-07).
+export const PRINTEERS_SHIPPING_LEVELS = ["normal", "tracked", "premium"] as const;
+export type PrinteersShippingLevel = (typeof PRINTEERS_SHIPPING_LEVELS)[number];
+// Older names ("basic", "express") still work in PRINTEERS_SHIPPING_LEVEL.
+const SHIPPING_LEVEL_ALIASES: Record<string, PrinteersShippingLevel> = { basic: "normal", express: "premium" };
+
+export const printeersConfig = (mode: PodMode) => {
+  const live = mode === "live";
+  const level = (env("PRINTEERS_SHIPPING_LEVEL") || "").toLowerCase();
+  const resolved = SHIPPING_LEVEL_ALIASES[level] || level;
+  return {
+    environment: live ? "production" : "test",
+    apiKey: env(live ? "PRINTEERS_V1_API_KEY" : "PRINTEERS_V1_TEST_API_KEY"),
+    partnerCode: env(live ? "PRINTEERS_V1_PARTNER_CODE" : "PRINTEERS_V1_TEST_PARTNER_CODE"),
+    baseUrl: (env(live ? "PRINTEERS_BASE_URL" : "PRINTEERS_TEST_BASE_URL") || (live ? "https://api.printeers.com" : "https://api.test-printeers.com")).replace(/\/+$/, ""),
+    // Minimal dropship level; "normal" has no tracking, so "tracked" is the default.
+    shippingLevel: ((PRINTEERS_SHIPPING_LEVELS as readonly string[]).includes(resolved) ? resolved : "tracked") as PrinteersShippingLevel,
+    brandReference: env(live ? "PRINTEERS_BRAND_REFERENCE" : "PRINTEERS_TEST_BRAND_REFERENCE"),
+    // Signing secret ("whsec_…", Standard Webhooks) of the Printeers webhook endpoint (Dashboard → Settings).
+    webhookSecret: env(live ? "PRINTEERS_WEBHOOK_SECRET" : "PRINTEERS_TEST_WEBHOOK_SECRET"),
+  };
+};

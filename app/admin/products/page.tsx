@@ -9,21 +9,21 @@ import { CARD_TEMPLATE_SLUGS, DEFAULT_CARD_TEMPLATE, DEFAULT_POD_PROVIDER, MAX_P
 
 type ApiProduct = {
   id: string; slug: string; name: string; kind: ProductKind; description: string | null; basePriceCents: number; active: boolean; featured: boolean;
-  metadata: { templateSlug?: CardTemplateSlug; photoCount?: number; provider?: string; printFile?: unknown } | null;
+  metadata: { templateSlug?: CardTemplateSlug; photoCount?: number; provider?: string; printFile?: unknown; printeers?: { test?: string | null; live?: string | null } | null } | null;
   images?: { asset?: { url?: string | null } }[];
   variants: { id: string; name: string; priceCents: number; attributes?: unknown }[];
   options: { id: string; name: string; required: boolean; config: { choices?: string[] } | null }[];
 };
 type VariantDraft = { id?: string; name: string; price: string; photoCount: string; podSku: string; provider: PodProvider | "" };
 type OptionDraft = { name: string; choices: string; required: boolean };
-type Draft = { name: string; kind: ProductKind; description: string; price: string; featured: boolean; active: boolean; image?: string; templateSlug: CardTemplateSlug; photoCount: number; provider: PodProvider; printWidth: string; printHeight: string; transparentPng: boolean; variants: VariantDraft[]; options: OptionDraft[] };
+type Draft = { name: string; kind: ProductKind; description: string; price: string; featured: boolean; active: boolean; image?: string; templateSlug: CardTemplateSlug; photoCount: number; provider: PodProvider; printWidth: string; printHeight: string; transparentPng: boolean; variants: VariantDraft[]; options: OptionDraft[]; printeers: { test: string; live: string } };
 
 // The six storefront categories.
 const KIND_ORDER: ProductKind[] = ["POSTCARD", "WALL_ART", "MAGNET", "PHONE_CASE", "MUG", "CALENDAR"];
 const TEMPLATE_NAMES: Record<CardTemplateSlug, string> = { "template-3": "Tradicional", "template-2": "Collage", "template-magazine": "Magazine" };
 // Calendars default to one photo per month.
 const defaultPhotoCount = (kind: ProductKind) => (kind === "CALENDAR" ? 12 : 1);
-const emptyDraft = (kind: ProductKind): Draft => ({ name: "", kind, description: "", price: "", featured: false, active: true, templateSlug: DEFAULT_CARD_TEMPLATE, photoCount: defaultPhotoCount(kind), provider: DEFAULT_POD_PROVIDER[kind], printWidth: "", printHeight: "", transparentPng: false, variants: [], options: [] });
+const emptyDraft = (kind: ProductKind): Draft => ({ name: "", kind, description: "", price: "", featured: false, active: true, templateSlug: DEFAULT_CARD_TEMPLATE, photoCount: defaultPhotoCount(kind), provider: DEFAULT_POD_PROVIDER[kind], printWidth: "", printHeight: "", transparentPng: false, variants: [], options: [], printeers: { test: "", live: "" } });
 // Magnets are sold in packs, everything else in sizes (or case types).
 const variantLabel = (kind: ProductKind) => (kind === "MAGNET" ? { title: "Packs & prices", add: "+ Add pack", placeholder: "e.g. 3 imanes" } : { title: "Sizes & prices", add: "+ Add size", placeholder: "e.g. 30 × 40 cm" });
 const validPixels = (value: string) => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 20000;
@@ -80,6 +80,7 @@ export default function AdminProductsPage() {
       ...(() => { const printFile = productPrintFile(product.metadata); return { printWidth: printFile ? String(printFile.width) : "", printHeight: printFile ? String(printFile.height) : "", transparentPng: Boolean(printFile?.transparentPng) }; })(),
       variants: product.variants.map((variant) => { const attributes = variantAttributes(variant.attributes); return { id: variant.id, name: variant.name, price: (variant.priceCents / 100).toFixed(2), photoCount: attributes.photoCount ? String(attributes.photoCount) : "", podSku: attributes.podSku || "", provider: attributes.provider || "" }; }),
       options: product.options.map((option) => ({ name: option.name, choices: (option.config?.choices || []).join(", "), required: option.required })),
+      printeers: { test: product.metadata?.printeers?.test || "", live: product.metadata?.printeers?.live || "" },
     });
     setEditingId(product.id); setImageFile(null); setPanelOpen(true);
   };
@@ -112,7 +113,7 @@ export default function AdminProductsPage() {
         basePriceCents: toCents(draft.price),
         featured: draft.featured,
         active: draft.active,
-        metadata: isCard ? { templateSlug: draft.templateSlug, provider: draft.provider } : { photoCount: draft.photoCount, provider: draft.provider, printFile: draft.printWidth.trim() && draft.printHeight.trim() ? { width: Number(draft.printWidth), height: Number(draft.printHeight), ...(draft.transparentPng ? { transparentPng: true } : {}) } : null },
+        metadata: isCard ? { templateSlug: draft.templateSlug, provider: draft.provider } : { photoCount: draft.photoCount, provider: draft.kind === "PHONE_CASE" ? "PRINTEERS" : draft.provider, ...(draft.kind === "PHONE_CASE" ? { printeers: { test: draft.printeers.test || null, live: draft.printeers.live || null } } : {}), printFile: draft.printWidth.trim() && draft.printHeight.trim() ? { width: Number(draft.printWidth), height: Number(draft.printHeight), ...(draft.transparentPng ? { transparentPng: true } : {}) } : null },
         variants: isCard ? [] : draft.variants.map((variant) => ({ ...(variant.id ? { id: variant.id } : {}), name: variant.name.trim(), priceCents: toCents(variant.price), photoCount: variant.photoCount.trim() ? Math.round(Number(variant.photoCount)) : null, podSku: variant.podSku.trim() || null, provider: variant.provider || null })),
         options: isCard ? [] : draft.options.map((option) => ({ name: option.name.trim(), choices: option.choices.split(",").map((choice) => choice.trim()).filter(Boolean), required: option.required })),
       };
@@ -163,7 +164,8 @@ function ProductPanel({ draft, editing, saving, onChange, onImageFile, onClose, 
   const setOption = (index: number, changes: Partial<OptionDraft>) => onChange({ ...draft, options: draft.options.map((option, current) => current === index ? { ...option, ...changes } : option) });
   return <div className="fixed inset-0 z-50"><button className="absolute inset-0 bg-[#182443]/25" onClick={onClose} aria-label="Close" /><section className="absolute bottom-0 right-0 top-0 w-full max-w-[460px] overflow-y-auto bg-white p-6 shadow-2xl sm:p-8"><button type="button" onClick={onClose} className="float-right text-xs font-black text-[#737b90]">Close</button><p className="pt-8 text-[10px] font-black tracking-widest text-[#ee5264]">DATABASE CATALOG</p><h2 className="mt-2 text-2xl font-black">{editing ? "Edit product" : "Add product"}</h2>
     <label className="mt-8 block text-sm font-black">Category<select value={draft.kind} onChange={(event) => { const kind = event.target.value as ProductKind; onChange({ ...draft, kind, provider: DEFAULT_POD_PROVIDER[kind], ...(editing ? {} : { photoCount: defaultPhotoCount(kind) }) }); }} className="field">{KIND_ORDER.map((kind) => <option key={kind} value={kind}>{PRODUCT_KIND_INFO[kind].admin}</option>)}</select><span className="mt-1 block text-[11px] font-bold text-[#9297a4]">Shown on {PRODUCT_KIND_INFO[draft.kind].path}</span></label>
-    <label className="mt-4 block text-sm font-black">Print shop (POD)<select value={draft.provider} onChange={(event) => onChange({ ...draft, provider: event.target.value as PodProvider })} className="field">{POD_PROVIDERS.map((provider) => <option key={provider} value={provider}>{POD_PROVIDER_LABELS[provider]}</option>)}</select><span className="mt-1 block text-[11px] font-bold text-[#9297a4]">Saved on every order line so you know where to send it.</span></label>
+    {draft.kind === "PHONE_CASE" ? <PrinteersLink value={draft.printeers} onChange={(printeers) => onChange({ ...draft, provider: "PRINTEERS", printeers })} />
+      : <label className="mt-4 block text-sm font-black">Print shop (POD)<select value={draft.provider} onChange={(event) => onChange({ ...draft, provider: event.target.value as PodProvider })} className="field">{POD_PROVIDERS.filter((provider) => provider !== "PRINTEERS").map((provider) => <option key={provider} value={provider}>{POD_PROVIDER_LABELS[provider]}</option>)}</select><span className="mt-1 block text-[11px] font-bold text-[#9297a4]">Saved on every order line so you know where to send it.</span></label>}
     <label className="mt-4 block text-sm font-black">Product name<input value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} className="field" autoFocus /></label>
     <label className="mt-4 block text-sm font-black">Description<textarea value={draft.description} onChange={(event) => onChange({ ...draft, description: event.target.value })} className="field resize-none" rows={3} /></label>
     <label className="mt-4 block text-sm font-black">{!isCard && draft.variants.length ? "Base price (€) · used only without sizes" : "Price (€)"}<input value={draft.price} onChange={(event) => onChange({ ...draft, price: event.target.value })} type="number" min="0" step="0.01" className="field" /></label>
@@ -176,4 +178,39 @@ function ProductPanel({ draft, editing, saving, onChange, onImageFile, onClose, 
     <button type="button" onClick={() => fileRef.current?.click()} className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-dashed border-[#e7a59c] p-3 text-left"><span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#fff0e8] text-[#ee5264]">{draft.image ? <img src={draft.image} alt="" className="h-full w-full object-cover" /> : "＋"}</span><span><span className="block text-sm font-black">{draft.image ? "Change image" : "Upload image"}</span><span className="block text-xs text-[#7c8191]">JPG, PNG or WebP · max 10 MB</span></span></button><input ref={fileRef} onChange={choose} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" />
     <div className="mt-4 flex flex-wrap gap-5 text-sm font-black"><label className="flex items-center gap-2"><input type="checkbox" checked={draft.active} onChange={(event) => onChange({ ...draft, active: event.target.checked })} className="accent-[#ee5264]" /> Visible on the storefront</label><label className="flex items-center gap-2"><input type="checkbox" checked={draft.featured} onChange={(event) => onChange({ ...draft, featured: event.target.checked })} className="accent-[#ee5264]" /> Featured</label></div>
     <button type="button" disabled={saving} onClick={onSave} className="mt-7 flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-60">{saving ? <><Spinner size={15} />Saving…</> : "Save"}</button></section></div>;
+}
+
+type PrinteersSetup = { environment: "test" | "live"; problem: string | null; connected: boolean; productgroups: { reference: string; name: string; private: boolean; price: number | null; suggestedRetailPrice: number | null }[] };
+const euros = (cents: number | null) => (cents === null ? "—" : `${(cents / 100).toFixed(2).replace(".", ",")} €`);
+
+// Phone cases are made by Printeers. The product is linked to one Printeers product group
+// (e.g. Soft TPU cases) per environment; customers then pick their phone model from that
+// group's live product list. References differ between the test and live environments.
+function PrinteersLink({ value, onChange }: { value: { test: string; live: string }; onChange: (value: { test: string; live: string }) => void }) {
+  const [setup, setSetup] = useState<PrinteersSetup | null>(null);
+  const [failed, setFailed] = useState("");
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/printeers", { cache: "no-store" }).then((response) => response.json()).then((body) => { if (active) setSetup(body); }).catch(() => { if (active) setFailed("Printeers could not be reached"); });
+    return () => { active = false; };
+  }, []);
+  const env = setup?.environment || "test";
+  const current = value[env];
+  const other = env === "test" ? value.live : value.test;
+  const chosen = setup?.productgroups.find((group) => group.reference === current);
+  return <div className="mt-4 rounded-2xl border border-[#e4e7ee] p-4">
+    <p className="text-sm font-black">Print shop (POD): Printeers</p>
+    <p className="mt-1 text-[11px] leading-4 text-[#9297a4]">Phone cases are always sent to Printeers. Link this product to a Printeers product group; customers then choose their phone model from that group. Environment in use: <b>{env === "live" ? "production" : "test"}</b>.</p>
+    {!setup && !failed && <p className="mt-3 text-[11px] font-bold text-[#737b90]">Loading Printeers product groups…</p>}
+    {(failed || setup?.problem) && <p className="mt-3 rounded-lg bg-[#fff6e0] px-2.5 py-1.5 text-[11px] font-bold text-[#8a5a00]">{failed || setup?.problem}. Until it is linked and connected, this product keeps using its own &quot;Modelo&quot; list.</p>}
+    {setup?.connected && <label className="mt-3 block text-xs font-black">Printeers product group ({env === "live" ? "production" : "test"})
+      <select value={current} onChange={(event) => onChange({ ...value, [env]: event.target.value })} className="field">
+        <option value="">Not linked</option>
+        {setup.productgroups.map((group) => <option key={group.reference} value={group.reference}>{group.name}{group.private ? " (private)" : ""}</option>)}
+        {current && !chosen && <option value={current}>{current} (not found)</option>}
+      </select>
+    </label>}
+    {chosen && <p className="mt-2 text-[11px] text-[#737b90]">Printeers price: <b>{euros(chosen.price)}</b> · suggested retail: <b>{euros(chosen.suggestedRetailPrice)}</b> (VAT excl.). Your selling price is the price below.</p>}
+    {other && <p className="mt-2 text-[11px] text-[#9297a4]">{env === "live" ? "Test" : "Production"} environment: linked to <code>{other}</code>.</p>}
+  </div>;
 }

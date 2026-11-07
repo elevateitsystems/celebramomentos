@@ -1,6 +1,6 @@
 // Product mapping: internal product + size + options → the print shop's product
 // reference and print files. Only ids verified against each shop's API are used
-// (see gelato-catalog.ts, alerioprint-assets.ts and the notes below). An admin
+// (see gelato-catalog.ts and the notes below). An admin
 // "Print shop SKU" on a size always wins, so any mapping can be corrected without code.
 //
 // Verified 2026-11-01:
@@ -9,9 +9,10 @@
 // - Printful GET /products/403 "White Ceramic Mug with Color Inside" and
 //   /mockup-generator/printfiles/403: placement "default", 11 oz 2700 × 1050 px, 15 oz 2700 × 1140 px.
 // - Gelato Product API catalogs poster-hangers, calendars, phone-cases.
-// - AlerioPrint GET /api/external/products: ids and print sizes in alerioprint-assets.ts.
+// - Printeers (5 Nov 2026): product references and print areas come from the Printeers
+//   API per order item (chosen by the customer from the live catalog), not from this file.
 import type { PodProvider } from "@prisma/client";
-import { ALERIO_ASSET_IDS, ALERIO_PRODUCTS, type AlerioCaseType } from "./alerioprint-assets";
+import { mmToPx, type ImageCrop } from "@/lib/crop";
 import { gelatoFormatMm, type PrintSpec } from "./artwork";
 import { GELATO_CALENDAR_UIDS, GELATO_POSTER_HANGER_UIDS, GELATO_TOUGH_CASE_UIDS } from "./gelato-catalog";
 import type { PodIssue } from "./types";
@@ -26,6 +27,9 @@ export type ItemContext = {
   photoCount: number;
   cardSize: string | null;
   cardSku: string | null;
+  // Phone cases: the Printeers product (phone model) the customer chose, its print area
+  // and how the photo was framed, all checked against the Printeers API at checkout.
+  printeers?: { productReference: string; printMm: { width: number; height: number } | null; crop: ImageCrop | null } | null;
 };
 
 // One print shop line. Magnet packs become one line per photo (each magnet has its own picture).
@@ -162,25 +166,19 @@ function mapGelato(ctx: ItemContext): ItemMapping {
   return { units: [], issues: [blocker("unmapped", `Gelato is not set up for ${ctx.kind}`)] };
 }
 
-// ── AlerioPrint ──────────────────────────────────────────────────────────────
-export function alerioCaseType(name: string): AlerioCaseType | null {
-  if (/magsafe/i.test(name)) return "magsafe";
-  if (/tough|rígida|rigida|resistente/i.test(name)) return "tough";
-  if (/transparent|clear|gel|tpu/i.test(name)) return "clear";
-  return null;
-}
-
-function mapAlerio(ctx: ItemContext): ItemMapping {
-  if (ctx.kind !== "PHONE_CASE") return { units: [], issues: [blocker("unmapped", `AlerioPrint is only set up for phone cases (got ${ctx.kind})`)] };
-  const type = alerioCaseType(`${ctx.productName} ${ctx.variantName || ""}`);
-  if (!type) return { units: [], issues: [blocker("unmapped", `Cannot tell which AlerioPrint case "${ctx.productName}" is (clear, MagSafe or tough)`)] };
-  const product = ALERIO_PRODUCTS[type];
-  const model = optionValue(ctx.options, /modelo|model|movil|móvil|telem/i);
+// ── Printeers (phone cases) ──────────────────────────────────────────────────
+// One line per case: the Printeers product reference is the exact phone model and case,
+// and the print file is the customer's framed photo at the product's print area (300 dpi).
+// Printeers takes no crop or placement on an order line, so the file must be final.
+function mapPrinteers(ctx: ItemContext): ItemMapping {
+  if (ctx.kind !== "PHONE_CASE") return { units: [], issues: [blocker("unmapped", `Printeers is only set up for phone cases (got ${ctx.kind})`)] };
+  const productRef = ctx.podSku || ctx.printeers?.productReference || null;
+  const area = ctx.printeers?.printMm;
+  if (!productRef) return { units: [], issues: [blocker("printeers_product_missing", `No Printeers product for "${optionValue(ctx.options, /modelo|model|movil|móvil|telem/i) || ctx.productName}": the case was ordered before its product was linked to Printeers. Cancel it or handle it by hand.`)] };
+  if (!area?.width || !area.height) return { units: [], issues: [blocker("printeers_print_area_missing", `Printeers did not give a print area for ${productRef}`)] };
   if (!ctx.photoCount) return { units: [], issues: [blocker("missing_photos", "The order has no case photo")] };
-  const assetId = ctx.podSku ? null : model ? ALERIO_ASSET_IDS[type][model] : undefined;
-  const ref = ctx.podSku || (assetId ? `${product.productId}:${assetId}` : null);
-  const spec: PrintSpec = { area: "default", kind: "photo", photoIndex: 0, fit: "fill", width: product.printWidth, height: product.printHeight, format: "png" };
-  return { units: [{ productRef: ref, specs: [spec] }], issues: ref ? [] : [blocker("alerio_asset_missing", `AlerioPrint model id missing for "${model || "?"}" (${product.title}); see lib/pod/alerioprint-assets.ts`)] };
+  const spec: PrintSpec = { area: "default", kind: "photo", photoIndex: 0, fit: "fill", width: mmToPx(area.width), height: mmToPx(area.height), format: "jpg", crop: ctx.printeers?.crop || null };
+  return { units: [{ productRef, specs: [spec] }], issues: [] };
 }
 
 export function mapOrderItem(ctx: ItemContext): ItemMapping {
@@ -188,7 +186,7 @@ export function mapOrderItem(ctx: ItemContext): ItemMapping {
     case "PRODIGI": return mapProdigi(ctx);
     case "PRINTFUL": return mapPrintful(ctx);
     case "GELATO": return mapGelato(ctx);
-    case "ALERIO_PRINT": return mapAlerio(ctx);
-    default: return { units: [], issues: [blocker("unmapped", `Unknown print shop ${String(ctx.provider)}`)] };
+    case "PRINTEERS": return mapPrinteers(ctx);
+    default: return { units: [], issues: [blocker("provider_inactive", "This print shop is no longer used and receives no orders")] };
   }
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { type KeyboardEvent, type PointerEvent, useRef } from "react";
+import { type CSSProperties, type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { useSelector } from "react-redux";
 import { resolveFrame, templates, type CardSize } from "@/lib/data";
 import { defaultEmojiPosition, emojiToneFilters, type EmojiElement, type EmojiPosition, type EmojiTone } from "@/lib/emojis";
-import type { RootState } from "@/lib/store";
+import type { RootState, TextAlign, TextPosition } from "@/lib/store";
 import { MagazineFront } from "./magazine-card";
 
 type CardPreviewProps = {
@@ -35,6 +35,12 @@ type CardPreviewProps = {
   badge?: string;
   headlineTag?: string;
   footerText?: string;
+  // Cover text (Tradicional and Collage). When omitted they come from the card being edited.
+  textScale?: number;
+  textAlign?: TextAlign;
+  textPosition?: TextPosition | null;
+  // Set in the editor to let the text be dragged (or moved with the arrow keys).
+  onTextPositionChange?: (position: TextPosition | null) => void;
 };
 
 const clampPosition = (value: number) => Math.min(94, Math.max(6, value));
@@ -60,6 +66,20 @@ export function frameOpeningStyle(frameId: string) {
     default:
       return { top: "8%", right: "8%", bottom: "8%", left: "8%" };
   }
+}
+
+// Style of the cover text: the template's own size times the customer's scale. A white halo
+// (not a box) keeps it readable over photos and frame art.
+function coverTextStyle({ compact, collage, scale, align, position }: { compact: boolean; collage: boolean; scale: number; align: TextAlign; position: TextPosition | null }): CSSProperties {
+  const base = compact ? "8px" : collage ? "clamp(13px,2.5vw,25px)" : "clamp(14px,2.8vw,28px)";
+  return {
+    fontSize: `calc(${base} * ${scale})`,
+    textAlign: align,
+    textShadow: "0 0 .05em #fff, 0 0 .1em #fff, 0 0 .2em #fff, 0 0 .38em rgba(255,255,255,.95)",
+    ...(position
+      ? { position: "absolute", width: `${position.w}%`, left: `${position.x * 100}%`, top: `${position.y * 100}%`, transform: `translate(-${position.x * 100}%, -${position.y * 100}%)` }
+      : { width: collage ? "100%" : "92%" }),
+  };
 }
 
 // These frame files have transparent decorative edges, so they must sit above
@@ -95,6 +115,10 @@ export function CardPreview({
   badge,
   headlineTag,
   footerText,
+  textScale,
+  textAlign,
+  textPosition,
+  onTextPositionChange,
 }: CardPreviewProps) {
   const savedCard = useSelector((state: RootState) => state.cart.card);
   const isPortuguese = useSelector((state: RootState) => state.language.language === "pt");
@@ -106,6 +130,55 @@ export function CardPreview({
   const legacyElement: EmojiElement = { id: "legacy-emoji", emoji, tone: emojiTone ?? savedCard.emojiTone ?? "natural", size: emojiSize ?? savedCard.emojiSize ?? 28, position: emojiPosition ?? savedCard.emojiPosition ?? defaultEmojiPosition };
   const elements = emojiElements ?? (savedCard.templateId === templateId ? savedCard.emojiElements : [legacyElement]);
   const canMoveEmoji = Boolean(onEmojiElementPositionChange || onEmojiPositionChange) && !compact;
+
+  // Cover text of Tradicional and Collage. Without explicit props the editor's card is used,
+  // except in small thumbnails, which keep the template's own layout.
+  const useSaved = savedCard.templateId === templateId && !compact;
+  const scale = textScale ?? (useSaved ? savedCard.frontTextScale : undefined) ?? 1;
+  const align: TextAlign = textAlign ?? (useSaved ? savedCard.frontTextAlign : undefined) ?? "center";
+  const position = textPosition !== undefined ? textPosition : useSaved ? savedCard.frontTextPosition ?? null : null;
+  const canMoveText = Boolean(onTextPositionChange) && !compact;
+  const coverMessage = message || (isPortuguese ? "Parabéns" : "Enhorabuena");
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const textDrag = useRef<{ dx: number; dy: number } | null>(null);
+  const measure = () => {
+    const card = designRef.current?.getBoundingClientRect();
+    const box = textRef.current?.getBoundingClientRect();
+    return card && box ? { card, box } : null;
+  };
+  // left/top: where the text box should start, in px from the card's corner. Stored as
+  // fractions of the room left over, so the box always stays fully inside the card.
+  const placeText = (left: number, top: number, { card, box }: { card: DOMRect; box: DOMRect }) => {
+    const unit = (value: number) => Math.min(1, Math.max(0, value));
+    const slackX = card.width - box.width;
+    const slackY = card.height - box.height;
+    onTextPositionChange?.({ x: slackX > 1 ? unit(left / slackX) : .5, y: slackY > 1 ? unit(top / slackY) : 0, w: Math.min(92, Math.max(30, Math.round((box.width / card.width) * 100))) });
+  };
+  const startTextDrag = (event: PointerEvent<HTMLParagraphElement>) => {
+    const sizes = measure();
+    if (!canMoveText || !sizes) return;
+    textDrag.current = { dx: event.clientX - sizes.box.left, dy: event.clientY - sizes.box.top };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const dragText = (event: PointerEvent<HTMLParagraphElement>) => {
+    const sizes = measure();
+    if (!textDrag.current || !sizes || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    placeText(event.clientX - textDrag.current.dx - sizes.card.left, event.clientY - textDrag.current.dy - sizes.card.top, sizes);
+  };
+  const keyTextMove = (event: KeyboardEvent<HTMLParagraphElement>) => {
+    const sizes = measure();
+    if (!canMoveText || !sizes) return;
+    const step = event.shiftKey ? .05 : .02;
+    let left = sizes.box.left - sizes.card.left;
+    let top = sizes.box.top - sizes.card.top;
+    if (event.key === "ArrowLeft") left -= sizes.card.width * step;
+    else if (event.key === "ArrowRight") left += sizes.card.width * step;
+    else if (event.key === "ArrowUp") top -= sizes.card.height * step;
+    else if (event.key === "ArrowDown") top += sizes.card.height * step;
+    else return;
+    event.preventDefault();
+    placeText(left, top, sizes);
+  };
   // Full-size pages have the printed card's shape (5 × 7" / A5 with bleed, 1530 × 2160 px).
   const surfaceClass = compact ? template.magazineStyle ? "aspect-square" : "aspect-[.9/1]" : "aspect-[17/24]";
 
@@ -149,7 +222,26 @@ export function CardPreview({
         photoZoom={photoZoom}
         photoPosition={photoPosition}
       />
-    ) : template.id === "template-2" ? <CollageFront compact={compact} message={message} photos={photos} frameId={frame.id} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} /> : <StoryFront compact={compact} message={message} photos={photos} frameId={frame.id} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} />}
+    ) : template.id === "template-2" ? <CollageFront compact={compact} reserve={position ? null : <p aria-hidden="true" className="invisible mb-[4%] whitespace-pre-line break-words font-serif font-bold leading-[1.1]" style={coverTextStyle({ compact, collage: true, scale, align, position: null })}>{coverMessage}</p>} photos={photos} frameId={frame.id} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} /> : <StoryFront compact={compact} photos={photos} frameId={frame.id} frameImage={frame.image} photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} />}
+    {/* The cover text is its own layer above the photo and the frame, so nothing can hide it.
+        By default it sits where the template had it; once dragged it is placed by position. */}
+    {!template.magazineStyle && <div className={`pointer-events-none absolute z-30 flex flex-col items-center ${position ? "" : template.id === "template-2" ? (compact ? "p-[5%]" : "p-[5%]") : compact ? "p-[5%]" : "p-[5.5%]"}`} style={position ? { inset: 0 } : frameOpeningStyle(frame.id)}>
+      {!position && template.id !== "template-2" && <span aria-hidden="true" className={`w-[88%] shrink-0 ${compact ? "h-[48%]" : "h-[54%]"}`} />}
+      <p
+        ref={textRef}
+        role={canMoveText ? "button" : undefined}
+        tabIndex={canMoveText ? 0 : undefined}
+        aria-label={canMoveText ? (isPortuguese ? "Texto da capa. Arrasta ou usa as setas para o mover" : "Texto de la portada. Arrastra o usa las flechas para moverlo") : undefined}
+        title={canMoveText ? (isPortuguese ? "Arrasta para mover o texto" : "Arrastra para mover el texto") : undefined}
+        onPointerDown={startTextDrag}
+        onPointerMove={dragText}
+        onPointerUp={() => { textDrag.current = null; }}
+        onPointerCancel={() => { textDrag.current = null; }}
+        onKeyDown={keyTextMove}
+        className={`whitespace-pre-line break-words font-serif font-bold leading-[1.1] text-[#182443] ${canMoveText ? "pointer-events-auto cursor-grab touch-none rounded-sm outline-none focus:ring-2 focus:ring-[#ee5264] focus:ring-offset-2 active:cursor-grabbing" : ""} ${!position && template.id !== "template-2" ? "mt-[5%]" : ""}`}
+        style={coverTextStyle({ compact, collage: template.id === "template-2", scale, align, position })}
+      >{coverMessage}</p>
+    </div>}
     {elements.map((item) => <span key={item.id} role={canMoveEmoji ? "button" : undefined} tabIndex={canMoveEmoji ? 0 : undefined} aria-label={canMoveEmoji ? (isPortuguese ? `Mover emoji ${item.emoji}. Arrasta ou usa as setas` : `Mover emoji ${item.emoji}. Arrastra o usa las flechas`) : undefined} title={canMoveEmoji ? (isPortuguese ? "Arrasta para mover; seleciona para alterar o tamanho" : "Arrastra para mover; selecciónalo para cambiar su tamaño") : undefined} onPointerDown={(event) => { if (!canMoveEmoji) return; onEmojiSelect?.(item.id); event.currentTarget.setPointerCapture(event.pointerId); moveEmoji(event, item.id); }} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) moveEmoji(event, item.id); }} onKeyDown={(event) => handleKeyDown(event, item)} onFocus={() => onEmojiSelect?.(item.id)} className={`absolute z-30 select-none leading-none outline-none ${canMoveEmoji ? "cursor-grab touch-none rounded-lg focus:ring-2 focus:ring-[#ee5264] focus:ring-offset-2 active:cursor-grabbing" : ""}`} style={{ left: `${item.position.x}%`, top: `${item.position.y}%`, fontSize: `${compact ? item.size * .5 : item.size}px`, filter: emojiToneFilters[item.tone], transform: "translate(-50%, -50%)" }}>{item.emoji}</span>)}
   </div>;
 }
@@ -161,11 +253,14 @@ function PhotoTile({ src, fallback, alt, className, photoZoom = 1, photoPosition
   return <div className={`relative overflow-hidden bg-[#eee5df] ${className}`}><img src={src || fallback} alt={alt} className={`h-full w-full ${fitClass} ${src ? "" : "opacity-75 saturate-[.8]"}`} style={{ objectPosition: photoPosition, transform: src && photoFit === "cover" ? `scale(${photoZoom})` : undefined }} />{!src && <span className="absolute inset-x-0 bottom-0 bg-[#182443]/70 px-2 py-1 text-center text-[clamp(5px,1vw,9px)] font-black uppercase tracking-wider text-white">{isPortuguese ? "Adiciona fotografia" : "Añade foto"}</span>}</div>;
 }
 
-function CollageFront({ compact, message, photos, frameId, frameImage, photoZoom, photoPosition, photoFit, isPortuguese }: { compact: boolean; message: string; photos: (string | null)[]; frameId: string; frameImage: string; photoZoom: number; photoPosition: string; photoFit: "cover" | "contain" | "fill"; isPortuguese: boolean }) {
-  return <div className="absolute inset-0"><img src={frameImage} alt="" className={`absolute inset-0 ${frameOverlayClass(frameId)} h-full w-full object-fill`} /><div style={frameOpeningStyle(frameId)} className="absolute z-10 flex flex-col p-[5%]"><div className="mb-[3%] self-center rounded-[7px] bg-[#f8c75e] px-[3%] py-[2%] text-center shadow-sm"><p className={`line-clamp-2 font-serif font-bold leading-tight text-[#182443] ${compact ? "text-[8px]" : "text-[clamp(13px,2.5vw,25px)]"}`}>{message || (isPortuguese ? "Parabéns" : "Enhorabuena")}</p></div><PhotoTile src={photos[0]} fallback={samplePhotos[0]} alt={isPortuguese ? "Fotografia 1 · Capa" : "Foto 1 · Portada"} className="min-h-0 flex-1 rounded-md" photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} /></div></div>;
+function CollageFront({ compact, reserve, photos, frameId, frameImage, photoZoom, photoPosition, photoFit, isPortuguese }: { compact: boolean; reserve?: React.ReactNode; photos: (string | null)[]; frameId: string; frameImage: string; photoZoom: number; photoPosition: string; photoFit: "cover" | "contain" | "fill"; isPortuguese: boolean }) {
+  // The headline is drawn by CardPreview's text layer. `reserve` is an invisible copy of it that keeps
+  // the photo below the text (growing with it), as the in-flow label used to.
+  return <div className="absolute inset-0"><img src={frameImage} alt="" className={`absolute inset-0 ${frameOverlayClass(frameId)} h-full w-full object-fill`} /><div style={frameOpeningStyle(frameId)} className="absolute z-10 flex flex-col p-[5%]">{reserve}<PhotoTile src={photos[0]} fallback={samplePhotos[0]} alt={isPortuguese ? "Fotografia 1 · Capa" : "Foto 1 · Portada"} className="min-h-0 flex-1 rounded-md" photoZoom={photoZoom} photoPosition={photoPosition} photoFit={photoFit} isPortuguese={isPortuguese} /></div></div>;
 }
 
-function StoryFront({ compact, message, photos, frameId, frameImage, photoZoom, photoPosition, photoFit, isPortuguese }: { compact: boolean; message: string; photos: (string | null)[]; frameId: string; frameImage: string; photoZoom: number; photoPosition: string; photoFit: "cover" | "contain" | "fill"; isPortuguese: boolean }) {
+function StoryFront({ compact, photos, frameId, frameImage, photoZoom, photoPosition, photoFit, isPortuguese }: { compact: boolean; photos: (string | null)[]; frameId: string; frameImage: string; photoZoom: number; photoPosition: string; photoFit: "cover" | "contain" | "fill"; isPortuguese: boolean }) {
+  // The headline is drawn by CardPreview's text layer, under this photo's place.
   return <div className="absolute inset-0">
     <img src={frameImage} alt="" className={`absolute inset-0 ${frameOverlayClass(frameId)} h-full w-full object-fill`} />
     <div style={frameOpeningStyle(frameId)} className={`absolute z-10 flex flex-col items-center ${compact ? "p-[5%]" : "p-[5.5%]"}`}>
@@ -179,9 +274,6 @@ function StoryFront({ compact, message, photos, frameId, frameImage, photoZoom, 
         photoFit={photoFit}
         isPortuguese={isPortuguese}
       />
-      <div className="mt-[5%] flex min-h-0 w-[92%] flex-1 flex-col items-center text-center">
-        <p className={`max-w-[86%] rounded-[7px] bg-[#f8c75e] px-[4%] py-[2.5%] line-clamp-2 whitespace-pre-line break-words font-serif font-bold leading-[1.02] text-[#182443] shadow-sm ${compact ? "text-[8px]" : "text-[clamp(14px,2.8vw,28px)]"}`}>{message || (isPortuguese ? "Parabéns" : "Enhorabuena")}</p>
-      </div>
     </div>
   </div>;
 }

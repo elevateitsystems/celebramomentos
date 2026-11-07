@@ -2,6 +2,7 @@
 
 import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { CARD_SIZE_IDS, DEFAULT_CARD_SIZE, resolveFrameId, type CardSize, type DeliveryMethod, type DesignCategoryId, type RecipientMode } from "./data";
+import type { ImageCrop } from "./crop";
 import type { StudioProductKind } from "./products";
 import { defaultEmojiPosition, type EmojiElement, type EmojiPosition, type EmojiTone } from "./emojis";
 
@@ -32,9 +33,20 @@ export type CardCustomization = {
     magazineBadge?: string;
     magazineHeadlineTag?: string;
     magazineFooter?: string;
+    // Cover text of Tradicional and Collage cards (the Magazine card ignores these).
+    // Scale: 1 is the built-in size. Position: where the text was dragged to, as 0–1
+    // fractions of the room left inside the card (so it can never leave the card) plus
+    // its width in % of the card; null keeps the template's own place.
+    frontTextScale?: number;
+    frontTextAlign?: TextAlign;
+    frontTextPosition?: TextPosition | null;
     // Set only on the copy sent at checkout: the card pages rendered from this design.
     design?: CardDesign;
 };
+
+export type TextAlign = "left" | "center" | "right";
+export type TextPosition = { x: number; y: number; w: number };
+export const FRONT_TEXT_SCALE = { min: 0.6, max: 2, step: 0.05 } as const;
 
 export type CardDesignSide = "front" | "inside-left" | "inside-right" | "back";
 export type CardDesign = { panels: { side: CardDesignSide; url: string; width: number; height: number }[] };
@@ -58,6 +70,9 @@ export type CatalogSelection = {
   // Set by the server for fulfilment: the print shop and its SKU for the chosen size.
   provider?: string | null;
   sku?: string | null;
+  // Phone cases sold through Printeers: the chosen phone model (a Printeers product) and
+  // how the photo is framed. printMm is filled in by the server from the Printeers API.
+  printeers?: { productReference: string; crop: ImageCrop; printMm?: { width: number; height: number } | null } | null;
 };
 export type ProductSelection = CatalogSelection;
 
@@ -110,6 +125,9 @@ const initialState: CartState = {
     magazineBadge: "¡FELIZ CUMPLEAÑOS!",
     magazineHeadlineTag: "¡Atención!",
     magazineFooter: "ROBERTO GARCÍA CELEBRA CON SU FAMILIA",
+    frontTextScale: 1,
+    frontTextAlign: "center",
+    frontTextPosition: null,
   },
   items: [],
   discountCode: "",
@@ -120,6 +138,7 @@ const cloneCard = (card: CardCustomization): CardCustomization => ({
   size: (CARD_SIZE_IDS as string[]).includes(card.size) ? card.size : DEFAULT_CARD_SIZE,
   emojiPosition: { ...(card.emojiPosition || defaultEmojiPosition) },
   emojiElements: Array.isArray(card.emojiElements) ? card.emojiElements.map((item) => ({ ...item, position: { ...item.position } })) : [],
+  frontTextPosition: card.frontTextPosition ? { ...card.frontTextPosition } : null,
   photoDataUrls: Array.isArray(card.photoDataUrls) ? [...card.photoDataUrls] : [],
 });
 
@@ -139,6 +158,9 @@ const cartSlice = createSlice({
       state.card.message = action.payload;
     },
     setFrontSubheadline: (state, action: PayloadAction<string>) => { state.card.frontSubheadline = action.payload; },
+    setFrontTextScale: (state, action: PayloadAction<number>) => { state.card.frontTextScale = Math.min(FRONT_TEXT_SCALE.max, Math.max(FRONT_TEXT_SCALE.min, action.payload)); },
+    setFrontTextAlign: (state, action: PayloadAction<TextAlign>) => { state.card.frontTextAlign = action.payload; },
+    setFrontTextPosition: (state, action: PayloadAction<TextPosition | null>) => { state.card.frontTextPosition = action.payload; },
     setInsideLeftText: (state, action: PayloadAction<string>) => { state.card.insideLeftText = action.payload; },
     setInsideRightText: (state, action: PayloadAction<string>) => { state.card.insideRightText = action.payload; },
     setBackText: (state, action: PayloadAction<string>) => { state.card.backText = action.payload; },
@@ -250,6 +272,9 @@ export const {
   setMessage,
   setFrontHeadline,
   setFrontSubheadline,
+  setFrontTextScale,
+  setFrontTextAlign,
+  setFrontTextPosition,
   setInsideLeftText,
   setInsideRightText,
   setBackText,

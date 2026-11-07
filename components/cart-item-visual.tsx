@@ -36,5 +36,8 @@ export function CartItemThumb({ item, template, className = "" }: { item: CartIt
     photoDataUrls={item.card.photoDataUrls}
     photoZoom={item.card.photoZoom}
     photoPosition={item.card.photoPosition}
+    textScale={item.card.frontTextScale ?? 1}
+    textAlign={item.card.frontTextAlign ?? "center"}
+    textPosition={item.card.frontTextPosition ?? null}
   />;
 }

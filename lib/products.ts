@@ -33,19 +33,31 @@ export function isCardTemplateSlug(value: unknown): value is CardTemplateSlug {
 // Calendars take one photo per month.
 export const MAX_PRODUCT_PHOTOS = 12;
 
-// Print-on-demand shops that fulfil each product (feedback 26 Oct / PRODUCTS.pdf).
-export const POD_PROVIDERS = ["PRODIGI", "PRINTFUL", "GELATO", "ALERIO_PRINT"] as const;
+// Print-on-demand shops that fulfil each product (feedback 26 Oct / PRODUCTS.pdf; phone
+// cases moved to Printeers on 5 Nov 2026).
+export const POD_PROVIDERS = ["PRODIGI", "PRINTFUL", "GELATO", "PRINTEERS"] as const;
 export type PodProvider = (typeof POD_PROVIDERS)[number];
-export const POD_PROVIDER_LABELS: Record<PodProvider, string> = { PRODIGI: "Prodigi", PRINTFUL: "Printful", GELATO: "Gelato", ALERIO_PRINT: "Alerio Print" };
-export const DEFAULT_POD_PROVIDER: Record<ProductKind, PodProvider> = { POSTCARD: "PRODIGI", MAGNET: "PRODIGI", MUG: "PRINTFUL", PHONE_CASE: "ALERIO_PRINT", CALENDAR: "GELATO", WALL_ART: "GELATO" };
+export const POD_PROVIDER_LABELS: Record<PodProvider, string> = { PRODIGI: "Prodigi", PRINTFUL: "Printful", GELATO: "Gelato", PRINTEERS: "Printeers" };
+export const DEFAULT_POD_PROVIDER: Record<ProductKind, PodProvider> = { POSTCARD: "PRODIGI", MAGNET: "PRODIGI", MUG: "PRINTFUL", PHONE_CASE: "PRINTEERS", CALENDAR: "GELATO", WALL_ART: "GELATO" };
 export function isPodProvider(value: unknown): value is PodProvider {
   return typeof value === "string" && (POD_PROVIDERS as readonly string[]).includes(value);
+}
+// Name of a print shop as stored on an order; orders kept from a print shop that is no
+// longer used still show something readable.
+export const podProviderLabel = (value: string) => (isPodProvider(value) ? POD_PROVIDER_LABELS[value] : "Former print shop");
+
+// The shop a new order item goes to. Phone cases always go to Printeers, whatever an
+// older product record still says.
+export function podProviderFor(kind: string, declared: unknown): PodProvider {
+  if (kind === "PHONE_CASE") return "PRINTEERS";
+  if (isPodProvider(declared)) return declared;
+  return DEFAULT_POD_PROVIDER[kind as ProductKind] ?? "PRODIGI";
 }
 
 export type ProductOptionConfig = { choices: string[] };
 
 // Print shop's recommended file for the customer photo, in pixels at 300 dpi
-// (e.g. Alerio Print clear case 750 × 1590). transparentPng: clear cases show
+// (e.g. a Printful mug 2700 × 1050). transparentPng: clear cases show
 // the case through transparent areas of a PNG.
 export type PrintFile = { width: number; height: number; transparentPng?: boolean };
 
