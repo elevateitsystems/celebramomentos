@@ -5,9 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { Icon } from "@/components/icons";
-import { AuthRequiredModal, PageIntro, SiteFooter, SiteHeader, Spinner } from "@/components/site";
+import { LoadingButton, holdWhileNavigating } from "@/components/loading-button";
+import { AuthRequiredModal, PageIntro, SiteFooter, SiteHeader } from "@/components/site";
 import { MAGNET_SAMPLE_PHOTOS } from "@/lib/data";
 import { getSessionUser } from "@/lib/client-session";
+import { captureStudioPreview } from "@/lib/capture-preview";
+import { savePendingCartItem } from "@/lib/pending-cart";
 import { trackPixel } from "@/lib/meta-pixel";
 import { CROP_LIMITS, DEFAULT_CROP, cropRect, mmToPx, normalizeCrop, type ImageCrop } from "@/lib/crop";
 import { MAX_PRODUCT_PHOTOS, productPrintFile, requiredPhotoCount, type CatalogProduct, type PrintFile, type StudioProductKind } from "@/lib/products";
@@ -86,19 +89,33 @@ function useStudioCart(kind: StudioProductKind) {
   useEffect(() => { setEditId(new URLSearchParams(window.location.search).get("edit")); }, []);
   const editingItem = editId ? items.find((item) => item.id === editId && item.product?.productKind === kind) : undefined;
 
+  const addLock = useRef(false);
   const addToCart = async (product: ProductSelection) => {
-    if (adding) return;
+    // A ref, not state: a second click in the same moment must not start a second add.
+    if (addLock.current) return;
+    addLock.current = true;
     setAdding(true);
-    const user = await getSessionUser({ refresh: true });
-    if (!user) {
+    try {
+      // The studio's own picture of the finished design, kept with the item for the cart and order pages.
+      const preview = await captureStudioPreview();
+      const draft = { id: editingItem?.id, quantity: editingItem?.quantity, product: { ...product, preview }, card: { ...defaultCardCustomization(), delivery } };
+      const user = await getSessionUser({ refresh: true });
+      if (!user) {
+        // Adding needs an account: keep the finished design (photos, options, quantity) so it is
+        // added to the cart automatically after login (components/pending-cart-resumer.tsx).
+        await savePendingCartItem(draft).catch((reason) => console.error("[celebra] the design could not be saved before login", reason));
+        setAuthPrompt(true);
+        return;
+      }
+      if (!editingItem) trackPixel("AddToCart", { content_ids: [product.productId], content_name: product.name, content_type: "product", currency: "EUR", value: product.priceCents / 100, contents: [{ id: product.productId, quantity: 1 }] });
+      dispatch(saveCartItem(draft));
+      router.push("/cart");
+      // Stay busy (button disabled) while the cart page loads; restored if it never does.
+      await holdWhileNavigating();
+    } finally {
+      addLock.current = false;
       setAdding(false);
-      setAuthPrompt(true);
-      return;
     }
-    if (!editingItem) trackPixel("AddToCart", { content_ids: [product.productId], content_name: product.name, content_type: "product", currency: "EUR", value: product.priceCents / 100, contents: [{ id: product.productId, quantity: 1 }] });
-    dispatch(saveCartItem({ id: editingItem?.id, quantity: editingItem?.quantity, product, card: { ...defaultCardCustomization(), delivery } }));
-    // Keep the button disabled while navigating so the item cannot be added twice.
-    router.push("/cart");
   };
 
   return { editing: editingItem?.product ?? undefined, addToCart, adding, authPrompt, closeAuthPrompt: () => setAuthPrompt(false) };
@@ -254,10 +271,11 @@ function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioC
     busy: cart.adding,
     disabled: !studio.ready || studio.priceCents === null || Boolean(hint),
     hint,
-    onClick: () => { const selection = studio.toSelection(photos, studioOptions, extra.selection); if (selection) void cart.addToCart(selection); },
+    onClick: () => { const selection = studio.toSelection(photos, studioOptions, extra.selection); return selection ? cart.addToCart(selection) : undefined; },
     authPrompt: cart.authPrompt,
     onCloseAuth: cart.closeAuthPrompt,
-    returnTo,
+    // The design is saved before login and restored into the cart, so login returns to the cart.
+    returnTo: cart.authPrompt ? "/cart" : returnTo,
   };
 }
 
@@ -268,7 +286,7 @@ function catalogPriceChip(studio: StudioCatalog, es: boolean) {
 }
 
 function StudioShell({ eyebrow, title, body, controls, preview, es, studio, catalogTitle, action, sizeLabel, variantName, hideOption }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; es: boolean; studio: StudioCatalog; catalogTitle: string; action?: StudioAction; sizeLabel?: string; variantName?: VariantName; hideOption?: OptionFilter }) {
-  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{catalogPriceChip(studio, es)}</span></div><CatalogControls studio={studio} es={es} sizeLabel={sizeLabel} variantName={variantName} hideOption={hideOption} />{studio.selected && controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <><button type="button" onClick={action.onClick} disabled={action.busy || action.disabled} aria-busy={action.busy} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.busy ? <Spinner size={16} /> : null}{action.label} {!action.busy && <Icon name="arrow" size={16} />}</button>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <button type="button" disabled className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white opacity-50">{es ? "Añadir a la cesta" : "Adicionar ao carrinho"}</button>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div>{preview}</section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{studio.catalog.products.length > 1 && <PublishedProducts catalog={studio.catalog} title={catalogTitle} es={es} selectedId={studio.selected?.id} onSelect={(product) => studio.select(product)} />}<SiteFooter />{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
+  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{catalogPriceChip(studio, es)}</span></div><CatalogControls studio={studio} es={es} sizeLabel={sizeLabel} variantName={variantName} hideOption={hideOption} />{studio.selected && controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <><LoadingButton onClick={action.onClick} loading={action.busy} disabled={action.disabled} loadingLabel={action.label} errorMessage={es ? "No se pudo añadir el producto a la cesta. Inténtalo de nuevo." : "Não foi possível adicionar o produto ao carrinho. Tenta novamente."} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.label} <Icon name="arrow" size={16} /></LoadingButton>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <button type="button" disabled className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white opacity-50">{es ? "Añadir a la cesta" : "Adicionar ao carrinho"}</button>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div><div data-studio-preview>{preview}</div></section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{studio.catalog.products.length > 1 && <PublishedProducts catalog={studio.catalog} title={catalogTitle} es={es} selectedId={studio.selected?.id} onSelect={(product) => studio.select(product)} />}<SiteFooter />{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
 }
 
 // Restores a cart line opened with ?edit=<id>.

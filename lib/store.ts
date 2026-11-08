@@ -66,6 +66,9 @@ export type CatalogSelection = {
   name: string;
   detail: string;
   image: string | null;
+  // Picture of the finished design as the studio showed it (mug, case, magnets…), captured when it was
+  // added to the cart. Display only: print files always come from `photos`.
+  preview?: string | null;
   priceCents: number;
   // Set by the server for fulfilment: the print shop and its SKU for the chosen size.
   provider?: string | null;

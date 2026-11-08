@@ -1,3 +1,4 @@
+import { siteUrl } from "../server/site-url";
 import type { PodMode } from "./types";
 
 // All provider credentials are server-only environment variables (never NEXT_PUBLIC_).
@@ -16,8 +17,9 @@ export function podAutoSubmit() {
   return process.env.POD_AUTO_SUBMIT?.trim().toLowerCase() !== "false";
 }
 
+// Public base URL for the webhook URLs given to print shops (see lib/server/site-url.ts).
 export function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/+$/, "");
+  return siteUrl();
 }
 
 // Shared secret appended to the webhook URLs we register with each shop.
