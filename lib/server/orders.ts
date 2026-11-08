@@ -10,6 +10,20 @@ export const storefrontStatus: Record<OrderStatus, string> = {
   REFUNDED: "Cancelado",
 };
 
+const asObject = (value: unknown) => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
+const httpsUrl = (value: unknown) => (typeof value === "string" && /^https:\/\//.test(value) ? value : null);
+
+// The picture of what the customer designed, saved with the order item: the studio preview of a
+// product, or the front page of a card exactly as it was rendered for printing.
+export function itemPreview(personalization: unknown) {
+  const data = asObject(personalization);
+  const fromProduct = httpsUrl(asObject(data.product).preview);
+  if (fromProduct) return fromProduct;
+  const panels = asObject(asObject(data.card).design).panels;
+  const front = Array.isArray(panels) ? panels.map(asObject).find((panel) => panel.side === "front") : null;
+  return httpsUrl(front?.url);
+}
+
 export function serializeOrder(order: {
   id: string;
   number: string;
@@ -18,7 +32,7 @@ export function serializeOrder(order: {
   totalCents: number;
   createdAt: Date;
   shippingAddress: unknown;
-  items: { name: string; quantity: number }[];
+  items: { name: string; quantity: number; personalization?: unknown }[];
   // Print shop shipments; only live (real) print orders are shown to customers.
   fulfillments?: { mode: string; status: string; carrier: string | null; trackingNumber: string | null; trackingUrl: string | null }[];
 }) {
@@ -30,6 +44,7 @@ export function serializeOrder(order: {
     email: order.email,
     date: order.createdAt.toISOString(),
     item: order.items.map((item) => item.name + (item.quantity > 1 ? ` × ${item.quantity}` : "")).join(" · "),
+    previews: order.items.map((item) => ({ name: item.name, preview: itemPreview(item.personalization) })).filter((item) => item.preview),
     amount: order.totalCents / 100,
     status: storefrontStatus[order.status],
     orderStatus: order.status,

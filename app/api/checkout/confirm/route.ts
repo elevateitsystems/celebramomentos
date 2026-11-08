@@ -25,18 +25,26 @@ export async function POST(request: NextRequest) {
     const payment = order.payments.find((item) => item.stripeCheckoutId === session.id) || order.payments[0];
     const paid = session.payment_status === "paid" && session.amount_total === order.totalCents && session.currency === order.currency;
     if (paid && order.status === "PENDING") {
-      await prisma.$transaction(async (tx) => {
-        await tx.order.update({ where: { id: order.id, status: "PENDING" }, data: { status: "PAID" } });
+      // The Stripe webhook (or a second request for the same session) can mark the order paid between
+      // the read above and this write. The status change is a conditional update that claims the
+      // order: only the request that claims it does the rest, and the other one simply reports
+      // the order as paid. (It used to throw "record not found", which the success page showed as a failure.)
+      const claimed = await prisma.$transaction(async (tx) => {
+        const claim = await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "PAID" } });
+        if (claim.count === 0) return false;
         await tx.payment.updateMany({ where: { orderId: order.id, status: "PENDING" }, data: { status: "SUCCEEDED", stripeCheckoutId: session.id, stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : undefined } });
         if (order.discountUsages.length) await tx.discount.update({ where: { id: order.discountUsages[0].discountId }, data: { usedCount: { increment: 1 } } });
         await tx.cartLine.deleteMany({ where: { customerId: customer.id } });
+        return true;
       });
-      // Verified with Stripe above (session retrieved server-side, amount and currency checked).
-      handlePaidOrderInBackground(order.id);
-      sendOrderConfirmationInBackground(order.id);
+      if (claimed) {
+        // Verified with Stripe above (session retrieved server-side, amount and currency checked).
+        handlePaidOrderInBackground(order.id);
+        sendOrderConfirmationInBackground(order.id);
+      }
     } else if (session.status === "expired" && order.status === "PENDING") {
       await prisma.$transaction([
-        prisma.order.update({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } }),
+        prisma.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } }),
         prisma.payment.updateMany({ where: { orderId: order.id, status: "PENDING" }, data: { status: "CANCELLED" } }),
       ]);
     }

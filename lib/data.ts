@@ -91,12 +91,11 @@ export const SOCIAL_LINK_DEFAULTS = {
 } as const;
 export type SocialLinkKey = keyof typeof SOCIAL_LINK_DEFAULTS;
 
-// Percentage coupons the storefront previews before the server (the real authority, from the
-// Discount table) validates them at checkout. CELEBRA10 is the reusable "10% off your next
-// order for sharing your creation" code; it is granted manually, never automatically.
+// "10% off your next order for sharing your creation": granted manually (a person checks the post
+// and emails the code), never automatically. The code is created in the database like any other
+// (seeded by ensureCatalog, managed in admin → Discount codes); the server alone decides
+// whether a code is valid and what it takes off (lib/server/discounts.ts).
 export const SHARE_DISCOUNT_CODE = "CELEBRA10";
-export const PERCENT_DISCOUNT_CODES: Record<string, number> = { HOLA10: 10, [SHARE_DISCOUNT_CODE]: 10 };
-export const discountPercent = (code: string) => PERCENT_DISCOUNT_CODES[code.trim().toUpperCase()] ?? 0;
 export const SOCIAL_LINK_KEYS = Object.keys(SOCIAL_LINK_DEFAULTS) as SocialLinkKey[];
 
 // Card sizes sold through Prodigi (PRODUCTS.pdf). The price added to the

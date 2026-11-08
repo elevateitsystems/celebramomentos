@@ -34,13 +34,15 @@ export async function POST(request: NextRequest) {
       if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
         const paid = session.payment_status === "paid" && session.amount_total === order.totalCents && session.currency === order.currency;
         if (!paid || order.status !== "PENDING") return;
-        await tx.order.update({ where: { id: order.id, status: "PENDING" }, data: { status: "PAID" } });
+        // Claim the order: if the success page's confirm call got there first, there is nothing left to do.
+        const claim = await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "PAID" } });
+        if (claim.count === 0) return;
         await tx.payment.update({ where: { id: payment.id }, data: { status: "SUCCEEDED", stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : undefined, raw: { eventId: event.id, type: event.type } } });
         if (order.discountUsages.length) await tx.discount.update({ where: { id: order.discountUsages[0].discountId }, data: { usedCount: { increment: 1 } } });
         if (order.customerId) await tx.cartLine.deleteMany({ where: { customerId: order.customerId } });
       } else if (event.type === "checkout.session.async_payment_failed" || event.type === "checkout.session.expired") {
         if (order.status !== "PENDING") return;
-        await tx.order.update({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } });
+        await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "CANCELLED" } });
         await tx.payment.update({ where: { id: payment.id }, data: { status: event.type.endsWith("expired") ? "CANCELLED" : "FAILED", raw: { eventId: event.id, type: event.type } } });
       }
     });

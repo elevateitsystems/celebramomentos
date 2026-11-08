@@ -5,9 +5,11 @@ import { describeProductSelection } from "@/lib/cart";
 import { cardSizeText } from "@/lib/data";
 import { toCartItem } from "./cart";
 import { deliveryCents, ensureCatalog, resolveCartLine } from "./catalog";
+import { evaluateDiscount, normalizeDiscountCode } from "./discounts";
 import { CatalogError } from "./errors";
 import { prisma } from "./prisma";
 import type { customerCheckoutSchema } from "./validation";
+import { siteUrl } from "./site-url";
 
 type CheckoutInput = z.infer<typeof customerCheckoutSchema>;
 
@@ -27,11 +29,7 @@ export async function createPendingOrder({ customerId, input, idempotencyKey, pr
   const subtotalCents = priced.reduce((sum, { line, resolved }) => sum + resolved.unitPriceCents * line.quantity, 0);
   const deliveryMethod = priced[0].item.card.delivery;
   const shippingCents = await deliveryCents(deliveryMethod, subtotalCents);
-  const discountCode = (input.discountCode || "").trim().toUpperCase();
-  const discount = discountCode ? await prisma.discount.findFirst({ where: { code: discountCode, active: true } }) : null;
-  const discountValid = Boolean(discount && (!discount.expiresAt || discount.expiresAt > new Date()) && (!discount.minOrderCents || subtotalCents >= discount.minOrderCents) && (!discount.maxUses || discount.usedCount < discount.maxUses));
-  const discountCents = discountValid && discount ? discount.percentage ? Math.floor((subtotalCents + shippingCents) * discount.percentage / 100) : Math.min(discount.amountCents || 0, subtotalCents) : 0;
-  const totalCents = Math.max(0, subtotalCents + shippingCents - discountCents);
+  const requestedCode = normalizeDiscountCode(input.discountCode);
   const templateSlugs = priced.map(({ resolved }) => resolved.templateSlug).filter((slug): slug is string => Boolean(slug));
   const templates = await prisma.postcardTemplate.findMany({ where: { slug: { in: templateSlugs } } });
   const templateBySlug = Object.fromEntries(templates.map((template) => [template.slug, template]));
@@ -42,7 +40,17 @@ export async function createPendingOrder({ customerId, input, idempotencyKey, pr
     return `${name} · ${cardSizeText(row.item.card.size)}`;
   };
   const shippingAddress = { name: input.name.trim(), phone: input.phone.trim(), recipient: input.recipient.trim(), address: input.address.trim(), city: input.city.trim(), postalCode: input.postalCode.trim(), country: input.country, billingAddress: input.billingAddress?.trim() };
-  const order = await prisma.order.create({
+  // The discount is decided here, from the database, at the moment the order is written (inside a
+  // transaction, so a code with a usage limit cannot be used past it by simultaneous checkouts).
+  // An unknown, disabled, expired or used-up code stops the checkout with a clear message: it is
+  // never silently dropped, and nothing the browser sends can set an amount.
+  const place = async (db: Prisma.TransactionClient | typeof prisma) => {
+    const verdict = requestedCode ? await evaluateDiscount(db, requestedCode, { subtotalCents, shippingCents, customerId }) : null;
+    if (verdict && !verdict.ok) throw new CatalogError(verdict.message, 400);
+    const discount = verdict?.ok ? verdict.discount : null;
+    const discountCents = verdict?.ok ? verdict.discountCents : 0;
+    const totalCents = Math.max(0, subtotalCents + shippingCents - discountCents);
+    const order = await db.order.create({
     data: {
       number: `CM-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
       checkoutIdempotencyKey: idempotencyKey,
@@ -64,12 +72,23 @@ export async function createPendingOrder({ customerId, input, idempotencyKey, pr
         return { ...productLink, ...(template ? { templateId: template.id } : {}), name: lineName(row), quantity: line.quantity, unitPriceCents: resolved.unitPriceCents, personalization: { templateSlug: item.card.templateId, card: item.card, cardSize: item.card.size, provider: "PRODIGI", sku: resolved.cardSizeSku, delivery: item.card.delivery } as Prisma.InputJsonValue };
       }) },
       payments: { create: { amountCents: totalCents, currency: "eur", provider } },
-      ...(discountValid && discount ? { discountUsages: { create: { discountId: discount.id } } } : {}),
+      ...(discount ? { discountUsages: { create: { discountId: discount.id } } } : {}),
     },
     include: { payments: true },
-  });
+    });
+    return { order, discountCents, totalCents, discountCode: discount?.code ?? null };
+  };
+  let placed: Awaited<ReturnType<typeof place>>;
+  try {
+    placed = requestedCode ? await prisma.$transaction(place, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }) : await place(prisma);
+  } catch (reason) {
+    // Two checkouts raced for the same limited code and the database kept only one.
+    if (reason instanceof Prisma.PrismaClientKnownRequestError && reason.code === "P2034") throw new CatalogError("No hemos podido aplicar el código de descuento. Inténtalo de nuevo.", 409);
+    throw reason;
+  }
+  const { order, discountCents, totalCents, discountCode } = placed;
   const lines: CheckoutLine[] = priced.map((row) => ({ name: lineName(row), quantity: row.line.quantity, unitPriceCents: row.resolved.unitPriceCents }));
-  return { order, lines, subtotalCents, shippingCents, discountCents, totalCents, deliveryMethod };
+  return { order, lines, subtotalCents, shippingCents, discountCents, discountCode, totalCents, deliveryMethod };
 }
 
 export async function markOrderFailed(orderId: string, status: "FAILED" | "CANCELLED", detail: string) {
@@ -79,6 +98,7 @@ export async function markOrderFailed(orderId: string, status: "FAILED" | "CANCE
   ]);
 }
 
+// Base URL for Stripe / PayPal return and cancel URLs (see lib/server/site-url.ts).
 export function checkoutOrigin(requestOrigin: string) {
-  return (process.env.NEXT_PUBLIC_APP_URL || requestOrigin).replace(/\/+$/, "");
+  return siteUrl(requestOrigin);
 }

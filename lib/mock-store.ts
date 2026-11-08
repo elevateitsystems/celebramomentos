@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { browserStore } from "./browser-store";
 import { templates } from "./data";
 import type { CartItem, CartState } from "./store";
 
@@ -187,16 +188,39 @@ export function getTemplatePrice(templateId: string, db = getMockDb()): number {
   return db.templatePrices[templateId] ?? templates.find((item) => item.id === templateId)?.price ?? templates[0].price;
 }
 
+// The cart is saved in localStorage. Uploaded photos are kept as data URLs until checkout and
+// can exceed its ~5 MB quota; the cart is then saved in IndexedDB instead (and the stale
+// localStorage copy removed), so a refresh or a login redirect never loses a design.
+const CART_IDB_KEY = "cart";
+let cartInIdb = false;
+let idbTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function persistCart(cart: CartState) {
   if (typeof window === "undefined") return;
-  // Uploaded photos are kept as data URLs, which can exceed the storage quota.
-  // The in-memory cart keeps working if persisting fails.
-  try { window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart)); } catch { /* quota exceeded or storage blocked */ }
+  try {
+    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    if (cartInIdb) { cartInIdb = false; if (idbTimer) clearTimeout(idbTimer); void browserStore.delete(CART_IDB_KEY); }
+    return;
+  } catch { /* quota exceeded or storage blocked: fall back to IndexedDB below */ }
+  try { window.localStorage.removeItem(CART_STORAGE_KEY); } catch { /* storage blocked */ }
+  cartInIdb = true;
+  // Large carts are written at most a few times per second (typing in the editor saves on every key).
+  if (idbTimer) clearTimeout(idbTimer);
+  idbTimer = setTimeout(() => { void browserStore.set(CART_IDB_KEY, cart).then((ok) => { if (!ok) console.warn("[celebra] the cart could not be saved on this device"); }); }, 300);
 }
 
 export function readPersistedCart(): CartState | null {
   if (typeof window === "undefined") return null;
   try { const raw = window.localStorage.getItem(CART_STORAGE_KEY); return raw ? JSON.parse(raw) as CartState : null; } catch { return null; }
+}
+
+// localStorage first; the IndexedDB copy only exists when the cart was too large for it.
+export async function readPersistedCartAsync(): Promise<CartState | null> {
+  const local = readPersistedCart();
+  if (local) return local;
+  const stored = await browserStore.get<CartState>(CART_IDB_KEY);
+  if (stored) cartInIdb = true;
+  return stored;
 }
 
 export function useMockDb(): MockDb {

@@ -5,6 +5,7 @@ import { checkoutOrigin, createPendingOrder, markOrderFailed } from "@/lib/serve
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { prisma } from "@/lib/server/prisma";
 import { assertStripeConfigured, stripe } from "@/lib/server/stripe";
+import { stripeCustomerFor } from "@/lib/server/stripe-customer";
 import { customerCheckoutSchema } from "@/lib/server/validation";
 
 export const runtime = "nodejs";
@@ -23,12 +24,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ orderId: existing.id, orderNumber: existing.number, checkoutUrl: session.url });
     }
 
-    const { order, lines, shippingCents, deliveryMethod } = await createPendingOrder({ customerId: customer.id, input, idempotencyKey, provider: "stripe" });
+    const { order, lines, shippingCents, discountCents, discountCode, deliveryMethod } = await createPendingOrder({ customerId: customer.id, input, idempotencyKey, provider: "stripe" });
+    let couponId: string | null = null;
     try {
       const origin = checkoutOrigin(request.nextUrl.origin);
+      // The discount decided by the server (lib/server/discounts.ts) is given to Stripe as a
+      // one-time coupon for exactly that amount, so Stripe charges order.totalCents. Without it Stripe
+      // would charge the full price and the paid order would never match its total.
+      if (discountCents > 0) {
+        couponId = (await stripe.coupons.create({ amount_off: discountCents, currency: "eur", duration: "once", max_redemptions: 1, name: `Descuento ${discountCode}`.slice(0, 40), metadata: { orderId: order.id, code: discountCode || "" } }, { idempotencyKey: `coupon-${idempotencyKey}` })).id;
+      }
+      // Prefill Stripe Checkout with the details already given on our checkout page. If the
+      // Customer cannot be prepared the payment still goes ahead with just the email.
+      const stripeCustomer = await stripeCustomerFor(stripe, customer.id, input).catch((reason) => {
+        console.error("[stripe] customer prefill failed; continuing with email only", { orderId: order.id, message: reason instanceof Error ? reason.message.slice(0, 200) : "unknown" });
+        return null;
+      });
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
-        customer_email: input.email.trim().toLowerCase(),
+        ...(couponId ? { discounts: [{ coupon: couponId }] } : {}),
+        ...(stripeCustomer
+          // Changes the customer makes on Stripe's page are saved back to the Customer.
+          ? { customer: stripeCustomer, customer_update: { name: "auto", address: "auto" } }
+          : { customer_email: input.email.trim().toLowerCase() }),
         line_items: [
           ...lines.map((line) => ({ price_data: { currency: "eur", product_data: { name: line.name }, unit_amount: line.unitPriceCents }, quantity: line.quantity })),
           ...(shippingCents ? [{ price_data: { currency: "eur", product_data: { name: deliveryMethod === "express" ? "Entrega express" : "Entrega normal" }, unit_amount: shippingCents }, quantity: 1 }] : []),
@@ -41,6 +59,7 @@ export async function POST(request: NextRequest) {
       await prisma.payment.update({ where: { id: order.payments[0].id }, data: { stripeCheckoutId: session.id, raw: { sessionId: session.id } } });
       return NextResponse.json({ orderId: order.id, orderNumber: order.number, checkoutUrl: session.url });
     } catch (reason) {
+      if (couponId) await stripe.coupons.del(couponId).catch(() => undefined);
       await markOrderFailed(order.id, "FAILED", reason instanceof Error ? reason.message : "Stripe checkout failed");
       throw reason;
     }

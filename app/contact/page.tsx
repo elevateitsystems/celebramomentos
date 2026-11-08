@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Icon } from "@/components/icons";
-import { SiteFooter, SiteHeader, Spinner } from "@/components/site";
+import { LoadingButton } from "@/components/loading-button";
+import { SiteFooter, SiteHeader } from "@/components/site";
 import { getSessionUser } from "@/lib/client-session";
 
 const schema = z.object({
@@ -271,13 +272,14 @@ export default function ContactPage() {
                     </span>
                     Tus datos solo se usan para responderte.
                   </p>
-                  <button
-                    disabled={isSubmitting}
-                    aria-busy={isSubmitting}
+                  <LoadingButton
+                    type="submit"
+                    loading={isSubmitting}
+                    loadingLabel="Enviando…"
                     className="focus-ring inline-flex items-center justify-center gap-3 rounded-full bg-[#ee5264] px-8 py-4 text-sm font-black text-white shadow-lg shadow-[#ee5264]/25 transition hover:-translate-y-0.5 hover:bg-[#d83d54] disabled:opacity-60 disabled:hover:translate-y-0"
                   >
-                    {isSubmitting ? <><Spinner size={16} /> Enviando…</> : <>Enviar mensaje <Icon name="arrow" size={16} /></>}
-                  </button>
+                    Enviar mensaje <Icon name="arrow" size={16} />
+                  </LoadingButton>
                 </div>
                 {sendError && <p role="alert" className="mt-4 rounded-xl bg-[#fff0e8] px-3 py-2.5 text-xs font-bold text-[#c94758]">{sendError}</p>}
               </form>

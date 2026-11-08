@@ -6,18 +6,12 @@ import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
 import { CARD_SIZES } from "@/lib/data";
 import { createCardStore, type CardCustomization, type CardDesignSide } from "@/lib/store";
+import { CARD_PAGE_CSS, previewWidth } from "@/lib/card-layout";
 import { PostcardSideView } from "./postcard-preview";
 
 export const CARD_DESIGN_SIDES: CardDesignSide[] = ["front", "inside-left", "inside-right", "back"];
 
 export type RenderedPanel = { side: CardDesignSide; blob: Blob; width: number; height: number };
-
-// Width the card preview has on this screen (the editor's preview window is at most
-// 650 px with 8 px padding). Laying the pages out at the same width keeps text and
-// emoji sizes in the same proportion to the card as the customer saw them.
-function previewWidth() {
-  return Math.round(Math.min(634, Math.max(300, window.innerWidth - 64)));
-}
 
 async function settle(host: HTMLElement) {
   await Promise.all(Array.from(host.querySelectorAll("img")).map((image) => (image.complete ? Promise.resolve() : image.decode().catch(() => undefined))));
@@ -40,7 +34,7 @@ export async function renderCardDesign(card: CardCustomization, language: "es" |
   try {
     flushSync(() => root.render(<Provider store={createCardStore({ ...card, design: undefined }, language)}>
       {/* The page fills the print shape exactly: no rounded corners, no preview aspect. */}
-      <style>{".cm-card-page > div { aspect-ratio: auto !important; height: 100% !important; border-radius: 0 !important; }"}</style>
+      <style>{CARD_PAGE_CSS}</style>
       {CARD_DESIGN_SIDES.map((side) => <div key={side} data-side={side} className="cm-card-page" style={{ width: layoutWidth, height: layoutHeight, overflow: "hidden", background: "#fffdf9" }}><PostcardSideView side={side} compact={false} /></div>)}
     </Provider>));
     await settle(host);

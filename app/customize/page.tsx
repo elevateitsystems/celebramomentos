@@ -1,6 +1,7 @@
 "use client";
 
 import { getSessionUser } from "@/lib/client-session";
+import { savePendingCartItem } from "@/lib/pending-cart";
 import { trackPixel } from "@/lib/meta-pixel";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
@@ -10,7 +11,8 @@ import { EmojiElementControls } from "@/components/emoji-element-controls";
 import { Icon } from "@/components/icons";
 import { PostcardPreviewWindow, PostcardSideView, type PostcardSide } from "@/components/postcard-preview";
 import { magazineHeadline, magazineSubheadline, magazineInsideLeft, magazineInsideRight } from "@/components/magazine-card";
-import { PageIntro, Price, SiteFooter, SiteHeader, Spinner, Toast } from "@/components/site";
+import { LoadingButton, holdWhileNavigating } from "@/components/loading-button";
+import { AuthRequiredModal, PageIntro, Price, SiteFooter, SiteHeader, Toast } from "@/components/site";
 import { CARD_SIZES, DEFAULT_CARD_SIZE, cardSizeText, designCategories, frames, resolveFrame, templates } from "@/lib/data";
 import { usePublicSettings } from "@/lib/public-settings";
 import { amountUntilFreeShippingCents, qualifiesForFreeShipping } from "@/lib/shipping";
@@ -69,6 +71,7 @@ export default function CustomizePage() {
   const [uploadIndex, setUploadIndex] = useState(0);
   const [selectedEmojiId, setSelectedEmojiId] = useState<string | null>(cart.card.emojiElements[0]?.id || null);
   const [toast, setToast] = useState("");
+  const [authPrompt, setAuthPrompt] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
@@ -242,26 +245,35 @@ export default function CustomizePage() {
     setStep("emojis");
   };
 
+  const addLock = useRef(false);
   const handleAddToCart = async () => {
+    // A ref, not state: a second click in the same moment must not start a second add.
+    if (addLock.current) return;
+    addLock.current = true;
     setAddingToCart(true);
     try {
       const user = await getSessionUser({ refresh: true });
-      if (!user) {
-        setAuthChecked(true);
-        setToast(tx("No se puede añadir el diseño a la cesta sin iniciar sesión. Inicia sesión o crea una cuenta para continuar.", "Não é possível adicionar o design ao carrinho sem iniciar sessão. Inicia sessão ou cria uma conta para continuar."));
-        return;
-      }
       setAuthChecked(true);
       if (selectedProductId && cardProduct?.id !== selectedProductId) {
         setToast(tx("Estamos cargando la tarjeta seleccionada. Inténtalo de nuevo en un momento.", "Estamos a carregar o cartão selecionado. Tenta novamente dentro de momentos."));
         return;
       }
+      if (!user) {
+        // Adding needs an account: keep the finished card (template, frame, texts, photos, emojis,
+        // size) so it is added to the cart automatically after login (components/pending-cart-resumer.tsx).
+        await savePendingCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, productId: selectedProductId, productPriceCents: cardProduct?.priceCents ?? null, productName: cardProduct?.name ?? null, card: cart.card });
+        setAuthPrompt(true);
+        return;
+      }
       if (!editItemId) trackPixel("AddToCart", { content_ids: [selectedProductId || template.id], content_name: cardProduct?.name || template.name, content_type: "product", currency: "EUR", value: (cardProduct?.priceCents ?? Math.round(template.price * 100)) / 100, contents: [{ id: selectedProductId || template.id, quantity: 1 }] });
       dispatch(saveCartItem({ id: editItemId || undefined, quantity: editItemId ? cart.items.find((item) => item.id === editItemId)?.quantity : undefined, productId: selectedProductId, productPriceCents: cardProduct?.priceCents ?? null, productName: cardProduct?.name ?? null, card: cart.card }));
       router.push("/cart");
+      // Stay busy (button disabled) while the cart page loads; restored if it never does.
+      await holdWhileNavigating();
     } catch {
       setToast(tx("No hemos podido verificar tu sesión. Inténtalo de nuevo.", "Não foi possível verificar a tua sessão. Tenta novamente."));
     } finally {
+      addLock.current = false;
       setAddingToCart(false);
     }
   };
@@ -1079,6 +1091,7 @@ export default function CustomizePage() {
       </main>
       <SiteFooter />
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
+      {authPrompt && <AuthRequiredModal returnTo="/cart" onClose={() => setAuthPrompt(false)} isPortuguese={isPortuguese} />}
     </>
   );
 }
@@ -1339,14 +1352,15 @@ function SummaryStep({
             : tx(`Añade ${(missingCents / 100).toFixed(2).replace(".", ",")} € más para conseguir envío gratis.`, `Adiciona mais ${(missingCents / 100).toFixed(2).replace(".", ",")} € para obteres envio grátis.`)}
         </p>}
         <div className="mt-6 space-y-3">
-          <button
-            type="button"
-            disabled={addingToCart}
+          <LoadingButton
+            loading={addingToCart}
+            loadingLabel={tx("Añadiendo a la cesta…", "A adicionar ao carrinho…")}
             onClick={onAddToCart}
+            errorMessage={tx("No se pudo añadir el diseño a la cesta. Inténtalo de nuevo.", "Não foi possível adicionar o design ao carrinho. Tenta novamente.")}
             className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-6 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-wait disabled:opacity-70"
           >
-            {addingToCart ? <><Spinner size={16} />{tx("Verificando sesión…", "A verificar a sessão…")}</> : <>{tx("Añadir a la cesta", "Adicionar ao carrinho")} <Icon name="bag" size={17} /></>}
-          </button>
+            {tx("Añadir a la cesta", "Adicionar ao carrinho")} <Icon name="bag" size={17} />
+          </LoadingButton>
           <button
             type="button"
             onClick={onBack}

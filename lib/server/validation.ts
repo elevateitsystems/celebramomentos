@@ -34,6 +34,9 @@ export const cartLineSchema = z.object({
       name: z.string().max(200),
       detail: z.string().max(400),
       image: z.string().max(2000).nullable(),
+      // Picture of the finished design for the cart and order pages (display only, never print artwork).
+      // By the time a cart line reaches the server it has been uploaded, so only https URLs are kept.
+      preview: z.string().max(2000).regex(/^https:\/\//).nullable().optional(),
       priceCents: z.number().int().nonnegative(),
       // Phone cases: the Printeers phone model and photo framing (checked again on the server).
       printeers: z.object({
