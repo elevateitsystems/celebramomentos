@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // In-memory stand-in for the few Prisma calls the submission path makes.
 const { db, adapter } = vi.hoisted(() => {
@@ -134,13 +134,23 @@ describe("failures", () => {
 });
 
 describe("order status", () => {
-  it("ignores draft print orders (tests) when updating the customer's order", async () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it("ignores print orders of the other environment (a live shop is not moved by test print orders)", async () => {
+    vi.stubEnv("POD_ORDER_MODE", "live");
     seed({ status: "SHIPPED" });
     await syncOrderStatus("o1");
     expect(db.state.orders.get("o1")?.status).toBe("PAID");
   });
 
-  it("marks the order shipped when every live print order shipped", async () => {
+  it("marks the order shipped when every print order of the environment shipped (test orders while testing)", async () => {
+    seed({ status: "SHIPPED" });
+    await syncOrderStatus("o1");
+    expect(db.state.orders.get("o1")?.status).toBe("SHIPPED");
+  });
+
+  it("marks the order shipped when every live print order shipped, in a live shop", async () => {
+    vi.stubEnv("POD_ORDER_MODE", "live");
     seed({ status: "SHIPPED" });
     db.state.fulfillments.get("f1")!.mode = "live";
     await syncOrderStatus("o1");
