@@ -16,6 +16,7 @@ import { POD_PROVIDERS, podProviderFor, variantAttributes } from "@/lib/products
 import { prisma } from "@/lib/server/prisma";
 import { CARD_SIZES } from "@/lib/data";
 import type { CardDesignSide } from "@/lib/store";
+import { STORED_STATUS, printStage } from "@/lib/order-progress";
 import { checkPhotoResolution, checkPrintFileSize, isCloudinaryUrl, printFileUrl, type PhotoFit, type PrintSpec } from "./artwork";
 import { mapOrderItem } from "./catalog";
 import { podAutoSubmit, podMode } from "./config";
@@ -488,16 +489,13 @@ export async function attachDesignPages(itemId: string, pages: { side: CardDesig
 
 // ── Order status ─────────────────────────────────────────────────────────────
 
-// Moves the order forward from the state of its live print orders (drafts are tests and never count).
+// Moves the order forward from the state of its print orders in the shop's current environment (real ones
+// when live, test ones while testing; never the other kind). The customer sees the same progress.
 export async function syncOrderStatus(orderId: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { fulfillments: true } });
   if (!order || !["PAID", "PROCESSING", "SHIPPED"].includes(order.status)) return;
-  const live = order.fulfillments.filter((item) => item.mode === "live" && item.status !== "CANCELLED");
-  if (!live.length) return;
-  const next = live.every((item) => item.status === "DELIVERED") ? "DELIVERED"
-    : live.every((item) => item.status === "SHIPPED" || item.status === "DELIVERED") ? "SHIPPED"
-    : live.some((item) => ["SUBMITTED", "IN_PRODUCTION", "SHIPPED", "DELIVERED"].includes(item.status)) ? "PROCESSING"
-    : null;
+  const mode = podMode();
+  const next = STORED_STATUS[printStage(order.fulfillments.filter((item) => item.mode === mode))];
   const rank = { PAID: 0, PROCESSING: 1, SHIPPED: 2, DELIVERED: 3 } as const;
   if (next && rank[next] > rank[order.status as keyof typeof rank]) await prisma.order.update({ where: { id: orderId }, data: { status: next } });
 }

@@ -1,14 +1,7 @@
 import { OrderStatus } from "@prisma/client";
-
-export const storefrontStatus: Record<OrderStatus, string> = {
-  PENDING: "Pedido recibido",
-  PAID: "Pedido recibido",
-  PROCESSING: "En preparación",
-  SHIPPED: "Enviado",
-  DELIVERED: "Entregado",
-  CANCELLED: "Cancelado",
-  REFUNDED: "Cancelado",
-};
+import { STAGE_LABEL, orderStage } from "@/lib/order-progress";
+import { podMode } from "@/lib/pod/config";
+import type { PodMode } from "@/lib/pod/types";
 
 const asObject = (value: unknown) => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const httpsUrl = (value: unknown) => (typeof value === "string" && /^https:\/\//.test(value) ? value : null);
@@ -33,9 +26,12 @@ export function serializeOrder(order: {
   createdAt: Date;
   shippingAddress: unknown;
   items: { name: string; quantity: number; personalization?: unknown }[];
-  // Print shop shipments; only live (real) print orders are shown to customers.
+  // Print orders (status and shipments). Only those of the shop's current environment are used: real ones
+  // when the shop is live, test ones while it is being tested, so a test never changes a real order.
   fulfillments?: { mode: string; status: string; carrier: string | null; trackingNumber: string | null; trackingUrl: string | null }[];
-}) {
+}, mode: PodMode = podMode()) {
+  const prints = (order.fulfillments || []).filter((item) => item.mode === mode);
+  const stage = orderStage(order.status, prints);
   const shipping = (order.shippingAddress && typeof order.shippingAddress === "object" ? order.shippingAddress : {}) as Record<string, string>;
   return {
     id: order.number,
@@ -46,10 +42,12 @@ export function serializeOrder(order: {
     item: order.items.map((item) => item.name + (item.quantity > 1 ? ` × ${item.quantity}` : "")).join(" · "),
     previews: order.items.map((item) => ({ name: item.name, preview: itemPreview(item.personalization) })).filter((item) => item.preview),
     amount: order.totalCents / 100,
-    status: storefrontStatus[order.status],
+    // What the customer sees: the real progress (received → in preparation → shipped → delivered).
+    status: STAGE_LABEL[stage],
+    stage,
     orderStatus: order.status,
-    tracking: (order.fulfillments || [])
-      .filter((item) => item.mode === "live" && (item.trackingNumber || item.trackingUrl))
+    tracking: prints
+      .filter((item) => item.trackingNumber || item.trackingUrl)
       .map((item) => ({ carrier: item.carrier, number: item.trackingNumber, url: item.trackingUrl && /^https:\/\//.test(item.trackingUrl) ? item.trackingUrl : null })),
     shipping: {
       name: shipping.name || "",

@@ -15,7 +15,7 @@ export async function GET() {
       include: { items: true, fulfillments: { select: { mode: true, status: true, carrier: true, trackingNumber: true, trackingUrl: true } } },
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json({ orders: orders.map(serializeOrder) });
+    return NextResponse.json({ orders: orders.map((order) => serializeOrder(order)) });
   } catch (reason) {
     return handleApiError(reason);
   }
