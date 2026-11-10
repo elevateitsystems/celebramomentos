@@ -4,12 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminPageHeader, AdminShell } from "@/components/admin";
 import { BrandLoader } from "@/components/loading";
 import { Price, Spinner, StatusBadge, Toast } from "@/components/site";
-import { isPodProvider, podProviderLabel, POD_PROVIDER_LABELS, type PodProvider } from "@/lib/products";
+import { podProviderLabel, POD_PROVIDER_LABELS, type PodProvider } from "@/lib/products";
 import type { CardCustomization } from "@/lib/store";
 
-type Issue = { code: string; severity: "blocker" | "warning"; message: string };
+type Issue = { code: string; severity: "blocker" | "warning" | "info"; message: string };
 type Reference = { label: string; side?: string; url: string; width?: number; height?: number };
-type Slot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; description?: string; width?: number; height?: number; format?: string; fit?: "fill" | "pad" | "aspect" | "original"; original?: string | null; verified?: { width: number; height: number } | null; references?: Reference[] };
+type Slot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; kind?: "photo" | "pages" | "admin"; description?: string; width?: number; height?: number; format?: string; fit?: "fill" | "pad" | "aspect" | "original"; original?: string | null; verified?: { width: number; height: number } | null; references?: Reference[] };
 type Item = { id: string; name: string; quantity: number; podProductRef: string | null; podArtwork: Slot[]; podIssues: Issue[]; card: CardCustomization | null; kind: string | null; photos: (string | null)[] };
 type Fulfillment = {
   id: string; provider: string; status: string; mode: string; reference: string; providerOrderId: string | null; providerStatus: string | null;
@@ -110,10 +110,9 @@ export default function AdminFulfillmentPage() {
 
 function Detail({ item, mode, busy, onClose, act, onToast }: { item: Fulfillment; mode: "draft" | "live"; busy: string; onClose: () => void; act: (label: string, payload: Record<string, unknown>, success: string) => Promise<void>; onToast: (message: string) => void }) {
   const issues = item.items.flatMap((line) => line.podIssues);
-  const onlyWarnings = issues.length > 0 && issues.every((issue) => issue.severity === "warning");
+  const onlyWarnings = issues.some((issue) => issue.severity === "warning") && issues.every((issue) => issue.severity !== "blocker");
   const canSend = item.status === "READY" || item.status === "FAILED" || (item.status === "NEEDS_ATTENTION" && onlyWarnings);
   const address = item.order.shippingAddress || {};
-  const [tracking, setTracking] = useState({ status: "SHIPPED", carrier: item.carrier || "", trackingNumber: item.trackingNumber || "", trackingUrl: item.trackingUrl || "" });
   const button = (label: string, text: string, payload: Record<string, unknown>, success: string, tone = "bg-[#182443] text-white", confirm?: string) => <button type="button" disabled={Boolean(busy)} onClick={() => { if (confirm && !window.confirm(confirm)) return; void act(label, payload, success); }} className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-black disabled:opacity-50 ${tone}`}>{busy === label && <Spinner size={13} />}{text}</button>;
 
   return <div className="fixed inset-0 z-50"><button className="absolute inset-0 bg-[#182443]/25" onClick={onClose} aria-label="Close" />
@@ -135,8 +134,6 @@ function Detail({ item, mode, busy, onClose, act, onToast }: { item: Fulfillment
       <div className="mt-5 flex flex-wrap gap-2">
         {canSend && button("send", item.status === "FAILED" ? "Retry now" : onlyWarnings && item.status === "NEEDS_ATTENTION" ? "Send anyway" : "Send to print shop", { action: "submit", id: item.id, allowWarnings: onlyWarnings }, "Sent to the print shop", "bg-[#ee5264] text-white", mode === "live" ? "This creates a real, paid order at the print shop. Continue?" : undefined)}
         {["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status) && button("recheck", "Check again", { action: "recheck", id: item.id }, "Checked again", "border border-[#dfd3cc] text-[#182443]")}
-        {item.providerOrderId && isPodProvider(item.provider) && button("sync", "Refresh status", { action: "sync", id: item.id }, "Status refreshed", "border border-[#dfd3cc] text-[#182443]")}
-        {["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status) && button("cancel", "Cancel print order", { action: "mark", id: item.id, status: "CANCELLED" }, "Print order cancelled", "border border-[#f3c6c2] text-[#c94758]", "Cancel this print order? It will not be sent to the print shop. The customer's order and payment are not changed.")}
         {item.mode === "draft" && item.status === "SUBMITTED" && (item.provider === "GELATO" || item.provider === "PRINTFUL") && button("confirm", "Confirm for production", { action: "confirm", id: item.id }, "Draft confirmed for production", "bg-[#24714b] text-white", "Confirm this draft? The print shop will produce and charge it.")}
       </div>
 
@@ -144,22 +141,12 @@ function Detail({ item, mode, busy, onClose, act, onToast }: { item: Fulfillment
       {item.items.map((line) => <div key={line.id} className="mt-3 rounded-2xl border border-[#e4e7ee] p-4">
         <p className="text-sm font-black">{line.quantity} × {line.name}</p>
         <p className="mt-0.5 break-all text-[11px] text-[#9297a4]">Shop product: {line.podProductRef || "not mapped"}</p>
-        {line.podIssues.map((issue, index) => <p key={index} className={`mt-2 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${issue.severity === "blocker" ? "bg-[#fff0e8] text-[#c94758]" : "bg-[#fff6e0] text-[#8a5a00]"}`}>{issue.severity === "blocker" ? "Blocks sending: " : "Check: "}{issue.message}</p>)}
+        {line.podIssues.map((issue, index) => <p key={index} className={`mt-2 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${issue.severity === "blocker" ? "bg-[#fff0e8] text-[#c94758]" : issue.severity === "warning" ? "bg-[#fff6e0] text-[#8a5a00]" : "bg-[#f3f4f6] text-[#59627b]"}`}>{issue.severity === "blocker" ? "Blocks sending: " : issue.severity === "warning" ? "Held — check: " : "Note (sent automatically): "}{issue.message}</p>)}
         {line.podArtwork.length > 0 && !line.podArtwork.some((slot) => slot.original || slot.references?.length) && <CustomerPhotos item={line} />}
         {line.podArtwork.map((slot, index) => <ArtworkSlot key={index} slot={slot} item={line} editable={["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status)} busy={busy} act={act} onToast={onToast} />)}
       </div>)}
 
-      {(item.status === "SUBMITTED" || item.status === "IN_PRODUCTION" || item.status === "SHIPPED") && item.providerOrderId && <div className="mt-6 rounded-2xl border border-[#e4e7ee] p-4">
-        <p className="text-sm font-black">Update by hand</p>
-        <p className="mt-1 text-[11px] text-[#9297a4]">Use only if the print shop status cannot be refreshed.</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <select value={tracking.status} onChange={(event) => setTracking({ ...tracking, status: event.target.value })} className="field !mt-0" aria-label="Status">{["SUBMITTED", "IN_PRODUCTION", "SHIPPED", "DELIVERED", "CANCELLED"].map((value) => <option key={value} value={value}>{STATUS_LABEL[value]}</option>)}</select>
-          <input value={tracking.carrier} onChange={(event) => setTracking({ ...tracking, carrier: event.target.value })} placeholder="Carrier" className="field !mt-0" aria-label="Carrier" />
-          <input value={tracking.trackingNumber} onChange={(event) => setTracking({ ...tracking, trackingNumber: event.target.value })} placeholder="Tracking number" className="field !mt-0" aria-label="Tracking number" />
-          <input value={tracking.trackingUrl} onChange={(event) => setTracking({ ...tracking, trackingUrl: event.target.value })} placeholder="https://… tracking link" className="field !mt-0" aria-label="Tracking link" />
-        </div>
-        <div className="mt-3">{button("mark", "Save status", { action: "mark", id: item.id, status: tracking.status, carrier: tracking.carrier || null, trackingNumber: tracking.trackingNumber || null, trackingUrl: tracking.trackingUrl || null }, "Status saved", "bg-[#182443] text-white")}</div>
-      </div>}
+      <p className="mt-6 rounded-xl bg-[#fafbfc] p-3 text-[11px] text-[#737b90]">The status and tracking come from the print shop automatically (its notifications, a scheduled check, and a refresh whenever this page is opened). They cannot be changed by hand.</p>
     </section></div>;
 }
 
@@ -224,6 +211,9 @@ function ArtworkSlot({ slot, item, editable, busy, act, onToast }: { slot: Slot;
     } finally { setRendering(false); }
   };
   const size = requiredSize(slot);
+  // Card and photo print files are made automatically from the customer's design; only products
+  // with no automatic file (e.g. calendars) take a file from the admin. Older slots have no kind.
+  const manual = slot.kind ? slot.kind === "admin" : !slot.fit && !slot.references?.length;
   const checked = slot.verified ? `${slot.verified.width} × ${slot.verified.height} px${slot.width && slot.fit !== "aspect" && slot.verified.width === slot.width && slot.verified.height === slot.height ? " ✓" : ""}` : slot.url ? "size not checked" : undefined;
   return <div className="mt-3 rounded-xl bg-[#fafbfc] p-3 text-[11px]">
     <p className="font-black">Print file{slot.unit ? ` ${slot.unit + 1}` : ""} · {slot.area}</p>
@@ -237,9 +227,10 @@ function ArtworkSlot({ slot, item, editable, busy, act, onToast }: { slot: Slot;
       <p className="font-black">Customer&apos;s final card design {slot.references?.length ? `(${slot.references.length} pages)` : ""}</p>
       {slot.references?.length ? <div className="mt-2 grid grid-cols-4 gap-2">{slot.references.map((page) => <Thumb key={page.url} url={page.url} label={page.label} detail={page.width ? `${page.width} × ${page.height}` : undefined} />)}</div>
         : <p className="mt-1 text-[#8a5a00]">Not saved at checkout.</p>}
-      {editable && item.card && <button type="button" disabled={rendering || Boolean(busy)} onClick={() => void renderPages()} className="mt-2 rounded-full border border-[#dfd3cc] px-3 py-1.5 font-black disabled:opacity-50">{rendering ? "Rendering…" : slot.references?.length ? "Render again from saved design" : "Render from saved design"}</button>}
+      {/* Only needed when the customer's browser could not save the pages at checkout; the print file is then made and sent automatically. */}
+      {editable && item.card && !slot.references?.length && <button type="button" disabled={rendering || Boolean(busy)} onClick={() => void renderPages()} className="mt-2 rounded-full border border-[#dfd3cc] px-3 py-1.5 font-black disabled:opacity-50">{rendering ? "Creating…" : "Create card pages from saved design"}</button>}
     </div>}
-    {editable && <div className="mt-3 flex flex-wrap items-center gap-2">
+    {editable && manual && <div className="mt-3 flex flex-wrap items-center gap-2">
       <button type="button" disabled={uploading || Boolean(busy)} onClick={() => fileRef.current?.click()} className="rounded-full bg-[#182443] px-3 py-1.5 font-black text-white disabled:opacity-50">{uploading || busy === label ? "Saving…" : slot.url ? "Replace file" : "Upload file"}</button>
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
       <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="or paste an https:// link" className="min-w-[180px] flex-1 rounded-full border border-[#e4e7ee] px-3 py-1.5" aria-label="Print file link" />

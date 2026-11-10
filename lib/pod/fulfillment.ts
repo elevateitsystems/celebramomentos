@@ -20,7 +20,7 @@ import { checkPhotoResolution, checkPrintFileSize, isCloudinaryUrl, printFileUrl
 import { mapOrderItem } from "./catalog";
 import { podAutoSubmit, podMode } from "./config";
 import { PodApiError, redact } from "./http";
-import { renderPrintFile, uploadedFiles, type UploadedFile } from "./print-files";
+import { renderCompositeFile, renderPrintFile, uploadedFiles, type UploadedFile } from "./print-files";
 import { podAdapter } from "./providers";
 import type { PodFulfillmentStatus, PodIssue, PodMode, ProviderOrderState, Recipient, SubmissionLine } from "./types";
 
@@ -37,7 +37,9 @@ export const POD_ENABLED_SINCE = new Date("2026-11-01T00:00:00Z");
 // - width / height / format: what the shop requires; verified: the file's real pixel size.
 // - original: the customer's original upload; references: the customer's card pages.
 export type DesignReference = { label: string; side?: string; url: string; width?: number; height?: number };
-export type ArtworkSlot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; description?: string; width?: number; height?: number; format?: "jpg" | "png"; fit?: PhotoFit; original?: string | null; verified?: { width: number; height: number } | null; references?: DesignReference[] };
+// kind: how the file is made — "photo" / "pages" automatically by the site, "admin" attached by hand
+// (only products with no automatic file, e.g. calendars). Missing on slots saved before it existed.
+export type ArtworkSlot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; kind?: "photo" | "pages" | "admin"; description?: string; width?: number; height?: number; format?: "jpg" | "png"; fit?: PhotoFit; original?: string | null; verified?: { width: number; height: number } | null; references?: DesignReference[] };
 
 const asObject = (value: unknown) => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const asString = (value: unknown) => (typeof value === "string" ? value : null);
@@ -63,7 +65,7 @@ type ItemPlan = { item: OrderItem; provider: PodProvider; productRef: string | n
 
 // `fixedProvider`: an item that already has a print order keeps that order's shop when it is
 // planned again (an item kept from a print shop that is no longer used is not re-routed).
-async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedProvider?: PodProvider): Promise<ItemPlan> {
+export async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedProvider?: PodProvider): Promise<ItemPlan> {
   const personalization = asObject(item.personalization);
   const product = asObject(personalization.product);
   const isCatalog = product.kind === "CATALOG";
@@ -103,12 +105,45 @@ async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedProvider?
       const before = previous.find((slot) => slot.unit === unitIndex && slot.area === spec.area);
       const attached = before?.source === "admin" && before.url ? before : null;
       const required = spec.kind === "photo" ? (spec.width ? { width: spec.width, height: spec.height } : {}) : spec.width && spec.height ? { width: spec.width, height: spec.height } : {};
+      if (spec.kind === "pages") {
+        // Greeting cards: the print file is composed automatically from the 4 pages the customer's
+        // browser rendered at checkout (the customer's real design), in the SKU's page order and at its
+        // exact print size. A file composed earlier from the same pages at the same size is reused,
+        // so retries never create it again.
+        const required = { width: spec.width, height: spec.height };
+        const bySide = new Map(cardPages.map((page) => [page.side, page]));
+        const ordered = spec.pages.map((side) => bySide.get(side) ?? null);
+        const references = cardPages;
+        const missing = spec.pages.filter((_, index) => !ordered[index]);
+        if (missing.length) {
+          artwork.push({ kind: "pages", unit: unitIndex, productRef: unit.productRef, area: spec.area, url: null, source: null, description: spec.description, ...required, format: spec.format, ...(references.length ? { references } : {}) });
+          issues.push({ code: "design_missing", severity: "blocker", message: `${prefix}The customer's card pages were not saved at checkout (missing: ${missing.join(", ")}). Create them once with “Create card pages from saved design”; the print file is then made and sent automatically` });
+          continue;
+        }
+        const pageUrls = ordered.map((page) => page!.url);
+        const signature = pageUrls.join(" ");
+        const reusable = before?.source === "design" && before.url && before.verified && before.original === signature && before.width === spec.width && before.height === spec.height ? { url: before.url, ...before.verified } : null;
+        let failure: string | null = null;
+        const stored = reusable ?? await renderCompositeFile({ orderId: item.orderId, itemId: item.id, unit: unitIndex, pageUrls, spec }).catch((reason) => { failure = reason instanceof Error ? reason.message : "unknown error"; return null; });
+        if (!stored) {
+          logPod("card print file not composed", { itemId: item.id, failure });
+          artwork.push({ kind: "pages", unit: unitIndex, productRef: unit.productRef, area: spec.area, url: null, source: null, description: spec.description, ...required, format: spec.format, references });
+          issues.push({ code: "print_file_render_failed", severity: "blocker", message: `${prefix}The card print file could not be made yet (${failure}); it is retried automatically` });
+          continue;
+        }
+        const verified = { width: stored.width, height: stored.height };
+        artwork.push({ kind: "pages", unit: unitIndex, productRef: unit.productRef, area: spec.area, url: stored.url, source: "design", description: spec.description, ...required, format: spec.format, original: signature, verified, references });
+        // Never sent unless it is exactly the size the print shop requires.
+        const problem = checkPrintFileSize(required, verified, `${prefix}Card print file`);
+        if (problem) issues.push(problem);
+        continue;
+      }
       if (spec.kind === "admin") {
         // A file an admin attached earlier is kept when the item is planned again; the
         // card pages the customer designed are kept beside it for reference.
         const references = cardPages;
         const verified = attached ? sizeOf(attached.url) : null;
-        artwork.push({ unit: unitIndex, productRef: unit.productRef, area: spec.area, url: attached?.url || null, source: attached ? "admin" : null, description: spec.description, ...required, verified, ...(references.length ? { references } : {}) });
+        artwork.push({ kind: "admin", unit: unitIndex, productRef: unit.productRef, area: spec.area, url: attached?.url || null, source: attached ? "admin" : null, description: spec.description, ...required, verified, ...(references.length ? { references } : {}) });
         if (!attached) issues.push({ code: "print_file_required", severity: "blocker", message: `${prefix}Print file needed: ${spec.description}` });
         else { const problem = checkPrintFileSize(required, verified, `${prefix}Attached print file`); if (problem) issues.push(problem); }
         continue;
@@ -117,17 +152,17 @@ async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedProvider?
       const fit = { fit: spec.fit, ...required };
       if (attached) {
         const verified = sizeOf(attached.url);
-        artwork.push({ ...attached, productRef: unit.productRef, ...required, format: spec.format, fit: spec.fit, original: source, verified });
+        artwork.push({ kind: "photo", ...attached, productRef: unit.productRef, ...required, format: spec.format, fit: spec.fit, original: source, verified });
         const problem = checkPrintFileSize(fit, verified, `${prefix}Attached print file`);
         if (problem) issues.push(problem);
         continue;
       }
       if (!source) {
         issues.push({ code: "missing_photos", severity: "blocker", message: `${prefix}Photo ${spec.photoIndex + 1} is missing` });
-        artwork.push({ unit: unitIndex, productRef: unit.productRef, area: spec.area, url: null, source: null, ...required, format: spec.format, fit: spec.fit });
+        artwork.push({ kind: "photo", unit: unitIndex, productRef: unit.productRef, area: spec.area, url: null, source: null, ...required, format: spec.format, fit: spec.fit });
         continue;
       }
-      const warning = checkPhotoResolution(spec, sizeOf(source));
+      const warning = checkPhotoResolution(spec, sizeOf(source), { accepted: product.qualityAccepted === true });
       if (warning) issues.push({ ...warning, message: `${prefix}${warning.message}` });
       // The final file is rendered once and reused while the photo and the required size stay the same.
       const reusable = before?.source === "design" && before.url && before.verified && before.original === source && before.width === required.width && before.height === required.height && before.format === spec.format ? { url: before.url, ...before.verified } : null;
@@ -139,14 +174,14 @@ async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedProvider?
       }
       if (stored) {
         const verified = { width: stored.width, height: stored.height };
-        artwork.push({ unit: unitIndex, productRef: unit.productRef, area: spec.area, url: stored.url, source: "design", ...required, format: spec.format, fit: spec.fit, original: source, verified });
+        artwork.push({ kind: "photo", unit: unitIndex, productRef: unit.productRef, area: spec.area, url: stored.url, source: "design", ...required, format: spec.format, fit: spec.fit, original: source, verified });
         const problem = checkPrintFileSize(fit, verified, `${prefix}Print file`);
         if (problem) issues.push(problem);
         continue;
       }
       // Never silently send an unchecked file: the order waits until it is rendered or an admin checks it.
       logPod("print file not rendered", { itemId: item.id, unit: unitIndex, area: spec.area, failure });
-      artwork.push({ unit: unitIndex, productRef: unit.productRef, area: spec.area, url: printFileUrl(source, spec, sizeOf(source)), source: "customer", ...required, format: spec.format, fit: spec.fit, original: source, verified: null });
+      artwork.push({ kind: "photo", unit: unitIndex, productRef: unit.productRef, area: spec.area, url: printFileUrl(source, spec, sizeOf(source)), source: "customer", ...required, format: spec.format, fit: spec.fit, original: source, verified: null });
       issues.push({ code: "print_file_unverified", severity: "warning", message: `${prefix}The final print file could not be saved (${failure}); a link to the customer's photo is used instead. Press “Check again” to retry, or open it before sending` });
     }
   }));
@@ -170,7 +205,7 @@ function cardDesignPages(panels: Record<string, unknown>[], size: string | null,
     if (file.width !== page.width || file.height !== page.height) issues.push({ code: "design_page_size", severity: "warning", message: `Card page "${PAGE_LABEL[side]}" is ${file.width} × ${file.height} px instead of ${page.width} × ${page.height} px` });
     pages.push({ label: PAGE_LABEL[side], side, url, width: file.width, height: file.height });
   }
-  if (pages.length < 4) issues.push({ code: "design_missing", severity: "warning", message: "The customer's final card pages were not saved at checkout; use “Render from saved design” to create them from the order's saved settings" });
+  // Missing pages are reported by the print file that needs them (planItem).
   return pages;
 }
 
@@ -188,8 +223,11 @@ function printeersSelection(value: unknown) {
   };
 }
 
+// Notes ("info") never hold a print order; blockers and warnings do.
+const holds = (issues: PodIssue[]) => issues.filter((issue) => issue.severity !== "info");
+
 function statusFor(issues: PodIssue[], configurationProblem: string | null): PodFulfillmentStatus {
-  return issues.length || configurationProblem ? "NEEDS_ATTENTION" : "READY";
+  return holds(issues).length || configurationProblem ? "NEEDS_ATTENTION" : "READY";
 }
 
 // Creates the order's fulfilments (one per shop). Safe to call any number of times:
@@ -235,8 +273,9 @@ export async function refreshReadiness(fulfillmentId: string, { replan = false }
   const items = replan ? await prisma.orderItem.findMany({ where: { podFulfillmentId: fulfillmentId } }) : fulfillment.items;
   const problem = podAdapter(fulfillment.provider).configurationProblem(podMode());
   const issues = items.flatMap((item) => readIssues(item.podIssues));
-  if (fulfillment.status === "FAILED" && !issues.length && !problem) return fulfillment;
-  return prisma.podFulfillment.update({ where: { id: fulfillmentId }, data: { status: statusFor(issues, problem), lastError: problem ?? (issues.length ? issues.map((issue) => issue.message).join(" · ").slice(0, 900) : null) } });
+  const held = holds(issues);
+  if (fulfillment.status === "FAILED" && !held.length && !problem) return fulfillment;
+  return prisma.podFulfillment.update({ where: { id: fulfillmentId }, data: { status: statusFor(issues, problem), lastError: problem ?? (held.length ? held.map((issue) => issue.message).join(" · ").slice(0, 900) : null) } });
 }
 
 // ── Sending ──────────────────────────────────────────────────────────────────
@@ -254,6 +293,20 @@ function recipientOf(order: { email: string; shippingAddress: Prisma.JsonValue }
     countryCode: (asString(address.country) || "ES").toUpperCase(),
     state: null,
   };
+}
+
+// Last check before anything is sent: every print file must exist and, when the shop gives an exact
+// pixel size, be exactly that size (as measured when the file was stored). Pure, for tests.
+export function artworkProblems(slots: ArtworkSlot[]) {
+  const problems: string[] = [];
+  for (const slot of slots) {
+    const label = `Print file ${slot.unit + 1} (${slot.area})`;
+    if (!slot.url) { problems.push(`${label} is missing`); continue; }
+    if (!slot.width || !slot.height || slot.fit === "original" || slot.fit === "aspect") continue;
+    if (!slot.verified) { if (slot.source !== "customer") problems.push(`${label}: its pixel size was not verified`); continue; }
+    if (slot.verified.width !== slot.width || slot.verified.height !== slot.height) problems.push(`${label} is ${slot.verified.width} × ${slot.verified.height} px; ${slot.width} × ${slot.height} px is required`);
+  }
+  return problems;
 }
 
 function linesOf(items: OrderItem[]): SubmissionLine[] {
@@ -318,6 +371,12 @@ export async function submitFulfillment(fulfillmentId: string, { allowWarnings =
     return { ok: false, status: "NEEDS_ATTENTION", message: problem };
   }
   if (blockers.length) return { ok: false, status: fulfillment.status, message: blockers.map((issue) => issue.message).join(" · ") };
+  const sizeProblems = artworkProblems(fulfillment.items.flatMap((item) => readArtwork(item.podArtwork)));
+  if (sizeProblems.length) {
+    const message = sizeProblems.join(" · ").slice(0, 900);
+    await prisma.podFulfillment.update({ where: { id: fulfillmentId }, data: { status: "NEEDS_ATTENTION", lastError: message } });
+    return { ok: false, status: "NEEDS_ATTENTION", message };
+  }
 
   // The lock: only one caller can move it to SUBMITTING.
   const locked = await prisma.podFulfillment.updateMany({ where: { id: fulfillmentId, status: { in: allowed } }, data: { status: "SUBMITTING", mode, attempts: { increment: 1 }, lastError: null, nextAttemptAt: null } });
@@ -362,7 +421,7 @@ export async function syncFulfillment(fulfillmentId: string): Promise<SubmitResu
     const state = await podAdapter(fulfillment.provider).fetchStatus(fulfillment.providerOrderId, fulfillment.mode === "live" ? "live" : "draft");
     if (!state) {
       await prisma.podFulfillment.update({ where: { id: fulfillmentId }, data: { lastSyncedAt: new Date() } });
-      return { ok: false, status: fulfillment.status, message: `${fulfillment.provider} has no status endpoint; update it by hand` };
+      return { ok: false, status: fulfillment.status, message: `${fulfillment.provider} has no status endpoint` };
     }
     const saved = await saveState(fulfillmentId, state);
     return { ok: true, status: saved.status };
@@ -376,17 +435,6 @@ export async function syncFulfillment(fulfillmentId: string): Promise<SubmitResu
 // Problems that mean the print file itself is missing or wrong.
 const ARTWORK_BLOCKERS = ["missing_photos", "print_file_required", "print_file_invalid"];
 const NOT_SENT = ["NEEDS_ATTENTION", "READY", "FAILED"];
-
-// Manual status/tracking update (and cancelling a print order that will not be sent).
-export async function markFulfillment(fulfillmentId: string, input: { status: PodFulfillmentStatus; carrier?: string | null; trackingNumber?: string | null; trackingUrl?: string | null }) {
-  const fulfillment = await prisma.podFulfillment.findUniqueOrThrow({ where: { id: fulfillmentId }, include: { items: true } });
-  // An order placed by hand at the shop still needs its print files; only cancelling skips that.
-  if (NOT_SENT.includes(fulfillment.status) && input.status !== "CANCELLED") {
-    const missing = fulfillment.items.flatMap((item) => readIssues(item.podIssues)).filter((issue) => ARTWORK_BLOCKERS.includes(issue.code));
-    if (missing.length) throw new Error(`Print files are missing or invalid: ${missing.map((issue) => issue.message).join(" · ")}`);
-  }
-  return saveState(fulfillmentId, { providerOrderId: fulfillment.providerOrderId || "", providerStatus: `${input.status.toLowerCase()} (set by admin)`, status: input.status, carrier: input.carrier ?? null, trackingNumber: input.trackingNumber ?? null, trackingUrl: input.trackingUrl ?? null });
-}
 
 // An order item whose print files can still change (its print order was not sent).
 async function editableItem(itemId: string) {
@@ -408,6 +456,8 @@ export async function attachPrintFile(itemId: string, input: { unit: number; are
   const { item, fulfillmentId } = await editableItem(itemId);
   const slots = readArtwork(item.podArtwork);
   const index = slots.findIndex((slot) => slot.unit === input.unit && slot.area === input.area);
+  // Card print files are made from the customer's design automatically; they cannot be replaced by hand.
+  if (index >= 0 && slots[index].kind === "pages") throw new Error("This print file is made automatically from the customer's design and cannot be replaced");
   const slot: ArtworkSlot = { ...(index >= 0 ? slots[index] : { unit: input.unit, productRef: item.podProductRef, area: input.area }), url: input.url, source: "admin" };
   const next = index >= 0 ? slots.map((current, position) => (position === index ? slot : current)) : [...slots, slot];
   return saveSlots(itemId, fulfillmentId, next);
@@ -476,11 +526,28 @@ export function handlePaidOrderInBackground(orderId: string) {
   waitUntil(work);
 }
 
+// Refreshes print orders whose status has not been read from the print shop for a while, so admin
+// pages always show the latest status without anyone pressing a button (webhooks and the cron job
+// do the same in the background). Bounded in number and time; a failed read changes nothing
+// (syncFulfillment keeps the stored status and only records the error in the log).
+export async function syncStaleFulfillments({ maxAgeMs = 5 * 60_000, limit = 12, budgetMs = 6_000, orderIds }: { maxAgeMs?: number; limit?: number; budgetMs?: number; orderIds?: string[] } = {}) {
+  const stale = await prisma.podFulfillment.findMany({
+    where: { ...(orderIds ? { orderId: { in: orderIds } } : {}), status: { in: ["SUBMITTED", "IN_PRODUCTION", "SHIPPED"] }, provider: { in: [...POD_PROVIDERS] }, providerOrderId: { not: null }, OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: new Date(Date.now() - maxAgeMs) } }] },
+    orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
+    take: limit,
+    select: { id: true },
+  });
+  if (!stale.length) return 0;
+  const work = Promise.all(stale.map((item) => syncFulfillment(item.id).catch(() => null)));
+  await Promise.race([work, new Promise((resolve) => setTimeout(resolve, budgetMs))]);
+  return stale.length;
+}
+
 // Periodic job (cron): prepares paid orders the payment hook missed, retries failed
 // submissions, recovers interrupted ones and refreshes tracking.
 export async function runPodMaintenance({ budgetMs = 45_000 } = {}) {
   const deadline = Date.now() + budgetMs;
-  const report = { prepared: 0, submitted: 0, retried: 0, recovered: 0, synced: 0 };
+  const report = { prepared: 0, rerendered: 0, submitted: 0, retried: 0, recovered: 0, synced: 0 };
   const left = () => Date.now() < deadline;
 
   const unprepared = await prisma.order.findMany({ where: { status: { in: [...PAID_ORDER] }, createdAt: { gte: POD_ENABLED_SINCE }, fulfillments: { none: {} }, payments: { some: { status: "SUCCEEDED" } } }, select: { id: true }, take: 20, orderBy: { createdAt: "asc" } });
@@ -494,6 +561,15 @@ export async function runPodMaintenance({ budgetMs = 45_000 } = {}) {
     else await prisma.podFulfillment.update({ where: { id: fulfillment.id }, data: { status: "FAILED", lastError: "The last submission was interrupted; it will be retried", nextAttemptAt: new Date() } });
     report.recovered += 1;
   }
+
+  // Print files that could not be made (e.g. image storage briefly unavailable) are tried again, and
+  // Prodigi card orders still waiting for a hand-made file (planned before card files were made
+  // automatically) are planned again so their file is composed and they are sent.
+  const unrendered = await prisma.podFulfillment.findMany({ where: { status: "NEEDS_ATTENTION", updatedAt: { lt: new Date(Date.now() - 5 * 60_000) }, OR: [
+    { items: { some: { podIssues: { array_contains: [{ code: "print_file_render_failed" }] } } } },
+    { provider: "PRODIGI", items: { some: { podIssues: { array_contains: [{ code: "print_file_required" }] } } } },
+  ] }, select: { id: true }, take: 10 });
+  for (const fulfillment of unrendered) { if (!left()) break; await refreshReadiness(fulfillment.id, { replan: true }); report.rerendered += 1; }
 
   const due: PodFulfillment[] = await prisma.podFulfillment.findMany({ where: { OR: [{ status: "FAILED", nextAttemptAt: { lte: new Date() } }, ...(podAutoSubmit() ? [{ status: "READY" as const }] : [])] }, take: 20, orderBy: { updatedAt: "asc" } });
   for (const fulfillment of due) {

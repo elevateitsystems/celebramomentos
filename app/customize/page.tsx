@@ -45,7 +45,6 @@ import {
   setPhotoPosition,
   setPhotoSlots,
   setPhotoZoom,
-  setRecipientMode,
   setSize,
   setTemplate,
   updateEmojiElement,
@@ -54,6 +53,10 @@ import {
 } from "@/lib/store";
 
 type FlowStep = "template" | "frame" | "customize" | "emojis" | "preview" | "summary";
+const FLOW_STEPS: FlowStep[] = ["template", "frame", "customize", "emojis", "preview", "summary"];
+const parseStep = (value: string | null) => (FLOW_STEPS as string[]).includes(value || "") ? value as FlowStep : null;
+// A step that exists for the template (Magazine has no frame step).
+const stepFor = (step: FlowStep, requiresFrame: boolean): FlowStep => (step === "frame" && !requiresFrame ? "customize" : step);
 
 export default function CustomizePage() {
   const router = useRouter();
@@ -81,12 +84,31 @@ export default function CustomizePage() {
   const [addingToCart, setAddingToCart] = useState(false);
   const { settings } = usePublicSettings();
 
+  // The step being edited is kept in the URL (?step=…), so a refresh or a shared link reopens the same
+  // place. `restored` turns true once the URL has been applied; until then the URL is not rewritten.
+  const [requestedStep, setRequestedStep] = useState<FlowStep | null>(null);
+  const [restored, setRestored] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setEditItemId(params.get("edit"));
     setPendingTemplateId(params.get("template"));
     setSelectedProductId(params.get("product"));
+    setRequestedStep(parseStep(params.get("step")));
+    if (!params.get("edit") && !params.get("template")) setRestored(true);
   }, []);
+
+  // Mirrors the current step (and template) into the address bar without navigating.
+  useEffect(() => {
+    if (!restored) return;
+    const url = new URL(window.location.href);
+    if (step === "template") url.searchParams.delete("step");
+    else {
+      url.searchParams.set("step", step);
+      if (chosenTemplateId && !url.searchParams.get("edit")) url.searchParams.set("template", chosenTemplateId);
+    }
+    const next = url.pathname + url.search;
+    if (next !== window.location.pathname + window.location.search) window.history.replaceState(window.history.state, "", next);
+  }, [restored, step, chosenTemplateId]);
 
   useEffect(() => {
     let active = true;
@@ -136,6 +158,11 @@ export default function CustomizePage() {
     setChosenFrameId(item.card.frameId);
     setSelectedProductId(item.productId || null);
     setActiveSection("front");
+    if (!restored) {
+      const itemTemplate = templates.find((entry) => entry.id === item.card.templateId) || templates[0];
+      if (requestedStep) setStep(stepFor(requestedStep, Boolean(itemTemplate.requiresFrame)));
+      setRestored(true);
+    }
   }, [cart.items, dispatch, editItemId]);
 
   const chooseTemplate = (templateId: string) => {
@@ -164,13 +191,25 @@ export default function CustomizePage() {
   };
 
   useEffect(() => {
-    if (!pendingTemplateId || editItemId) return;
+    // Wait for the design saved on this device: deciding before it is loaded would start a new design
+    // (and the old one would then overwrite it).
+    if (!pendingTemplateId || editItemId || !cart.hydrated) return;
     const nextTemplate = templates.find((item) => item.id === pendingTemplateId);
-    if (!nextTemplate) return;
-    chooseTemplate(nextTemplate.id);
-    setStep(nextTemplate.requiresFrame ? "frame" : "customize");
+    if (!nextTemplate) { setPendingTemplateId(null); setRestored(true); return; }
+    // A refresh (the URL has a step) of the design in progress continues it exactly where it was.
+    // Only a fresh visit (no step) starts a new design from the template, as before.
+    const continuing = requestedStep !== null && requestedStep !== "template" && cart.card.templateId === nextTemplate.id;
+    if (continuing) {
+      setChosenTemplateId(nextTemplate.id);
+      setChosenFrameId(cart.card.frameId);
+      setStep(stepFor(requestedStep, Boolean(nextTemplate.requiresFrame)));
+    } else {
+      chooseTemplate(nextTemplate.id);
+      setStep(nextTemplate.requiresFrame ? "frame" : "customize");
+    }
     setPendingTemplateId(null);
-  }, [editItemId, pendingTemplateId]);
+    setRestored(true);
+  }, [editItemId, pendingTemplateId, cart.hydrated]);
 
   const continueFromTemplate = () => {
     if (!chosenTemplateId) return;
@@ -854,40 +893,6 @@ export default function CustomizePage() {
                         </div>
                       </div>
 
-                      <div>
-                        <p className="text-sm font-black">{tx("¿Dónde lo enviamos?", "Para onde o enviamos?")}</p>
-                        <div className="mt-2 grid gap-2">
-                          {(
-                            [
-                              ["recipient", tx("Directamente a quien lo recibe", "Diretamente a quem o recebe"), tx("Nosotros lo preparamos y lo entregamos por ti.", "Nós preparamo-lo e entregamo-lo por ti.")],
-                              ["customer", tx("A mi dirección", "Para a minha morada"), tx("Recíbelo en casa, listo para entregar en mano.", "Recebe-o em casa, pronto para entregar em mão.")],
-                            ] as const
-                          ).map(([value, title, body]) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => dispatch(setRecipientMode(value))}
-                              className={`focus-ring rounded-2xl border p-3 text-left transition ${
-                                cart.card.recipientMode === value
-                                  ? "border-[#ee5264] bg-[#fff0e8]"
-                                  : "border-[#dfd3cc] bg-white hover:border-[#ee5264]"
-                              }`}
-                            >
-                              <span className="flex items-center gap-2 text-sm font-black">
-                                <span
-                                  className={`h-3 w-3 rounded-full border ${
-                                    cart.card.recipientMode === value
-                                      ? "border-[4px] border-[#ee5264]"
-                                      : "border-[#b7b0ac]"
-                                  }`}
-                                />
-                                {title}
-                              </span>
-                              <span className="mt-1 block pl-5 text-xs text-[#7c8191]">{body}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   )}
 

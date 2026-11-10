@@ -109,12 +109,15 @@ async function resolveCatalogSelection(selection: CatalogSelection): Promise<Cat
 
 const MODEL_OPTION = /modelo|model|móvil|movil|telem/i;
 
-// The Printeers model of a phone case selection, or null when the product is not linked
-// to Printeers (or Printeers is not configured), in which case the admin model list applies.
+// The Printeers model of a phone case selection (checked against Printeers). A phone case that is
+// not linked to Printeers, or has no valid model, is refused.
 async function resolvePrinteersModel(selection: CatalogSelection, metadata: unknown) {
   if (selection.productKind !== "PHONE_CASE") return null;
   const group = linkedProductgroup(metadata);
-  if (!group || !printeersCatalogReady()) return null;
+  // Phone cases are made only by Printeers, from the exact Printeers model the customer picks. A case
+  // type that is not linked to a Printeers product group (or Printeers not set up) cannot be sold:
+  // its order could never be produced (this used to accept a typed model name and then block).
+  if (!group || !printeersCatalogReady()) throw new CatalogError("Esta funda no está disponible ahora mismo. Elige otro tipo de funda.", 409);
   const reference = selection.printeers?.productReference;
   if (!reference) throw new CatalogError("Elige el modelo de tu móvil.", 400);
   try {

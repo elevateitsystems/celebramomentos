@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { describeProductSelection } from "@/lib/cart";
+import { DELIVERY_METHOD } from "@/lib/data";
 import { getCustomerSession } from "@/lib/server/auth";
 import { ensureCatalog, deliveryCents, resolveCartLine } from "@/lib/server/catalog";
 import { DISCOUNT_MESSAGES, clientKey, discountAttemptsBlocked, evaluateDiscount, normalizeDiscountCode, publicVerdict, recordDiscountFailure } from "@/lib/server/discounts";
@@ -43,8 +44,7 @@ export async function POST(request: Request) {
     const priced = lines.filter((line) => line.unitPriceCents !== undefined);
     const quantities = new Map(items.map((raw, index) => [raw && typeof raw === "object" && typeof (raw as { id?: unknown }).id === "string" ? (raw as { id: string }).id : String(index), Number((raw as { quantity?: unknown })?.quantity) || 1]));
     const subtotalCents = priced.reduce((sum, line) => sum + (line.unitPriceCents ?? 0) * Math.max(1, Math.min(99, quantities.get(line.id) ?? 1)), 0);
-    const firstCard = (items[0] as { card?: { delivery?: unknown } } | undefined)?.card;
-    const shippingCents = priced.length ? await deliveryCents(firstCard?.delivery === "express" ? "express" : "standard", subtotalCents) : 0;
+    const shippingCents = priced.length ? await deliveryCents(DELIVERY_METHOD, subtotalCents) : 0;
     const customer = await getCustomerSession().catch(() => null);
     const verdict = await evaluateDiscount(prisma, code, { subtotalCents, shippingCents, customerId: customer?.id });
     if (!verdict.ok && verdict.reason === "not_found") recordDiscountFailure(key);

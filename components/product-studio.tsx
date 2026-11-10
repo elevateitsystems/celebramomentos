@@ -13,7 +13,9 @@ import { captureStudioPreview } from "@/lib/capture-preview";
 import { savePendingCartItem } from "@/lib/pending-cart";
 import { trackPixel } from "@/lib/meta-pixel";
 import { CROP_LIMITS, DEFAULT_CROP, cropRect, mmToPx, normalizeCrop, type ImageCrop } from "@/lib/crop";
-import { MAX_PRODUCT_PHOTOS, productPrintFile, requiredPhotoCount, type CatalogProduct, type PrintFile, type StudioProductKind } from "@/lib/products";
+import { studioPhotoTarget } from "@/lib/pod/catalog";
+import { minimumPhotoSize, photoEnlargement, photoQuality, type PhotoQuality } from "@/lib/print-quality";
+import { MAX_PRODUCT_PHOTOS, podProviderFor, productPrintFile, requiredPhotoCount, type CatalogProduct, type PrintFile, type StudioProductKind } from "@/lib/products";
 import { RootState, defaultCardCustomization, saveCartItem, type CatalogSelection, type ProductSelection } from "@/lib/store";
 import { PosterHanger, hangerColorFrom, orientationFrom } from "@/components/poster-hanger";
 import { PublishedProducts, catalogImage, useCatalogProducts } from "@/components/published-products";
@@ -42,6 +44,40 @@ function UploadButton({ photo, onPhoto, es, label }: { photo: string | null; onP
   </>;
 }
 
+// Pixel sizes of the customer's photos (data URLs or links), measured in the browser.
+function usePhotoSizes(photos: (string | null)[]) {
+  const key = photos.join("|");
+  const [sizes, setSizes] = useState<Record<string, { width: number; height: number }>>({});
+  useEffect(() => {
+    let active = true;
+    for (const photo of photos) {
+      if (!photo || sizes[photo]) continue;
+      const image = new Image();
+      image.onload = () => { if (active) setSizes((current) => ({ ...current, [photo]: { width: image.naturalWidth, height: image.naturalHeight } })); };
+      image.src = photo;
+    }
+    return () => { active = false; };
+  // `key` stands for the photos; `sizes` is only read to skip photos already measured.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return sizes;
+}
+
+// The worst photo for its print file: "too_small" (cannot be ordered) or "low" (can be ordered once the
+// customer confirms they accept a less sharp print), with the size that prints sharp; null when every
+// photo is good enough or its size is not known yet.
+function photoCheck(photos: (string | null)[], sizes: Record<string, { width: number; height: number }>, printFile: PrintFile | null, zoom = 1): { level: Extract<PhotoQuality, "low" | "too_small">; index: number; size: { width: number; height: number }; minimum: { width: number; height: number } } | null {
+  if (!printFile) return null;
+  let worst: ReturnType<typeof photoCheck> = null;
+  for (const [index, photo] of photos.entries()) {
+    const size = photo ? sizes[photo] : null;
+    const level = size ? photoQuality(photoEnlargement(size, printFile, zoom)) : "good";
+    if (size && (level === "too_small" || (level === "low" && !worst))) worst = { level, index, size, minimum: minimumPhotoSize(printFile) };
+    if (worst?.level === "too_small") break;
+  }
+  return worst;
+}
+
 // The print shop's recommended file for the product (set in admin → Products),
 // with a warning when the uploaded photo is smaller than recommended.
 function PrintFileNote({ printFile, photo, es }: { printFile: PrintFile | null; photo: string | null; es: boolean }) {
@@ -60,9 +96,13 @@ function PrintFileNote({ printFile, photo, es }: { printFile: PrintFile | null; 
   const size = measured && measured.src === photo ? measured : null;
   // Short side against short side, long against long: a rotated photo is not "too small".
   const tooSmall = size && (Math.min(size.width, size.height) < Math.min(width, height) || Math.max(size.width, size.height) < Math.max(width, height));
+  const level = size ? photoQuality(photoEnlargement(size, printFile)) : "good";
+  const minimum = minimumPhotoSize(printFile);
   return <div className="mt-2 space-y-1.5 text-[11px] leading-5">
     <p className="text-[#737b90]"><span className="font-black text-[#182443]">{es ? "Archivo recomendado:" : "Ficheiro recomendado:"}</span> {width} × {height} px (300 ppp){orientation}.{transparentPng ? (es ? " Usa PNG con fondo transparente si quieres que la funda se vea a través del diseño." : " Usa PNG com fundo transparente se quiseres que a capa se veja através do design.") : ""}</p>
-    {tooSmall && <p role="status" className="rounded-lg bg-[#fff6e0] px-2.5 py-1.5 font-bold text-[#8a5a00]">{es ? `Tu foto mide ${size.width} × ${size.height} px, menos de lo recomendado: puede imprimirse borrosa.` : `A tua foto tem ${size.width} × ${size.height} px, menos do que o recomendado: pode ficar desfocada na impressão.`}</p>}
+    {size && level === "too_small" ? <p role="alert" className="rounded-lg bg-[#fff0e8] px-2.5 py-1.5 font-bold text-[#c94758]">{es ? `Tu foto mide ${size.width} × ${size.height} px: es demasiado pequeña para imprimirla en este tamaño. Sube una foto más grande (recomendado: al menos ${minimum.width} × ${minimum.height} px).` : `A tua foto tem ${size.width} × ${size.height} px: é demasiado pequena para imprimir neste tamanho. Carrega uma foto maior (recomendado: pelo menos ${minimum.width} × ${minimum.height} px).`}</p>
+      : size && level === "low" ? <p role="status" className="rounded-lg bg-[#fff6e0] px-2.5 py-1.5 font-bold text-[#8a5a00]">{es ? `Tu foto mide ${size.width} × ${size.height} px, menos de lo recomendado (${minimum.width} × ${minimum.height} px): se puede imprimir, pero se verá menos nítida. Para el mejor resultado, sube una foto más grande.` : `A tua foto tem ${size.width} × ${size.height} px, menos do que o recomendado (${minimum.width} × ${minimum.height} px): pode ser impressa, mas ficará menos nítida. Para o melhor resultado, carrega uma foto maior.`}</p>
+      : tooSmall && <p role="status" className="rounded-lg bg-[#fff6e0] px-2.5 py-1.5 font-bold text-[#8a5a00]">{es ? `Tu foto mide ${size.width} × ${size.height} px, algo menos de lo recomendado: puede verse un poco menos nítida.` : `A tua foto tem ${size.width} × ${size.height} px, um pouco menos do que o recomendado: pode ficar ligeiramente menos nítida.`}</p>}
   </div>;
 }
 
@@ -255,10 +295,10 @@ function CatalogControls({ studio, es, sizeLabel, variantName, hideOption }: { s
   </div>;
 }
 
-type StudioAction = { label: string; busy: boolean; disabled?: boolean; hint?: string; onClick: () => void; authPrompt: boolean; onCloseAuth: () => void; returnTo: string };
+type StudioAction = { label: string; busy: boolean; disabled?: boolean; hint?: string; onClick: (more?: Partial<CatalogSelection>) => unknown; authPrompt: boolean; onCloseAuth: () => void; returnTo: string; photos: (string | null)[]; printFile: PrintFile | null; zoom?: number };
 
 // Add-to-cart action for the selected product.
-function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioCart>, es: boolean, photos: (string | null)[], studioOptions: Record<string, string>, returnTo: string, extra: { selection?: Partial<CatalogSelection>; hint?: string } = {}): StudioAction | undefined {
+function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioCart>, es: boolean, photos: (string | null)[], studioOptions: Record<string, string>, returnTo: string, extra: { selection?: Partial<CatalogSelection>; hint?: string; printFile?: PrintFile | null; zoom?: number } = {}): StudioAction | undefined {
   if (!studio.selected) return undefined;
   const missingPhotos = Math.max(0, studio.photoCount - photos.filter(Boolean).length);
   const hint = !studio.ready ? undefined
@@ -271,11 +311,17 @@ function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioC
     busy: cart.adding,
     disabled: !studio.ready || studio.priceCents === null || Boolean(hint),
     hint,
-    onClick: () => { const selection = studio.toSelection(photos, studioOptions, extra.selection); return selection ? cart.addToCart(selection) : undefined; },
+    // `more`: what StudioShell adds (the customer's photo-quality confirmation).
+    onClick: (more = {}) => { const selection = studio.toSelection(photos, studioOptions, { ...extra.selection, ...more }); return selection ? cart.addToCart(selection) : undefined; },
     authPrompt: cart.authPrompt,
     onCloseAuth: cart.closeAuthPrompt,
     // The design is saved before login and restored into the cart, so login returns to the cart.
     returnTo: cart.authPrompt ? "/cart" : returnTo,
+    // Checked in StudioShell: a photo too small for its print file cannot be ordered, and a small one
+    // only after the customer confirms.
+    photos,
+    printFile: extra.printFile !== undefined ? extra.printFile : studio.printFile,
+    zoom: extra.zoom,
   };
 }
 
@@ -285,8 +331,34 @@ function catalogPriceChip(studio: StudioCatalog, es: boolean) {
   return studio.priceCents === null ? "—" : formatCents(studio.priceCents);
 }
 
-function StudioShell({ eyebrow, title, body, controls, preview, es, studio, catalogTitle, action, sizeLabel, variantName, hideOption }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; es: boolean; studio: StudioCatalog; catalogTitle: string; action?: StudioAction; sizeLabel?: string; variantName?: VariantName; hideOption?: OptionFilter }) {
-  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{catalogPriceChip(studio, es)}</span></div><CatalogControls studio={studio} es={es} sizeLabel={sizeLabel} variantName={variantName} hideOption={hideOption} />{studio.selected && controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <><LoadingButton onClick={action.onClick} loading={action.busy} disabled={action.disabled} loadingLabel={action.label} errorMessage={es ? "No se pudo añadir el producto a la cesta. Inténtalo de nuevo." : "Não foi possível adicionar o produto ao carrinho. Tenta novamente."} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.label} <Icon name="arrow" size={16} /></LoadingButton>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <button type="button" disabled className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white opacity-50">{es ? "Añadir a la cesta" : "Adicionar ao carrinho"}</button>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div><div data-studio-preview>{preview}</div></section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{studio.catalog.products.length > 1 && <PublishedProducts catalog={studio.catalog} title={catalogTitle} es={es} selectedId={studio.selected?.id} onSelect={(product) => studio.select(product)} />}<SiteFooter />{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
+function StudioShell({ eyebrow, title, body, controls, preview, es, studio, catalogTitle, action: givenAction, sizeLabel, variantName, hideOption }: { eyebrow: string; title: string; body: string; controls: React.ReactNode; preview: React.ReactNode; es: boolean; studio: StudioCatalog; catalogTitle: string; action?: StudioAction; sizeLabel?: string; variantName?: VariantName; hideOption?: OptionFilter }) {
+  // Same rule as the print-file check on the server (lib/print-quality.ts): a photo far too small cannot be
+  // ordered; a small one can, once the customer confirms they accept a less sharp print — the order is
+  // then sent to the print shop automatically.
+  const photoSizes = usePhotoSizes(givenAction?.photos || []);
+  // Products without a recommended file set in admin (posters, magnets) use the size the print shop's
+  // mapping gives for the chosen size and orientation: the same one the server checks.
+  const target = givenAction && !givenAction.printFile && studio.selected
+    ? studioPhotoTarget({ kind: studio.selected.kind, provider: podProviderFor(studio.selected.kind, studio.selected.metadata?.provider), productName: studio.selected.name, variantName: studio.variant?.name ?? null, podSku: null, options: studio.options, photoCount: Math.max(1, studio.photoCount), cardSize: null, cardSku: null })
+    : null;
+  const check = givenAction ? photoCheck(givenAction.photos, photoSizes, givenAction.printFile || target, givenAction.zoom) : null;
+  // The confirmation belongs to these exact photos, print size and zoom; any change asks again.
+  const qualityKey = givenAction && check ? [givenAction.photos.map((photo) => (photo ? `${photo.length}:${photo.slice(-40)}` : "")).join(","), (givenAction.printFile || target)?.width, (givenAction.printFile || target)?.height, givenAction.zoom ?? 1].join("|") : "";
+  const [acceptedKey, setAcceptedKey] = useState("");
+  const accepted = Boolean(qualityKey) && acceptedKey === qualityKey;
+  const zoomed = Boolean(givenAction?.zoom && givenAction.zoom > 1);
+  const whichPhoto = (index: number) => (givenAction && givenAction.photos.length > 1 ? (es ? `La foto ${index + 1}` : `A foto ${index + 1}`) : (es ? "Tu foto" : "A tua foto"));
+  const action: StudioAction | undefined = !givenAction ? undefined
+    : check?.level === "too_small" ? { ...givenAction, disabled: true, hint: givenAction.hint || (es
+      ? `${whichPhoto(check.index)} (${check.size.width} × ${check.size.height} px) es demasiado pequeña para imprimirla. Sube una más grande (recomendado: al menos ${check.minimum.width} × ${check.minimum.height} px)${zoomed ? " o reduce el zoom" : ""}.`
+      : `${whichPhoto(check.index)} (${check.size.width} × ${check.size.height} px) é demasiado pequena para imprimir. Carrega uma maior (recomendado: pelo menos ${check.minimum.width} × ${check.minimum.height} px)${zoomed ? " ou reduz o zoom" : ""}.`) }
+    : check?.level === "low" ? { ...givenAction, disabled: givenAction.disabled || !accepted, hint: givenAction.hint || (accepted ? undefined : es ? "Confirma la calidad de tu foto para continuar." : "Confirma a qualidade da tua foto para continuar."), onClick: () => givenAction.onClick({ qualityAccepted: true }) }
+    : givenAction;
+  const qualityConfirm = check?.level === "low" && !givenAction?.hint ? <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#f1d9a8] bg-[#fff8ea] p-3.5 text-xs leading-5 text-[#6b4a00]">
+    <input type="checkbox" checked={accepted} onChange={(event) => setAcceptedKey(event.target.checked ? qualityKey : "")} className="mt-0.5 h-4 w-4 shrink-0 accent-[#ee5264]" />
+    <span><b>{es ? `${whichPhoto(check.index)} tiene poca resolución (${check.size.width} × ${check.size.height} px).` : `${whichPhoto(check.index)} tem pouca resolução (${check.size.width} × ${check.size.height} px).`}</b> {es ? `Entiendo que se imprimirá menos nítida que en la vista previa y quiero continuar. Para el mejor resultado, sube una foto de al menos ${check.minimum.width} × ${check.minimum.height} px${zoomed ? " o reduce el zoom" : ""}.` : `Compreendo que ficará menos nítida do que na pré-visualização e quero continuar. Para o melhor resultado, carrega uma foto de pelo menos ${check.minimum.width} × ${check.minimum.height} px${zoomed ? " ou reduz o zoom" : ""}.`}</span>
+  </label> : null;
+  return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{catalogPriceChip(studio, es)}</span></div><CatalogControls studio={studio} es={es} sizeLabel={sizeLabel} variantName={variantName} hideOption={hideOption} />{studio.selected && controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <>{qualityConfirm}<LoadingButton onClick={() => action.onClick()} loading={action.busy} disabled={action.disabled} loadingLabel={action.label} errorMessage={es ? "No se pudo añadir el producto a la cesta. Inténtalo de nuevo." : "Não foi possível adicionar o produto ao carrinho. Tenta novamente."} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.label} <Icon name="arrow" size={16} /></LoadingButton>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <button type="button" disabled className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white opacity-50">{es ? "Añadir a la cesta" : "Adicionar ao carrinho"}</button>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div><div data-studio-preview>{preview}</div></section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{studio.catalog.products.length > 1 && <PublishedProducts catalog={studio.catalog} title={catalogTitle} es={es} selectedId={studio.selected?.id} onSelect={(product) => studio.select(product)} />}<SiteFooter />{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
 }
 
 // Restores a cart line opened with ?edit=<id>.
@@ -440,8 +512,8 @@ function CameraModule({ brand, lenses }: ReturnType<typeof phoneShape>) {
 // Printeers phone models of a phone case product (Soft TPU, Wallet, Hard case…), loaded
 // from this site's API, which reads them live from Printeers. "admin" means the product is
 // not linked to Printeers yet, so its own "Modelo" list is used as before.
-type PhoneModelOption = { reference: string; name: string; available: boolean };
-type PhoneModelDetail = { reference: string; name: string; available: boolean; printMm: { width: number; height: number } | null; layers: { top: boolean; mask: boolean; bottom: boolean; mockup: boolean; maskWidthPx: number; maskHeightPx: number; maskOffsetXPx: number; maskOffsetYPx: number; maskCanvas?: boolean } | null };
+type PhoneModelOption = { reference: string; name: string; available: boolean; backorder?: boolean };
+type PhoneModelDetail = { reference: string; name: string; available: boolean; backorder?: boolean; printMm: { width: number; height: number } | null; layers: { top: boolean; mask: boolean; bottom: boolean; mockup: boolean; maskWidthPx: number; maskHeightPx: number; maskOffsetXPx: number; maskOffsetYPx: number; maskCanvas?: boolean } | null };
 type ModelsState = { status: "loading" | "admin" | "ready" | "error"; models: PhoneModelOption[]; error?: string };
 
 function usePrinteersModels(productId: string | null, reloadKey: number): ModelsState {
@@ -597,7 +669,10 @@ export function PhoneCaseStudio() {
   const byName = new Map(catalog.models.map((item) => [item.name, item]));
   const modelSelect = (items: string[]) => items.map((name) => { const item = byName.get(name)!; return <option key={item.reference} value={item.reference} disabled={!item.available}>{name}{item.available ? "" : es ? " · agotado" : " · esgotado"}</option>; });
 
-  const hint = !printeers ? (catalog.status === "loading" ? (es ? "Cargando los modelos de móvil…" : "A carregar os modelos de telemóvel…") : catalog.status === "error" ? (es ? "No se pueden cargar los modelos ahora." : "Não é possível carregar os modelos agora.") : undefined)
+  // Phone models always come from Printeers. A case type that is not linked to Printeers yet (admin →
+  // Products) cannot be ordered: its order could never be sent to production.
+  const notLinked = catalog.status === "admin";
+  const hint = !printeers ? (catalog.status === "loading" ? (es ? "Cargando los modelos de móvil…" : "A carregar os modelos de telemóvel…") : catalog.status === "error" ? (es ? "No se pueden cargar los modelos ahora." : "Não é possível carregar os modelos agora.") : notLinked ? (es ? "Esta funda no está disponible ahora mismo. Elige otro tipo de funda." : "Esta capa não está disponível neste momento. Escolhe outro tipo de capa.") : undefined)
     : !modelRef ? (es ? "Elige tu modelo de móvil." : "Escolhe o teu modelo de telemóvel.")
     : modelLoading ? (es ? "Cargando el modelo…" : "A carregar o modelo…")
     : modelError || !detail ? (es ? "Este modelo ya no está disponible. Elige otro." : "Este modelo já não está disponível. Escolhe outro.")
@@ -606,6 +681,7 @@ export function PhoneCaseStudio() {
     : undefined;
 
   const controls = <div className="mt-6 space-y-6">
+    {notLinked && <p role="status" className="rounded-2xl border border-[#f3c6c2] bg-[#fff0e8] p-4 text-sm font-bold text-[#c94758]">{es ? "Esta funda no está disponible ahora mismo. Elige otro tipo de funda en «Más fundas»." : "Esta capa não está disponível neste momento. Escolhe outro tipo de capa em «Mais capas»."}</p>}
     {catalog.status === "loading" && <div className="h-14 animate-pulse rounded-2xl bg-[#f6ece6]" aria-label={es ? "Cargando modelos" : "A carregar modelos"} />}
     {catalog.status === "error" && <div role="alert" className="rounded-2xl border border-[#f3c6c2] bg-[#fff0e8] p-4 text-sm font-bold text-[#c94758]">{catalog.error || (es ? "No se pueden cargar los modelos de móvil ahora." : "Não é possível carregar os modelos de telemóvel agora.")}<button type="button" onClick={() => setReload((value) => value + 1)} className="mt-3 block rounded-full bg-white px-4 py-2 text-xs font-black text-[#182443] shadow-sm">{es ? "Reintentar" : "Tentar novamente"}</button></div>}
     {printeers && <label className="block text-sm font-black">{es ? "Modelo de móvil" : "Modelo de telemóvel"}
@@ -613,6 +689,7 @@ export function PhoneCaseStudio() {
         <option value="" disabled>{catalog.models.length ? (es ? "Elige tu modelo…" : "Escolhe o teu modelo…") : (es ? "No hay modelos disponibles" : "Não há modelos disponíveis")}</option>
         {groups ? groups.map(([label, items]) => <optgroup key={label} label={label}>{modelSelect(items)}</optgroup>) : modelSelect(catalog.models.map((item) => item.name))}
       </select>
+      {detail?.backorder && detail.reference === modelRef && <span role="status" className="mt-2 block rounded-lg bg-[#f4f6fb] px-2.5 py-1.5 text-[11px] font-bold leading-5 text-[#59627b]">{es ? "Este modelo se fabrica bajo pedido: puede tardar unos días más en enviarse." : "Este modelo é fabricado por encomenda: pode demorar mais alguns dias a ser enviado."}</span>}
     </label>}
     <PhotoSlots photos={[photo]} count={1} active={0} onActive={() => undefined} onPhoto={(value) => { setPhoto(value); setCrop(DEFAULT_CROP); }} es={es} slotLabel={() => ""} printFile={printFile} />
     {printeers && photo && aspect && <div className="rounded-2xl border border-[#eadfd8] bg-white p-4">
@@ -641,13 +718,15 @@ export function PhoneCaseStudio() {
         ? <PrinteersCasePreview productId={productId} model={detail} photo={photo} crop={crop} onCrop={setCrop} alt={alt} onFail={() => setLayersFailed(true)} />
         : printeers && aspect && photo
           // No usable Printeers layers: the drawn phone, at the exact print shape.
-          ? drawnPhone(<CroppedPhoto src={photo} aspect={aspect} crop={crop} onCrop={setCrop} alt={alt} className={`absolute inset-0 ${style === "clear" ? "opacity-85" : ""}`} />, false)
+          // CroppedPhoto is a `relative` box of its own, so it fills an absolute box (giving it
+          // `absolute` directly lost to `relative` and the photo collapsed to nothing).
+          ? drawnPhone(<div className="absolute inset-0"><CroppedPhoto src={photo} aspect={aspect} crop={crop} onCrop={setCrop} alt={alt} className={`h-full w-full ${style === "clear" ? "opacity-85" : ""}`} /></div>, false)
           : drawnPhone(<>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={photo || sample} alt={alt} className={`h-full w-full object-cover ${style === "clear" ? "opacity-85" : ""} ${photo ? "" : "opacity-60"}`} /></>)}
       <p className={`rounded-full px-4 py-2 text-sm font-black shadow-sm ${modelName ? "bg-white text-[#182443]" : "bg-white/60 text-[#9297a4]"}`}>{modelName ? [modelName, caseName].filter(Boolean).join(" · ") : (es ? "Elige tu modelo de móvil" : "Escolhe o teu modelo de telemóvel")}</p>
     </div>
   );
-  const action = catalogAction(studio, cart, es, [photo], {}, "/phone-cases", printeers || catalog.status !== "admin" ? { hint, selection: printeers && modelRef ? { printeers: { productReference: modelRef, crop } } : {} } : {});
-  return <StudioShell eyebrow={es ? "FUNDAS DE MÓVIL PERSONALIZADAS" : "CAPAS DE TELEMÓVEL PERSONALIZADAS"} title={es ? "Tu funda a medida para tu móvil" : "A tua capa à medida para o teu telemóvel"} body={es ? "Elige el tipo de funda y tu modelo de móvil, y sube tu fotografía." : "Escolhe o tipo de capa e o teu modelo de telemóvel, e carrega a tua fotografia."} controls={controls} preview={preview} es={es} studio={studio} catalogTitle={es ? "Más fundas" : "Mais capas"} sizeLabel={es ? "Tipo de funda" : "Tipo de capa"} hideOption={printeers || catalog.status === "loading" || catalog.status === "error" ? (option) => MODEL_OPTION.test(option.name) || MODEL_OPTION.test(option.key) : undefined} action={action} />;
+  const action = catalogAction(studio, cart, es, [photo], {}, "/phone-cases", { hint, printFile, zoom: crop.zoom, selection: printeers && modelRef ? { printeers: { productReference: modelRef, crop } } : {} });
+  return <StudioShell eyebrow={es ? "FUNDAS DE MÓVIL PERSONALIZADAS" : "CAPAS DE TELEMÓVEL PERSONALIZADAS"} title={es ? "Tu funda a medida para tu móvil" : "A tua capa à medida para o teu telemóvel"} body={es ? "Elige el tipo de funda y tu modelo de móvil, y sube tu fotografía." : "Escolhe o tipo de capa e o teu modelo de telemóvel, e carrega a tua fotografia."} controls={controls} preview={preview} es={es} studio={studio} catalogTitle={es ? "Más fundas" : "Mais capas"} sizeLabel={es ? "Tipo de funda" : "Tipo de capa"} hideOption={(option) => MODEL_OPTION.test(option.name) || MODEL_OPTION.test(option.key)} action={action} />;
 }
 
 // ── Mugs (Printful ceramic mug with coloured handle and inside) ──────────────

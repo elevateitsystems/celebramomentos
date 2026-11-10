@@ -13,16 +13,17 @@ describe("Prodigi mapping", () => {
     expect(result.units[2].specs[0]).toMatchObject({ area: "default", kind: "photo", photoIndex: 2, fit: "fill", width: 850, height: 566 });
   });
 
-  it("maps both card sizes to their SKUs and asks an admin for the print-ready spread", () => {
+  it("maps both card sizes to their SKUs and composes the 4 pages automatically at Prodigi's exact print size", () => {
     const small = mapOrderItem(ctx({ kind: "POSTCARD", provider: "PRODIGI", cardSize: "5x7", cardSku: "CLASSIC-GRE-FEDR-7X5-BLA" }));
     const a5 = mapOrderItem(ctx({ kind: "POSTCARD", provider: "PRODIGI", cardSize: "A5", cardSku: "CLASSIC-GRE-FEDR-A5-BLA" }));
     expect(small.units[0].productRef).toBe("CLASSIC-GRE-FEDR-7X5-BLA");
-    expect(small.units[0].specs[0]).toMatchObject({ kind: "admin", area: "default" });
-    expect(small.units[0].specs[0].kind === "admin" && small.units[0].specs[0].description).toContain("6120 × 2160");
-    expect(a5.units[0].specs[0].kind === "admin" && a5.units[0].specs[0].description).toContain("7086 × 2526");
-    // The required size is checked against the attached file.
-    expect(small.units[0].specs[0]).toMatchObject({ width: 6120, height: 2160 });
-    expect(a5.units[0].specs[0]).toMatchObject({ width: 7086, height: 2526 });
+    expect(small.units[0].specs[0]).toEqual({ area: "default", kind: "pages", pages: ["back", "front", "inside-left", "inside-right"], width: 6120, height: 2160, format: "jpg", description: expect.stringContaining("6120 × 2160") });
+    expect(a5.units[0].specs[0]).toMatchObject({ kind: "pages", width: 7086, height: 2526 });
+    expect(small.issues).toEqual([]);
+  });
+
+  it("does not guess a layout for a card SKU it does not know", () => {
+    expect(mapOrderItem(ctx({ kind: "POSTCARD", provider: "PRODIGI", cardSize: "5x7", cardSku: "GLOBAL-GRE-UNKNOWN" })).units[0].specs[0]).toMatchObject({ kind: "admin" });
   });
 
   it("reports magnets without photos instead of sending an empty order", () => {

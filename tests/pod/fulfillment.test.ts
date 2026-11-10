@@ -45,7 +45,8 @@ const { db, adapter } = vi.hoisted(() => {
 vi.mock("@/lib/server/prisma", () => ({ prisma: db.prisma }));
 vi.mock("@/lib/pod/providers", () => ({ podAdapter: () => adapter }));
 
-import { handlePaidOrder, markFulfillment, submitFulfillment, syncOrderStatus } from "@/lib/pod/fulfillment";
+import * as fulfillmentModule from "@/lib/pod/fulfillment";
+import { artworkProblems, handlePaidOrder, submitFulfillment, syncOrderStatus } from "@/lib/pod/fulfillment";
 import { PodApiError } from "@/lib/pod/http";
 
 const item = { id: "item1", name: "Póster", quantity: 1, podIssues: [], podArtwork: [{ unit: 0, productRef: "wall_hanging_poster_x", area: "default", url: "https://res.cloudinary.com/x/image/upload/a.jpg", source: "customer" }] };
@@ -148,17 +149,34 @@ describe("order status", () => {
 });
 
 describe("print files", () => {
-  it("cannot mark an order as placed by hand while its print file is missing or invalid", async () => {
-    seed({ status: "NEEDS_ATTENTION" });
-    db.state.fulfillments.get("f1")!.items = [{ ...item, podIssues: [{ code: "print_file_invalid", severity: "blocker", message: "Print file is 750 × 1590 px; the print shop needs exactly 2700 × 1050 px" }] }];
-    await expect(markFulfillment("f1", { status: "SUBMITTED" })).rejects.toThrow(/2700 × 1050/);
+  const card = (verified: { width: number; height: number } | null, url: string | null = "https://res.cloudinary.com/x/image/upload/strip.jpg") => ({ unit: 0, productRef: "CLASSIC-GRE-FEDR-7X5-BLA", area: "default", url, source: "design" as const, kind: "pages" as const, width: 6120, height: 2160, format: "jpg" as const, verified });
+
+  it("never sends a card print file that is not exactly the size Prodigi requires", async () => {
+    seed({ status: "READY" });
+    db.state.fulfillments.get("f1")!.items = [{ ...item, podArtwork: [card({ width: 3260, height: 2160 })] }];
+    const result = await submitFulfillment("f1");
+    expect(result).toMatchObject({ ok: false, status: "NEEDS_ATTENTION", message: expect.stringContaining("3260 × 2160 px; 6120 × 2160 px is required") });
+    expect(adapter.submit).not.toHaveBeenCalled();
     expect(db.state.fulfillments.get("f1")?.status).toBe("NEEDS_ATTENTION");
   });
 
-  it("still allows cancelling it", async () => {
-    seed({ status: "NEEDS_ATTENTION" });
-    db.state.fulfillments.get("f1")!.items = [{ ...item, podIssues: [{ code: "print_file_required", severity: "blocker", message: "Print file needed" }] }];
-    await markFulfillment("f1", { status: "CANCELLED" });
-    expect(db.state.fulfillments.get("f1")?.status).toBe("CANCELLED");
+  it("sends it when the verified size matches", async () => {
+    seed({ status: "READY" });
+    db.state.fulfillments.get("f1")!.items = [{ ...item, podArtwork: [card({ width: 6120, height: 2160 })] }];
+    adapter.submit.mockResolvedValue({ providerOrderId: "ord_1", providerStatus: "InProgress", status: "SUBMITTED" });
+    expect(await submitFulfillment("f1")).toMatchObject({ ok: true, status: "SUBMITTED" });
+    expect(adapter.submit.mock.calls[0][0].lines[0].files).toEqual([{ area: "default", url: "https://res.cloudinary.com/x/image/upload/strip.jpg", source: "design" }]);
+  });
+
+  it("reports missing and unverified files", () => {
+    expect(artworkProblems([card(null, null)])).toEqual(["Print file 1 (default) is missing"]);
+    expect(artworkProblems([card(null)])).toEqual(["Print file 1 (default): its pixel size was not verified"]);
+    expect(artworkProblems([card({ width: 6120, height: 2160 })])).toEqual([]);
+    // A photo sent as the customer uploaded it has no fixed size.
+    expect(artworkProblems([{ unit: 0, productRef: "x", area: "default", url: "https://x/a.jpg", source: "design", fit: "original", width: 10, height: 10, verified: null }])).toEqual([]);
+  });
+
+  it("has no way to set a print order's status by hand", () => {
+    expect("markFulfillment" in fulfillmentModule).toBe(false);
   });
 });

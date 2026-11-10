@@ -11,7 +11,7 @@ const adapters: Partial<Record<PodProvider, () => PodAdapter>> = {
   PRINTEERS: () => printeersAdapter(),
 };
 
-export const INACTIVE_PROVIDER = "This print shop is no longer used and receives no orders. Cancel this print order, or handle it by hand.";
+export const INACTIVE_PROVIDER = "This print shop is no longer used and receives no orders. Delete the order if it will not be produced.";
 
 // A print order kept from a print shop that is no longer used: it can be looked at and
 // cancelled, but never sent or synced.

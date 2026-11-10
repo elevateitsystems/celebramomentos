@@ -12,7 +12,9 @@ export type PodMode = "draft" | "live";
 export type PrintFile = { area: string; url: string; source: "design" | "customer" | "admin"; width?: number; height?: number };
 
 // A problem that stops (blocker) or should hold (warning) an item until an admin looks at it.
-export type PodIssue = { code: string; severity: "blocker" | "warning"; message: string };
+// blocker: cannot be sent; warning: held until an admin decides ("Send anyway"); info: shown in admin only,
+// the print order is still sent automatically.
+export type PodIssue = { code: string; severity: "blocker" | "warning" | "info"; message: string };
 
 export type Recipient = {
   name: string;

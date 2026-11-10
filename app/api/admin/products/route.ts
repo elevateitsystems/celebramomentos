@@ -35,7 +35,7 @@ function revalidateStorefront(kinds: string[]) {
 
 // Card templates belong to Cards only; sizes and options belong to studio products only.
 function normalizeForKind(kind: ProductKind, data: ProductPatch, currentMetadata: Prisma.JsonValue | null) {
-  const current = (currentMetadata && typeof currentMetadata === "object" && !Array.isArray(currentMetadata) ? currentMetadata : {}) as { templateSlug?: string; photoCount?: number; provider?: string; printFile?: unknown };
+  const current = (currentMetadata && typeof currentMetadata === "object" && !Array.isArray(currentMetadata) ? currentMetadata : {}) as { templateSlug?: string; photoCount?: number; provider?: string; printFile?: unknown; printeers?: unknown };
   const merged = { ...current, ...(data.metadata || {}) };
   const printFile = productPrintFile(merged);
   const provider = isPodProvider(merged.provider) ? merged.provider : DEFAULT_POD_PROVIDER[kind];
@@ -45,7 +45,11 @@ function normalizeForKind(kind: ProductKind, data: ProductPatch, currentMetadata
     return { metadata: { templateSlug: merged.templateSlug || DEFAULT_CARD_TEMPLATE, provider }, variants: [], options: [] };
   }
   if (data.metadata?.templateSlug) return { error: "Card templates (Tradicional, Collage, Magazine) can only be used by Cards." };
-  return { metadata: { ...(merged.photoCount ? { photoCount: merged.photoCount } : {}), provider, ...(printFile ? { printFile } : {}) }, variants: data.variants, options: data.options };
+  // Phone cases keep the Printeers product group they are linked to (one per environment); without it the
+  // case cannot be ordered ("not available"). Other products never carry a link.
+  const printeers = kind === "PHONE_CASE" ? merged.printeers : null;
+  const links = printeers && typeof printeers === "object" ? Object.fromEntries((["test", "live"] as const).map((key) => [key, (printeers as Record<string, unknown>)[key]]).filter(([, value]) => typeof value === "string" && value)) : {};
+  return { metadata: { ...(merged.photoCount ? { photoCount: merged.photoCount } : {}), provider, ...(printFile ? { printFile } : {}), ...(Object.keys(links).length ? { printeers: links } : {}) }, variants: data.variants, options: data.options };
 }
 
 async function validateReferences(data: ProductPatch) {

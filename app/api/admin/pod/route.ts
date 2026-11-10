@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/server/auth";
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { prisma } from "@/lib/server/prisma";
 import { podAutoSubmit, podMode, webhookSecret } from "@/lib/pod/config";
-import { attachDesignPages, attachPrintFile, confirmDraft, markFulfillment, prepareFulfillments, readArtwork, readIssues, refreshReadiness, resetPrintFile, submitFulfillment, syncFulfillment } from "@/lib/pod/fulfillment";
+import { attachDesignPages, attachPrintFile, confirmDraft, prepareFulfillments, readArtwork, readIssues, refreshReadiness, resetPrintFile, submitFulfillment, syncFulfillment, syncStaleFulfillments } from "@/lib/pod/fulfillment";
 import { podAdapter } from "@/lib/pod/providers";
 import { POD_PROVIDERS } from "@/lib/products";
 
@@ -24,7 +24,6 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("attach"), itemId: z.string().cuid(), unit: z.number().int().min(0).max(50), area: z.string().trim().min(1).max(40), url: z.string().trim().url().max(2000).refine((value) => value.startsWith("https://"), "The print file must be an https:// URL") }),
   z.object({ action: z.literal("reset"), itemId: z.string().cuid(), unit: z.number().int().min(0).max(50), area: z.string().trim().min(1).max(40) }),
   z.object({ action: z.literal("design"), itemId: z.string().cuid(), pages: z.array(z.object({ side: z.enum(["front", "inside-left", "inside-right", "back"]), url: z.string().trim().url().max(2000).startsWith("https://") })).length(4) }),
-  z.object({ action: z.literal("mark"), id: z.string().cuid(), status: z.enum(["SUBMITTED", "IN_PRODUCTION", "SHIPPED", "DELIVERED", "CANCELLED"]), carrier: z.string().trim().max(120).nullable().optional(), trackingNumber: z.string().trim().max(120).nullable().optional(), trackingUrl: z.string().trim().url().max(500).nullable().optional() }),
 ]);
 
 // The card design saved with a card item, so the admin page can render its pages again.
@@ -56,6 +55,8 @@ export async function GET(request: NextRequest) {
     ...(search ? { OR: [{ reference: { contains: search, mode: "insensitive" } }, { providerOrderId: { contains: search } }, { order: { email: { contains: search, mode: "insensitive" } } }, { order: { number: { contains: search, mode: "insensitive" } } }] } : {}),
   };
   try {
+    // Statuses come from the print shops: anything not read for a few minutes is refreshed first.
+    await syncStaleFulfillments();
     const [fulfillments, counts, unprepared] = await Promise.all([
       prisma.podFulfillment.findMany({ where, include: { order: { select: { id: true, number: true, email: true, status: true, totalCents: true, createdAt: true, shippingAddress: true } }, items: { select: { id: true, name: true, quantity: true, podProductRef: true, podArtwork: true, podIssues: true, personalization: true } } }, orderBy: { createdAt: "desc" }, take: 100 }),
       prisma.podFulfillment.groupBy({ by: ["status"], _count: { _all: true }, orderBy: { status: "asc" } }),
@@ -94,7 +95,6 @@ export async function POST(request: NextRequest) {
       case "attach": result = await attachPrintFile(input.itemId, { unit: input.unit, area: input.area, url: input.url }); break;
       case "reset": result = await resetPrintFile(input.itemId, { unit: input.unit, area: input.area }); break;
       case "design": result = await attachDesignPages(input.itemId, input.pages); break;
-      case "mark": result = await markFulfillment(input.id, input); break;
     }
     const entityId = "id" in input ? input.id : "orderId" in input ? input.orderId : input.itemId;
     await prisma.auditLog.create({ data: { adminUserId: admin!.id.startsWith("local") ? null : admin!.id, action: `POD_${input.action.toUpperCase()}`, entity: "PodFulfillment", entityId, metadata: { action: input.action } } });
