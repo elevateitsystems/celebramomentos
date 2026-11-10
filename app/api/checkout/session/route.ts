@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ orderId: existing.id, orderNumber: existing.number, checkoutUrl: session.url });
     }
 
-    const { order, lines, shippingCents, discountCents, discountCode, deliveryMethod } = await createPendingOrder({ customerId: customer.id, input, idempotencyKey, provider: "stripe" });
+    const { order, lines, shippingCents, discountCents, discountCode } = await createPendingOrder({ customerId: customer.id, input, idempotencyKey, provider: "stripe" });
     let couponId: string | null = null;
     try {
       const origin = checkoutOrigin(request.nextUrl.origin);
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
           : { customer_email: input.email.trim().toLowerCase() }),
         line_items: [
           ...lines.map((line) => ({ price_data: { currency: "eur", product_data: { name: line.name }, unit_amount: line.unitPriceCents }, quantity: line.quantity })),
-          ...(shippingCents ? [{ price_data: { currency: "eur", product_data: { name: deliveryMethod === "express" ? "Entrega express" : "Entrega normal" }, unit_amount: shippingCents }, quantity: 1 }] : []),
+          ...(shippingCents ? [{ price_data: { currency: "eur", product_data: { name: "Entrega normal" }, unit_amount: shippingCents }, quantity: 1 }] : []),
         ],
         metadata: { orderId: order.id, orderNumber: order.number, customerId: customer.id },
         success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,

@@ -4,8 +4,9 @@
 import "@/lib/translation-safe-dom";
 import { Provider } from "react-redux";
 import { useEffect, useState } from "react";
+import { CheckoutReconciler } from "@/components/checkout-reconciler";
 import { PendingCartResumer } from "@/components/pending-cart-resumer";
-import { hydrateCart, hydrateLanguage, store } from "@/lib/store";
+import { hydrateCart, hydrateLanguage, markCartHydrated, store } from "@/lib/store";
 import { LANGUAGE_STORAGE_KEY, persistCart, readPersistedCartAsync } from "@/lib/mock-store";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -19,7 +20,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     // The cart may live in IndexedDB when its photos were too large for localStorage.
     void readPersistedCartAsync().catch(() => null).then((savedCart) => {
       if (!active) return;
-      if (savedCart) store.dispatch(hydrateCart(savedCart));
+      store.dispatch(savedCart ? hydrateCart(savedCart) : markCartHydrated());
       setHydrated(true);
     });
     return () => { active = false; };
@@ -36,5 +37,5 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     });
   }, [hydrated]);
 
-  return <Provider store={store}>{children}{hydrated && <PendingCartResumer />}</Provider>;
+  return <Provider store={store}>{children}{hydrated && <><PendingCartResumer /><CheckoutReconciler /></>}</Provider>;
 }

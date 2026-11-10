@@ -71,11 +71,11 @@ export function PolicyPage({ type }: { type: "privacy" | "cookies" | "terms" }) 
         ],
         [
           "3. Precios, Envíos y Gastos de Entrega",
-          "Todos los precios mostrados en el sitio web incluyen el Impuesto sobre el Valor Añadido (IVA) vigente en España. Los gastos de envío se calculan según el importe del pedido: en compras de importe igual o superior a 35,00 € el envío es GRATUITO. Para pedidos inferiores a 35,00 €: entrega estándar a 5,00 € y entrega express a 8,00 €.",
+          "Todos los precios mostrados en el sitio web incluyen el Impuesto sobre el Valor Añadido (IVA) vigente en España. Los gastos de envío se calculan según el importe del pedido: en compras de importe igual o superior a 35,00 € el envío es GRATUITO. Para pedidos inferiores a 35,00 €, la entrega estándar cuesta 5,00 €.",
         ],
         [
           "4. Plazos de Preparación y Entrega",
-          "Las tarjetas se imprimen y preparan con dedicación artesanal en un plazo de 24 a 48 horas laborables. Los envíos estándar suelen entregarse en un plazo estimado de 3 a 5 días laborables, mientras que la modalidad express se entrega en 1 a 2 días laborables a través de mensajería urgente.",
+          "Las tarjetas se imprimen y preparan con dedicación artesanal en un plazo de 24 a 48 horas laborables. Los envíos se realizan con entrega estándar y suelen entregarse en un plazo estimado de 3 a 5 días laborables.",
         ],
         [
           "5. Política de Devoluciones y Derecho de Desistimiento",

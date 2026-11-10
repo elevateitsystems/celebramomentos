@@ -81,8 +81,11 @@ describe("phone case catalog from the v1 stock list", () => {
       rendering_layers: { mask_url: "https://files.test-printeers.com/layers/P/mask.png", mockup_url: "https://files.test-printeers.com/layers/P/mockup.png", top_url: "https://files.test-printeers.com/layers/P/top.png", bottom_url: "https://evil.example/bottom.png", ppmm: 5, offset_x: 240, offset_y: 57 } },
     { sku: "E15110001", name: "Samsung Galaxy S24 Soft case (back printed, transparent)", kind: "print", dimension_width_mm: 70, dimension_height_mm: 150, availability: { status: "out-of-stock", can_backorder: false }, suggested_retail_price: "19.95", price: null, attributes: attributes("Soft case", "Samsung Galaxy S24", { device_brand: "Samsung" }), rendering_layers: null },
     { sku: "E15110002", name: "Apple iPhone 8 Soft case (back printed, transparent)", kind: "print", dimension_width_mm: 67, dimension_height_mm: 138, availability: { status: "out-of-stock", can_backorder: true }, suggested_retail_price: "19.95", price: "7.00", attributes: attributes("Soft case", "Apple iPhone 8"), rendering_layers: null },
+    // The same phone listed again under another SKU (as Printeers does for "Samsung Galaxy J3 (2016)"), in stock.
+    { sku: "E15110003", name: "Apple iPhone 8 Soft case (back printed, transparent)", kind: "print", dimension_width_mm: 67, dimension_height_mm: 137, availability: { status: "in-stock" }, suggested_retail_price: "19.95", price: "7.50", attributes: attributes("Soft case", "Apple iPhone 8"), rendering_layers: null },
     { sku: "E15120000", name: "Apple iPhone 15 Wallet case (back printed, black)", kind: "print", dimension_width_mm: 71, dimension_height_mm: 147, availability: { status: "low-stock", amount_left: 3 }, suggested_retail_price: "24.95", price: null, attributes: attributes("Wallet case", "Apple iPhone 15", { case_colour: "Black" }), rendering_layers: null },
     { sku: "E15130000", name: "Apple AirPods 3 Soft case (front printed, transparent)", kind: "print", dimension_width_mm: 40, dimension_height_mm: 40, availability: { status: "in-stock" }, suggested_retail_price: "10.00", price: null, attributes: attributes("AirPods Hard case", "AirPods 3"), rendering_layers: null },
+    { sku: "E15150000", name: "Apple iPad 2017 Soft case (back printed, transparent)", kind: "print", dimension_width_mm: 162, dimension_height_mm: 232, availability: { status: "in-stock" }, suggested_retail_price: "25.00", price: null, attributes: attributes("Soft case", "Apple iPad 2017"), rendering_layers: null },
     { sku: "E15140000", name: "Screen protector", kind: "distribution", dimension_width_mm: null, dimension_height_mm: null, availability: { status: "in-stock" }, suggested_retail_price: null, price: null, attributes: { print_side: null, case_type: null, case_colour: null, device_brand: null, device_models: [] }, rendering_layers: null },
   ];
   const stubStock = () => {
@@ -103,15 +106,19 @@ describe("phone case catalog from the v1 stock list", () => {
     expect(calls[0].headers.get("X-IPP-APIKEY")).toBe("prt-test-key");
   });
 
-  it("lists a group's models by SKU, keeps backorderable ones, hides ones that cannot be ordered, and refuses SKUs of other groups", async () => {
+  it("lists a group's models by SKU (each phone once, preferring a SKU in stock), keeps backorderable ones, hides ones that cannot be ordered, and refuses SKUs of other groups", async () => {
     stubStock();
     const { phoneModels, phoneModel } = await import("@/lib/pod/printeers/catalog");
-    expect(await phoneModels("soft-case-back-printed-transparent", "draft")).toEqual([{ reference: "E15110002", name: "Apple iPhone 8", available: false }, { reference: "E15110000", name: "Apple iPhone 15", available: true }]);
-    expect((await phoneModel("soft-case-back-printed-transparent", "E15110000", "draft"))?.detail).toMatchObject({ reference: "E15110000", name: "Apple iPhone 15", available: true, printMm: { width: 71, height: 147 } });
+    expect(await phoneModels("soft-case-back-printed-transparent", "draft")).toEqual([{ reference: "E15110003", name: "Apple iPhone 8", available: true, backorder: false }, { reference: "E15110000", name: "Apple iPhone 15", available: true, backorder: false }]);
+    expect((await phoneModel("soft-case-back-printed-transparent", "E15110000", "draft"))?.detail).toMatchObject({ reference: "E15110000", name: "Apple iPhone 15", available: true, backorder: false, printMm: { width: 71, height: 147 } });
+    // On backorder: still sold (Printeers takes the order), flagged so the customer is told it may take longer.
+    expect((await phoneModel("soft-case-back-printed-transparent", "E15110002", "draft"))?.detail).toMatchObject({ available: true, backorder: true });
     // Another group's SKU (a tampered cart), an out-of-stock one, a non-case and a malformed one are refused.
     expect(await phoneModel("soft-case-back-printed-transparent", "E15120000", "draft")).toBeNull();
     expect(await phoneModel("soft-case-back-printed-transparent", "E15110001", "draft")).toBeNull();
     expect(await phoneModel("soft-case-back-printed-transparent", "E15140000", "draft")).toBeNull();
+    // Tablet cases share the case type but are not sold as phone cases.
+    expect(await phoneModel("soft-case-back-printed-transparent", "E15150000", "draft")).toBeNull();
     expect(await phoneModel("soft-case-back-printed-transparent", "E15110000; drop", "draft")).toBeNull();
   });
 
@@ -136,5 +143,8 @@ describe("phone model names", () => {
     // Irregular names seen in production.
     expect(phoneModelName("Oppo Find X9 Pro Soft case (back printed, transparent")).toBe("Oppo Find X9 Pro");
     expect(phoneModelName("Oppo Reno11 F (back printed, transparent)")).toBe("Oppo Reno11 F");
+    // Hybrid MagSafe cases (Printeers v1 test catalogue).
+    expect(phoneModelName("Apple iPhone 15 Hybrid case with MagSafe")).toBe("Apple iPhone 15");
+    expect(phoneModelName("Apple iPhone 15 Pro Max Hybrid case with MagSafe (back printed, transparent)")).toBe("Apple iPhone 15 Pro Max");
   });
 });

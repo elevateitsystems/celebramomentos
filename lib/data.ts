@@ -1,6 +1,9 @@
 export type Language = "es" | "pt";
 export type CardSize = "5x7" | "A5";
+// "express" only exists in orders placed before it was withdrawn (kept as they were). The shop now
+// offers a single delivery option, and new carts and orders always use it.
 export type DeliveryMethod = "standard" | "express";
+export const DELIVERY_METHOD = "standard" as const;
 export type RecipientMode = "recipient" | "customer";
 export type DesignCategoryId = "especial" | "gracias" | "momentos" | "cumpleanos" | "confeti" | "enhorabuena";
 

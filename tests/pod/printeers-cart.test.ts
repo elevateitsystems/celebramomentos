@@ -46,10 +46,9 @@ describe("phone case cart lines linked to Printeers", () => {
     await expect(resolveCartLine(line({ productReference: "Product_b", crop: { zoom: 1, x: 0.5, y: 0.5 } }))).rejects.toMatchObject({ status: 503 });
   });
 
-  it("keeps the old behaviour (admin model list) while Printeers is not configured, and drops browser-sent Printeers data", async () => {
+  it("refuses a phone case that is not linked to Printeers (it could never be produced), whatever model name is typed", async () => {
     catalog.ready = false;
-    const resolved = await resolveCartLine(line({ productReference: "Product_b", crop: { zoom: 2, x: 0, y: 0 } }, { modelo: "iPhone 15" }));
-    expect(resolved.product).toMatchObject({ provider: "PRINTEERS", options: { modelo: "iPhone 15" }, printeers: null });
-    await expect(resolveCartLine(line(null, { modelo: "iPhone 99" }))).rejects.toThrow(/ya no está disponible/);
+    await expect(resolveCartLine(line({ productReference: "Product_b", crop: { zoom: 2, x: 0, y: 0 } }, { modelo: "iPhone 15" }))).rejects.toMatchObject({ status: 409, message: expect.stringContaining("no está disponible") });
+    await expect(resolveCartLine(line(null, { modelo: "Google Pixel 11 Pro XL" }))).rejects.toMatchObject({ status: 409 });
   });
 });

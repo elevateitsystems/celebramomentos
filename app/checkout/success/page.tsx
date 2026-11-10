@@ -6,10 +6,11 @@ import { useDispatch } from "react-redux";
 import { Icon } from "@/components/icons";
 import { BrandLoader } from "@/components/loading";
 import { SiteFooter, SiteHeader } from "@/components/site";
-import { clearCartItems } from "@/lib/store";
+import { clearCartItems, removeCartItems } from "@/lib/store";
+import { forgetCheckout, purchasedItemIds } from "@/lib/checkout-tracker";
 import { trackPurchaseOnce } from "@/lib/meta-pixel";
 
-type Outcome = { state: "paid" | "pending" | "error"; orderNumber: string; amount: number };
+type Outcome = { state: "paid" | "pending" | "error"; orderNumber: string; amount: number; orderId?: string };
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Asks the server whether Stripe has confirmed the payment. The page only reports success when the
@@ -23,7 +24,7 @@ async function confirmPayment(sessionId: string): Promise<Outcome> {
     try {
       const response = await fetch("/api/checkout/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) });
       const body = await response.json().catch(() => ({}));
-      if (response.ok && body.paid) return { state: "paid", orderNumber: body.order?.id || "", amount: Number(body.order?.amount) };
+      if (response.ok && body.paid) return { state: "paid", orderNumber: body.order?.id || "", amount: Number(body.order?.amount), orderId: body.order?.dbId };
       if (response.ok) {
         // Stripe has not confirmed (yet): look again a couple of times before saying "pending".
         if (attempt >= 2) return { state: "pending", orderNumber: body.order?.id || "", amount: 0 };
@@ -53,7 +54,11 @@ export default function CheckoutSuccessPage() {
     if (!sessionId) { setState("error"); return; }
     void confirmPayment(sessionId).then((outcome) => {
       if (outcome.state === "paid") {
-        dispatch(clearCartItems()); // Server-verified Stripe payment
+        // Server-verified Stripe payment: the lines bought in this order leave the cart (all of it when
+        // this device did not record which ones).
+        const bought = purchasedItemIds(outcome.orderId);
+        dispatch(bought ? removeCartItems(bought) : clearCartItems());
+        forgetCheckout();
         trackPurchaseOnce(outcome.orderNumber, outcome.amount);
       }
       if (!mounted.current) return;

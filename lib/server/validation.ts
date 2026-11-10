@@ -43,6 +43,8 @@ export const cartLineSchema = z.object({
         productReference: z.string().regex(/^[A-Za-z0-9_-]{3,80}$/),
         crop: z.object({ zoom: z.number().min(1).max(4), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }),
       }).nullable().optional(),
+      // Confirmed in the studio: "I understand my photo may print less sharp".
+      qualityAccepted: z.boolean().optional(),
   }).optional().nullable(),
   productPriceCents: z.number().int().nonnegative().optional().nullable(),
   productName: z.string().max(200).optional().nullable(),
@@ -103,7 +105,6 @@ export const customerCheckoutSchema = z.object({
   payment: z.enum(["card", "paypal"]),
   discountCode: z.string().max(40).optional(),
 });
-export const adminOrderStatusSchema = z.object({ status: z.enum(["PENDING", "PAID", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]) });
 export const adminMessageReplySchema = z.object({ text: z.string().trim().min(1).max(2000) });
 export const productVariantSchema = z.object({
   id: z.string().cuid().optional(),

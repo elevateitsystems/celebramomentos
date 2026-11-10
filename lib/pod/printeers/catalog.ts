@@ -45,12 +45,18 @@ export function phoneModelName(name: string) {
   // The optional word before "case" is limited to case types, so "Pro Max case (…)" keeps "Max";
   // the bracket must start with a print description, so a year such as "(2016)" stays. Some
   // names lack the word "case" or the closing bracket, which is tolerated.
-  return name.replace(/\s+(?:(?:soft|hard|wallet|tough|hybrid|bumper|crossbody|biodegradable|smart|back)\s+)?(?:cases?\s*)?\((?:back|front|fully|white|black|transparent)[^)]*\)?\s*$/i, "").replace(/\s+/g, " ").trim() || name.trim();
+  return name
+    .replace(/\s+(?:(?:soft|hard|wallet|tough|hybrid|bumper|crossbody|biodegradable|smart|back)\s+)?(?:cases?\s*)?\((?:back|front|fully|white|black|transparent)[^)]*\)?\s*$/i, "")
+    // "Apple iPhone 15 Hybrid case with MagSafe": the MagSafe case type is the product already chosen.
+    .replace(/\s+(?:(?:soft|hard|tough|hybrid|clear)\s+)?case\s+with\s+magsafe\s*$/i, "")
+    .replace(/\s+/g, " ").trim() || name.trim();
 }
 
 // ── Stock → phone cases ──
-// Not phone cases: earbud cases, laptop sleeves and the catch-all "Other".
+// Not phone cases: earbud cases, laptop sleeves and the catch-all "Other" (case types), and tablet
+// cases that share a case type with phones (iPad, Galaxy Tab…).
 const NOT_PHONE_CASE = /airpods|macbook|sleeve|^other$/i;
+const TABLET = /\bipad\b|galaxy tab|\btab [a-z]?\d|\btablet\b|matepad|\bpad\b/i;
 
 const slug = (value: string) => value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
@@ -60,12 +66,16 @@ type StockCase = { item: PrinteersStockItem; group: string };
 export function stockGroup(item: PrinteersStockItem): { reference: string; name: string } | null {
   const attributes = item.attributes;
   if (item.kind !== "print" || !attributes?.case_type || !attributes.device_models?.length || NOT_PHONE_CASE.test(attributes.case_type)) return null;
+  if (attributes.device_models.some((model) => TABLET.test(model)) || TABLET.test(item.name)) return null;
   const parts = [attributes.case_type, attributes.print_side, attributes.case_colour].filter((part): part is string => Boolean(part));
   return { reference: slug(parts.join(" ")).slice(0, 80), name: parts.join(" · ") };
 }
 
 // Can be ordered now: in stock, or out of stock but open to backorders.
 export const orderable = (item: PrinteersStockItem) => Boolean(item.availability && (item.availability.status !== "out-of-stock" || item.availability.can_backorder));
+// Out of stock but Printeers takes the order and makes it when the blank case is back: still sold
+// (never shown as "sold out"); the customer is told it may take a few more days.
+export const backordered = (item: PrinteersStockItem) => Boolean(item.availability && item.availability.status === "out-of-stock" && item.availability.can_backorder);
 
 const euroCents = (value: string | null | undefined) => {
   const amount = Number(value);
@@ -102,20 +112,28 @@ export async function productgroups(mode: PodMode = podMode()): Promise<Printeer
   return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
 }
 
-export type PhoneModel = { reference: string; name: string; available: boolean };
+// available: can be ordered now (in stock or on backorder); backorder: it may ship a few days later.
+export type PhoneModel = { reference: string; name: string; available: boolean; backorder: boolean };
 
-// Models of a group; the reference of a model is its Printeers SKU.
+// Models of a group; the reference of a model is its Printeers SKU. Printeers sometimes lists one phone
+// under two SKUs (e.g. "Samsung Galaxy J3 (2016)" twice): the customer sees each phone once, preferring
+// a SKU in stock over one on backorder.
 export async function phoneModels(productgroupReference: string, mode: PodMode = podMode()): Promise<PhoneModel[]> {
-  return (await stockCases(mode))
-    .filter(({ item, group }) => group === productgroupReference && orderable(item))
-    .map(({ item }) => ({ reference: item.sku, name: phoneModelName(item.name), available: item.availability?.status !== "out-of-stock" }))
-    .sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+  const byName = new Map<string, PhoneModel>();
+  for (const { item, group } of await stockCases(mode)) {
+    if (group !== productgroupReference || !orderable(item)) continue;
+    const model = { reference: item.sku, name: phoneModelName(item.name), available: orderable(item), backorder: backordered(item) };
+    const kept = byName.get(model.name);
+    if (!kept || (kept.backorder && !model.backorder)) byName.set(model.name, model);
+  }
+  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
 }
 
 export type PhoneModelDetail = {
   reference: string;
   name: string;
   available: boolean;
+  backorder: boolean;
   // Print area of the case back, in mm; the print file is made at this shape.
   printMm: { width: number; height: number } | null;
   // Mockup layers (bottom → photo through mask → top) for the live preview. In V1 every layer
@@ -134,7 +152,8 @@ function detailOf(item: PrinteersStockItem): PhoneModelDetail {
   return {
     reference: item.sku,
     name: phoneModelName(item.name),
-    available: item.availability?.status !== "out-of-stock",
+    available: orderable(item),
+    backorder: backordered(item),
     printMm: width && height ? { width, height } : null,
     layers: usable ? {
       top: Boolean(layers.top_url), mask: Boolean(layers.mask_url), bottom: Boolean(layers.bottom_url), mockup: Boolean(layers.mockup_url),

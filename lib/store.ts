@@ -1,7 +1,7 @@
 "use client";
 
 import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { CARD_SIZE_IDS, DEFAULT_CARD_SIZE, resolveFrameId, type CardSize, type DeliveryMethod, type DesignCategoryId, type RecipientMode } from "./data";
+import { CARD_SIZE_IDS, DEFAULT_CARD_SIZE, DELIVERY_METHOD, resolveFrameId, type CardSize, type DeliveryMethod, type DesignCategoryId, type RecipientMode } from "./data";
 import type { ImageCrop } from "./crop";
 import type { StudioProductKind } from "./products";
 import { defaultEmojiPosition, type EmojiElement, type EmojiPosition, type EmojiTone } from "./emojis";
@@ -76,6 +76,9 @@ export type CatalogSelection = {
   // Phone cases sold through Printeers: the chosen phone model (a Printeers product) and
   // how the photo is framed. printMm is filled in by the server from the Printeers API.
   printeers?: { productReference: string; crop: ImageCrop; printMm?: { width: number; height: number } | null } | null;
+  // The customer was warned that a photo is smaller than recommended and confirmed they want it anyway
+  // (product studio); the print order is then sent without waiting for an admin.
+  qualityAccepted?: boolean;
 };
 export type ProductSelection = CatalogSelection;
 
@@ -96,6 +99,8 @@ export type CartState = {
   card: CardCustomization;
   items: CartItem[];
   discountCode: string;
+  // True once the cart saved on this device has been loaded (pages that read the draft on first load wait for it).
+  hydrated?: boolean;
 };
 
 export type LanguageState = { language: "es" | "pt" };
@@ -134,6 +139,7 @@ const initialState: CartState = {
   },
   items: [],
   discountCode: "",
+  hydrated: false,
 };
 
 const cloneCard = (card: CardCustomization): CardCustomization => ({
@@ -220,6 +226,8 @@ const cartSlice = createSlice({
       state.items = state.items.filter((item) => item.id !== action.payload);
     },
     clearCartItems: (state) => { state.items = []; },
+    // After a paid order: removes the lines that were bought (lines added since then stay).
+    removeCartItems: (state, action: PayloadAction<string[]>) => { const bought = new Set(action.payload); state.items = state.items.filter((item) => !bought.has(item.id)); },
     setAllItemsDelivery: (state, action: PayloadAction<DeliveryMethod>) => {
       state.card.delivery = action.payload;
       state.items.forEach((item) => { item.card.delivery = action.payload; });
@@ -232,6 +240,8 @@ const cartSlice = createSlice({
       if (card.emoji === "🎓") card.emoji = "";
       card.emojiElements = (Array.isArray(card.emojiElements) ? card.emojiElements : []).filter((item) => !(item.id === "emoji-initial" && item.emoji === "🎓"));
       card.photoDataUrls = Array.isArray(card.photoDataUrls) ? card.photoDataUrls : [card.photoDataUrl || null];
+      // Express delivery was withdrawn: carts saved before then switch to the single option.
+      card.delivery = DELIVERY_METHOD;
       // Saved carts may come from older versions: drop retired extras (stickers,
       // envelope text, gift packaging) and the old built-in Wall Art/Magnet lines,
       // which are no longer sold.
@@ -245,11 +255,13 @@ const cartSlice = createSlice({
             product: item.product ?? null,
             productPriceCents: item.productPriceCents ?? null,
             productName: item.productName ?? null,
-            card: cloneCard(cleanCard({ ...state.card, ...item.card, frameId: resolveFrameId(item.card.frameId) })),
+            card: cloneCard(cleanCard({ ...state.card, ...item.card, frameId: resolveFrameId(item.card.frameId), delivery: DELIVERY_METHOD })),
           }))
         : [];
-      return { card, items, discountCode: typeof action.payload?.discountCode === "string" ? action.payload.discountCode : "" };
+      return { card, items, discountCode: typeof action.payload?.discountCode === "string" ? action.payload.discountCode : "", hydrated: true };
     },
+    // Nothing was saved on this device: the (empty) cart is ready as it is.
+    markCartHydrated: (state) => { state.hydrated = true; },
     resetCart: () => initialState,
   },
 });
@@ -309,8 +321,10 @@ export const {
   setCartItemQuantity,
   removeCartItem,
   clearCartItems,
+  removeCartItems,
   setAllItemsDelivery,
   hydrateCart,
+  markCartHydrated,
   resetCart,
 } = cartSlice.actions;
 export const { setLanguage, hydrateLanguage } = languageSlice.actions;

@@ -13,6 +13,7 @@
 //   API per order item (chosen by the customer from the live catalog), not from this file.
 import type { PodProvider } from "@prisma/client";
 import { mmToPx, type ImageCrop } from "@/lib/crop";
+import { POSTER_DPI } from "@/lib/print-quality";
 import { gelatoFormatMm, type PrintSpec } from "./artwork";
 import { GELATO_CALENDAR_UIDS, GELATO_POSTER_HANGER_UIDS, GELATO_TOUGH_CASE_UIDS } from "./gelato-catalog";
 import type { PodIssue } from "./types";
@@ -42,9 +43,18 @@ const optionValue = (options: Record<string, string>, key: RegExp) => Object.ent
 
 // ── Prodigi ──────────────────────────────────────────────────────────────────
 export const PRODIGI_MAGNET_SKU = "M-MAG-FRI-3X2";
-const PRODIGI_CARD_FILES: Record<string, { width: number; height: number }> = {
-  "CLASSIC-GRE-FEDR-7X5-BLA": { width: 6120, height: 2160 },
-  "CLASSIC-GRE-FEDR-A5-BLA": { width: 7086, height: 2526 },
+// Prodigi greeting cards: one print area ("default") holding the 4 card pages side by side.
+// - width × height: the print area size Prodigi's API gives for the SKU (GET /v4.0/products/{sku},
+//   variants[].printAreaSizes.default, read from the sandbox on 2026-11-09).
+// - pages: which card page goes in each quarter, left to right. Prodigi does not publish this in its
+//   API or public docs (checked 2026-11-09); this is the usual folded-card layout (outside spread:
+//   back | front, then inside spread: inside left | inside right). CONFIRM IT WITH PRODIGI'S
+//   TEMPLATE FOR THE SKU before sending live orders, and change only this list if it differs.
+// A new card product only needs an entry here.
+export const CARD_STRIP_ORDER = ["back", "front", "inside-left", "inside-right"] as const;
+export const PRODIGI_CARD_LAYOUTS: Record<string, { width: number; height: number; pages: readonly string[] }> = {
+  "CLASSIC-GRE-FEDR-7X5-BLA": { width: 6120, height: 2160, pages: CARD_STRIP_ORDER },
+  "CLASSIC-GRE-FEDR-A5-BLA": { width: 7086, height: 2526, pages: CARD_STRIP_ORDER },
 };
 
 function mapProdigi(ctx: ItemContext): ItemMapping {
@@ -55,12 +65,13 @@ function mapProdigi(ctx: ItemContext): ItemMapping {
   }
   if (ctx.kind === "POSTCARD") {
     const sku = ctx.podSku || ctx.cardSku;
-    const file = sku ? PRODIGI_CARD_FILES[sku] : null;
+    const layout = sku ? PRODIGI_CARD_LAYOUTS[sku] : null;
     if (!sku) return { units: [], issues: [blocker("unmapped", `Card size ${ctx.cardSize || "?"} has no Prodigi SKU`)] };
-    // The customer's card pages are rendered in the browser at checkout and kept with the
-    // item, but Prodigi's template (which page goes where in the 4-page strip) is not in
-    // its API, so an admin assembles the print-ready file from those pages.
-    return { units: [{ productRef: sku, specs: [{ area: "default", kind: "admin", description: file ? `Print-ready card file, JPG or PNG, ${file.width} × ${file.height} px: the 4 card pages side by side in the order of Prodigi's template` : "Print-ready card file (Prodigi template)", ...(file || {}) }] }], issues: [] };
+    // The customer's 4 card pages are rendered in the browser at checkout; the print file is composed
+    // from them automatically, at the SKU's exact print size and page order (see PRODIGI_CARD_LAYOUTS).
+    if (layout) return { units: [{ productRef: sku, specs: [{ area: "default", kind: "pages", pages: [...layout.pages], width: layout.width, height: layout.height, format: "jpg", description: `The 4 card pages side by side (${layout.pages.join(" | ")}), ${layout.width} × ${layout.height} px` }] }], issues: [] };
+    // An unknown card SKU has no known layout: it cannot be sent automatically.
+    return { units: [{ productRef: sku, specs: [{ area: "default", kind: "admin", description: "Print-ready card file (no layout is configured for this Prodigi SKU)" }] }], issues: [] };
   }
   return { units: [], issues: [blocker("unmapped", `Prodigi does not make ${ctx.kind} products in this shop`)] };
 }
@@ -174,7 +185,7 @@ function mapPrinteers(ctx: ItemContext): ItemMapping {
   if (ctx.kind !== "PHONE_CASE") return { units: [], issues: [blocker("unmapped", `Printeers is only set up for phone cases (got ${ctx.kind})`)] };
   const productRef = ctx.podSku || ctx.printeers?.productReference || null;
   const area = ctx.printeers?.printMm;
-  if (!productRef) return { units: [], issues: [blocker("printeers_product_missing", `No Printeers product for "${optionValue(ctx.options, /modelo|model|movil|móvil|telem/i) || ctx.productName}": the case was ordered before its product was linked to Printeers. Cancel it or handle it by hand.`)] };
+  if (!productRef) return { units: [], issues: [blocker("printeers_product_missing", `No Printeers product for "${optionValue(ctx.options, /modelo|model|movil|móvil|telem/i) || ctx.productName}": the case was ordered before its product was linked to Printeers. It cannot be made automatically: delete the order (and refund it if it was paid for real), or handle it by hand.`)] };
   if (!area?.width || !area.height) return { units: [], issues: [blocker("printeers_print_area_missing", `Printeers did not give a print area for ${productRef}`)] };
   if (!ctx.photoCount) return { units: [], issues: [blocker("missing_photos", "The order has no case photo")] };
   const spec: PrintSpec = { area: "default", kind: "photo", photoIndex: 0, fit: "fill", width: mmToPx(area.width), height: mmToPx(area.height), format: "jpg", crop: ctx.printeers?.crop || null };
@@ -189,4 +200,15 @@ export function mapOrderItem(ctx: ItemContext): ItemMapping {
     case "PRINTEERS": return mapPrinteers(ctx);
     default: return { units: [], issues: [blocker("provider_inactive", "This print shop is no longer used and receives no orders")] };
   }
+}
+
+// The size (px) a customer photo is checked against in the product studio, from the same mapping the server
+// uses to make the print file: the exact file for fill products (magnets), the poster's printed size at the
+// recommended dpi. Null when there is nothing meaningful to compare (mug wraps are padded, not cropped).
+export function studioPhotoTarget(ctx: ItemContext): { width: number; height: number } | null {
+  const spec = mapOrderItem(ctx).units[0]?.specs.find((item) => item.kind === "photo");
+  if (!spec || spec.kind !== "photo") return null;
+  if (spec.fit === "fill" && spec.width && spec.height) return { width: spec.width, height: spec.height };
+  if (spec.fit === "aspect" && spec.minDpiSize) return { width: Math.round((spec.minDpiSize.widthMm / 25.4) * POSTER_DPI), height: Math.round((spec.minDpiSize.heightMm / 25.4) * POSTER_DPI) };
+  return null;
 }

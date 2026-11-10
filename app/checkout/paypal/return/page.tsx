@@ -6,7 +6,8 @@ import { useDispatch } from "react-redux";
 import { Icon } from "@/components/icons";
 import { BrandLoader } from "@/components/loading";
 import { SiteFooter, SiteHeader } from "@/components/site";
-import { clearCartItems } from "@/lib/store";
+import { clearCartItems, removeCartItems } from "@/lib/store";
+import { forgetCheckout, purchasedItemIds } from "@/lib/checkout-tracker";
 import { trackPurchaseOnce } from "@/lib/meta-pixel";
 
 type State = "loading" | "paid" | "pending" | "failed" | "cancelled" | "declined" | "not_approved" | "error";
@@ -32,7 +33,11 @@ export default function PayPalReturnPage() {
         setOrderNumber(body.order?.id || "");
         setMessage(body.message || "");
         setRetryUrl(body.approvalUrl || null);
-        if (body.status === "paid") { dispatch(clearCartItems()); // PayPal capture verified on the server; total from the database.
+        if (body.status === "paid") {
+          // PayPal capture verified on the server: the lines bought in this order leave the cart.
+          const bought = purchasedItemIds(body.order?.dbId);
+          dispatch(bought ? removeCartItems(bought) : clearCartItems());
+          forgetCheckout();
           trackPurchaseOnce(body.order?.id || "", Number(body.order?.amount)); }
         setState(body.status as State);
       })

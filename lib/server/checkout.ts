@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { describeProductSelection } from "@/lib/cart";
-import { cardSizeText } from "@/lib/data";
+import { DELIVERY_METHOD, cardSizeText } from "@/lib/data";
 import { toCartItem } from "./cart";
 import { deliveryCents, ensureCatalog, resolveCartLine } from "./catalog";
 import { evaluateDiscount, normalizeDiscountCode } from "./discounts";
@@ -27,7 +27,8 @@ export async function createPendingOrder({ customerId, input, idempotencyKey, pr
     return { line, item, resolved: await resolveCartLine(item) };
   }));
   const subtotalCents = priced.reduce((sum, { line, resolved }) => sum + resolved.unitPriceCents * line.quantity, 0);
-  const deliveryMethod = priced[0].item.card.delivery;
+  // A single delivery option: whatever an old cart line says, new orders use (and pay for) it.
+  const deliveryMethod = DELIVERY_METHOD;
   const shippingCents = await deliveryCents(deliveryMethod, subtotalCents);
   const requestedCode = normalizeDiscountCode(input.discountCode);
   const templateSlugs = priced.map(({ resolved }) => resolved.templateSlug).filter((slug): slug is string => Boolean(slug));
@@ -66,10 +67,10 @@ export async function createPendingOrder({ customerId, input, idempotencyKey, pr
         const productLink = resolved.productId ? { productId: resolved.productId } : {};
         if (resolved.product) {
           const variantLink = resolved.product.kind === "CATALOG" && resolved.product.variantId ? { variantId: resolved.product.variantId } : {};
-          return { ...productLink, ...variantLink, name: lineName(row), quantity: line.quantity, unitPriceCents: resolved.unitPriceCents, personalization: { product: resolved.product, delivery: item.card.delivery } as Prisma.InputJsonValue };
+          return { ...productLink, ...variantLink, name: lineName(row), quantity: line.quantity, unitPriceCents: resolved.unitPriceCents, personalization: { product: resolved.product, delivery: deliveryMethod } as Prisma.InputJsonValue };
         }
         const template = resolved.templateSlug ? templateBySlug[resolved.templateSlug] : null;
-        return { ...productLink, ...(template ? { templateId: template.id } : {}), name: lineName(row), quantity: line.quantity, unitPriceCents: resolved.unitPriceCents, personalization: { templateSlug: item.card.templateId, card: item.card, cardSize: item.card.size, provider: "PRODIGI", sku: resolved.cardSizeSku, delivery: item.card.delivery } as Prisma.InputJsonValue };
+        return { ...productLink, ...(template ? { templateId: template.id } : {}), name: lineName(row), quantity: line.quantity, unitPriceCents: resolved.unitPriceCents, personalization: { templateSlug: item.card.templateId, card: item.card, cardSize: item.card.size, provider: "PRODIGI", sku: resolved.cardSizeSku, delivery: deliveryMethod } as Prisma.InputJsonValue };
       }) },
       payments: { create: { amountCents: totalCents, currency: "eur", provider } },
       ...(discount ? { discountUsages: { create: { discountId: discount.id } } } : {}),
