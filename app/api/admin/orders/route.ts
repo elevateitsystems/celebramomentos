@@ -3,7 +3,8 @@ import { requireAdmin } from "@/lib/server/auth";
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { serializeOrder } from "@/lib/server/orders";
 import { prisma } from "@/lib/server/prisma";
-import { syncStaleFulfillments } from "@/lib/pod/fulfillment";
+import { cancelFulfillment, syncStaleFulfillments } from "@/lib/pod/fulfillment";
+import { podProviderLabel } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,17 @@ export async function GET() {
       take: 200,
     });
     await syncStaleFulfillments({ orderIds: orders.filter((order) => order._count.fulfillments).map((order) => order.id) });
-    const fulfillments = await prisma.podFulfillment.findMany({ where: { orderId: { in: orders.map((order) => order.id) } }, select: { orderId: true, provider: true, mode: true, status: true, providerStatus: true, carrier: true, trackingNumber: true, trackingUrl: true, lastSyncedAt: true } });
+    const fulfillments = await prisma.podFulfillment.findMany({ where: { orderId: { in: orders.map((order) => order.id) } }, select: { orderId: true, provider: true, mode: true, status: true, providerStatus: true, carrier: true, trackingNumber: true, trackingUrl: true, lastSyncedAt: true, tracking: true, deliveredAt: true } });
     return NextResponse.json({
-      orders: orders.map(({ _count: _ignored, ...order }) => ({
-        ...serializeOrder(order),
-        payment: order.payments[0] ? { provider: order.payments[0].provider, status: order.payments[0].status } : null,
-        fulfillments: fulfillments.filter((item) => item.orderId === order.id).map(({ orderId: _orderId, ...item }) => item),
-      })),
+      orders: orders.map(({ _count: _ignored, ...order }) => {
+        const prints = fulfillments.filter((item) => item.orderId === order.id);
+        return {
+          // With its print orders: the stage, every parcel's tracking and the delivery estimate.
+          ...serializeOrder({ ...order, fulfillments: prints }),
+          payment: order.payments[0] ? { provider: order.payments[0].provider, status: order.payments[0].status } : null,
+          fulfillments: prints.map(({ orderId: _orderId, tracking: _tracking, ...item }) => item),
+        };
+      }),
     });
   } catch (reason) {
     return handleApiError(reason);
@@ -47,6 +52,16 @@ export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return jsonError("Order id is required");
   try {
+    // Print orders already sent are cancelled at their print shop first, so a deleted order is never produced.
+    // If one cannot be cancelled (already in production), nothing is deleted unless the admin insists (force=1).
+    const force = request.nextUrl.searchParams.get("force") === "1";
+    const sent = await prisma.podFulfillment.findMany({ where: { orderId: id, status: { in: ["SUBMITTING", "SUBMITTED", "IN_PRODUCTION"] } }, select: { id: true, provider: true } });
+    const failures: string[] = [];
+    for (const fulfillment of sent) {
+      const result = await cancelFulfillment(fulfillment.id);
+      if (!result.ok) failures.push(`${podProviderLabel(fulfillment.provider)}: ${result.message || "not cancelled"}`);
+    }
+    if (failures.length && !force) return NextResponse.json({ error: `Not deleted. This print order could not be cancelled — ${failures.join(" · ")}`, cancelFailed: true }, { status: 409 });
     await prisma.order.delete({ where: { id } });
     await prisma.auditLog.create({ data: { adminUserId: admin!.id.startsWith("local") ? null : admin!.id, action: "DELETE", entity: "Order", entityId: id } });
     return NextResponse.json({ ok: true });

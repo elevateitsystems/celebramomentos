@@ -106,6 +106,8 @@ export const printeersApi = {
     return (await call<{ reference: string }>(options, "/orders", { method: "POST", body: JSON.stringify({ shipping_kind: "dropship", ...rest, ...(brand_reference ? { brand_reference } : {}) }) })).reference;
   },
   order: (options: Options, reference: string) => call<PrinteersOrder>(options, `/orders/${encodeURIComponent(reference)}`),
+  // Cancels every line not shipped yet; only works while the order is not in production (V1: a GET).
+  cancelOrder: (options: Options, reference: string) => call<unknown>(options, `/orders/${encodeURIComponent(reference)}/cancel-all-lines`),
   orderByPartnerReference: async (options: Options, partnerReference: string) => {
     try {
       return await call<PrinteersOrder>(options, `/orders/by-partner-reference/${encodeURIComponent(partnerReference)}`);

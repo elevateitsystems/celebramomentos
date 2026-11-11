@@ -13,6 +13,7 @@ import { createHash } from "crypto";
 import { printeersConfig } from "../config";
 import { PodApiError, type FetchLike } from "../http";
 import { printeersApi, printeersErrorCode, type PrinteersAddress, type PrinteersOrder } from "../printeers/api";
+import { httpsLink, isoDate, primaryShipment, type Shipment, type TrackingInfo } from "../tracking";
 import type { PodAdapter, PodFulfillmentStatus, PodMode, ProviderOrderState, Recipient, SubmissionInput } from "../types";
 
 // Printeers' partner_reference allows ^[a-zA-Z0-9_-]{1,20}$. Our fulfilment reference
@@ -76,22 +77,47 @@ export function printeersStatus(order: Pick<PrinteersOrder, "status_code" | "sta
   return { status, label: order.status_human_readable ? `${code} · ${order.status_human_readable}` : code };
 }
 
+// Printeers (v1) shipments live inside the order: when it was created (sent), shipper, method, track & trace
+// and the order lines (with quantities) it holds. Lines are matched to our items by SKU. Printeers gives no
+// delivery date, estimate or carrier events; expected_shipping is when it plans to dispatch.
+export function printeersTracking(order: Pick<PrinteersOrder, "shipments" | "lines" | "expected_shipping">): TrackingInfo {
+  const skuOf = new Map((order.lines || []).map((line) => [line.linenumber, line.item_sku]));
+  const shipments: Shipment[] = (order.shipments || []).map((shipment, index) => {
+    const shippedAt = isoDate(shipment.created);
+    return {
+      id: `printeers-${shipment.track_and_trace_code || shipment.created || index}`,
+      carrier: shipment.shipper || null,
+      service: shipment.shipping_method || null,
+      trackingNumber: shipment.track_and_trace_code || null,
+      trackingUrl: httpsLink(shipment.track_and_trace_url),
+      status: "shipped",
+      shippedAt,
+      deliveredAt: null,
+      estimatedDelivery: null,
+      location: null,
+      items: (shipment.lines || []).map((line) => ({ itemId: null, sku: skuOf.get(line.linenumber) || null, quantity: line.quantity })),
+      events: shippedAt ? [{ at: shippedAt, description: `Shipped by Printeers${shipment.shipper ? ` with ${shipment.shipper}` : ""}`, location: null }] : [],
+    };
+  });
+  return { shipments, estimatedDelivery: null, expectedDispatch: isoDate(order.expected_shipping) };
+}
+
 export function printeersAdapter(fetchImpl?: FetchLike): PodAdapter {
   const api = (mode: PodMode) => ({ mode, fetchImpl });
 
   function stateOf(order: PrinteersOrder): ProviderOrderState {
     const { status, label } = printeersStatus(order);
-    // Shipments (with tracking) are part of the order in V1; the latest one is shown.
-    const shipments = order.shipments || [];
-    const latest = shipments[shipments.length - 1];
+    const tracking = printeersTracking(order);
+    const main = primaryShipment(tracking);
     return {
       providerOrderId: order.reference,
       providerStatus: label,
       status,
-      carrier: latest ? [latest.shipper, latest.shipping_method].filter(Boolean).join(" · ") || null : null,
-      trackingNumber: latest?.track_and_trace_code || null,
-      trackingUrl: latest?.track_and_trace_url || null,
-      raw: { reference: order.reference, status_code: order.status_code, expected_shipping: order.expected_shipping ?? null, shipments: shipments.length },
+      carrier: main ? [main.carrier, main.service].filter(Boolean).join(" · ") || null : null,
+      trackingNumber: main?.trackingNumber || null,
+      trackingUrl: main?.trackingUrl || null,
+      tracking,
+      raw: { reference: order.reference, status_code: order.status_code, expected_shipping: order.expected_shipping ?? null, shipments: (order.shipments || []).length },
     };
   }
 
@@ -141,6 +167,12 @@ export function printeersAdapter(fetchImpl?: FetchLike): PodAdapter {
     async findByReference(reference, mode) {
       const existing = await printeersApi.orderByPartnerReference(api(mode), printeersIdentifier(reference));
       return existing ? stateOf(existing) : null;
+    },
+    async cancel(providerOrderId, mode) {
+      await printeersApi.cancelOrder(api(mode), providerOrderId);
+      const state = stateOf(await printeersApi.order(api(mode), providerOrderId));
+      if (state.status !== "CANCELLED") throw new PodApiError("PRINTEERS", 409, `Printeers did not cancel the order (status: ${state.providerStatus})`, false);
+      return state;
     },
     async fetchStatus(providerOrderId, mode) {
       return stateOf(await printeersApi.order(api(mode), providerOrderId));

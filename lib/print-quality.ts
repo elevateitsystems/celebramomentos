@@ -22,13 +22,12 @@ export function photoQuality(enlargement: number): PhotoQuality {
   return enlargement <= HARD_ENLARGEMENT ? "low" : "too_small";
 }
 
-// Short side against short side and long against long, so a photo turned the other way is not
-// penalised; `zoom` (the customer's crop zoom) uses fewer of the photo's pixels.
+// How much the photo is enlarged when the print is cut from it, as the server makes the print file: the
+// photo is never rotated, so a landscape photo on a portrait print only uses its middle strip. `zoom` (the
+// customer's crop zoom) uses even fewer of the photo's pixels.
 export function photoEnlargement(photo: { width: number; height: number }, print: { width: number; height: number }, zoom = 1) {
   if (!photo.width || !photo.height || !print.width || !print.height) return 0;
-  const [photoShort, photoLong] = [Math.min(photo.width, photo.height), Math.max(photo.width, photo.height)];
-  const [printShort, printLong] = [Math.min(print.width, print.height), Math.max(print.width, print.height)];
-  return Math.max(printShort / photoShort, printLong / photoLong) * Math.max(1, zoom);
+  return Math.max(print.width / photo.width, print.height / photo.height) * Math.max(1, zoom);
 }
 
 // Smallest photo (same orientation as the print) that prints sharp, i.e. within MAX_ENLARGEMENT.

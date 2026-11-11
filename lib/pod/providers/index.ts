@@ -22,6 +22,7 @@ function inactiveAdapter(provider: PodProvider): PodAdapter {
     async submit() { throw new Error(INACTIVE_PROVIDER); },
     async findByReference() { return null; },
     async fetchStatus() { return null; },
+    async cancel() { throw new Error(INACTIVE_PROVIDER); },
   };
 }
 

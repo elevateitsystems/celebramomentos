@@ -334,6 +334,9 @@ model PodFulfillment {
   shippedAt       DateTime?
   deliveredAt     DateTime?
   lastSyncedAt    DateTime?
+  // Every shipment of the print order (lib/pod/tracking.ts TrackingInfo): tracking numbers, carriers,
+  // items, dates, delivery estimate, tracking events and the status history seen by our syncs.
+  tracking        Json?
   items           OrderItem[]
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt

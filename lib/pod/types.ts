@@ -1,6 +1,7 @@
 // Shared types of the print-on-demand (POD) layer. Everything under lib/pod is
 // server-only except catalog.ts / artwork.ts / status.ts, which are pure and unit tested.
 import type { PodFulfillmentStatus, PodProvider } from "@prisma/client";
+import type { TrackingInfo } from "./tracking";
 
 export type { PodFulfillmentStatus, PodProvider };
 
@@ -53,6 +54,13 @@ export type ProviderOrderState = {
   carrier?: string | null;
   trackingNumber?: string | null;
   trackingUrl?: string | null;
+  // A problem the print shop reports on the order (failed, on hold, a file it could not use…), shown to the
+  // admin; null when the shop reports none. Undefined when the shop gives no such information.
+  problem?: string | null;
+  // Every shipment the shop reports (several for a partial shipment or several parcels), with dates,
+  // estimates and tracking events. Undefined when this reading has no shipment information (e.g. the
+  // answer to a create call); carrier / trackingNumber / trackingUrl above are the main shipment's.
+  tracking?: TrackingInfo;
   raw?: unknown;
 };
 
@@ -64,6 +72,9 @@ export interface PodAdapter {
   // Looks an order up by our reference, to recover from a submission whose outcome is unknown.
   findByReference(reference: string, mode: PodMode): Promise<ProviderOrderState | null>;
   fetchStatus(providerOrderId: string, mode: PodMode): Promise<ProviderOrderState | null>;
+  // Cancels the order at the shop. Resolves with the order's state (CANCELLED) or throws a PodApiError
+  // explaining why it cannot be cancelled (usually: already in production).
+  cancel(providerOrderId: string, mode: PodMode): Promise<ProviderOrderState>;
   // Turns a draft into a real production order (Gelato, Printful). Absent when the shop has no drafts.
   confirmDraft?(providerOrderId: string): Promise<ProviderOrderState>;
 }

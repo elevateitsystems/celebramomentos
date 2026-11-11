@@ -212,3 +212,19 @@ export function studioPhotoTarget(ctx: ItemContext): { width: number; height: nu
   if (spec.fit === "aspect" && spec.minDpiSize) return { width: Math.round((spec.minDpiSize.widthMm / 25.4) * POSTER_DPI), height: Math.round((spec.minDpiSize.heightMm / 25.4) * POSTER_DPI) };
   return null;
 }
+
+// A size/option combination its print shop cannot make (e.g. a poster size Gelato does not offer, or offers
+// in one orientation only). Checked when the customer adds it and again at checkout, so an order that could
+// never be produced is not paid for. Phone cases and cards are checked against their own catalogues.
+export type UnavailableCombination = { reason: "orientation"; available: string } | { reason: "size" };
+export function unavailableCombination(ctx: ItemContext): UnavailableCombination | null {
+  if (ctx.kind === "PHONE_CASE" || ctx.kind === "POSTCARD") return null;
+  const unmapped = (context: ItemContext) => mapOrderItem(context).issues.some((issue) => issue.code === "unmapped");
+  if (!unmapped(ctx)) return null;
+  if (ctx.kind === "WALL_ART") {
+    const key = Object.keys(ctx.options).find((name) => /orienta/i.test(name));
+    const other = key ? (/horiz|paisaj|landscape/i.test(ctx.options[key]) ? "Vertical" : "Horizontal") : null;
+    if (key && other && !unmapped({ ...ctx, options: { ...ctx.options, [key]: other } })) return { reason: "orientation", available: other };
+  }
+  return { reason: "size" };
+}

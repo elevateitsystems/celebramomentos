@@ -38,7 +38,7 @@ const { db, adapter } = vi.hoisted(() => {
       update: vi.fn(async ({ where, data }: Row) => apply(state.fulfillments.get(where.id)!, data)),
     },
   };
-  const podAdapter = { provider: "GELATO", configurationProblem: vi.fn(() => null as string | null), submit: vi.fn(), findByReference: vi.fn(async (): Promise<unknown> => null), fetchStatus: vi.fn() };
+  const podAdapter = { provider: "GELATO", configurationProblem: vi.fn(() => null as string | null), submit: vi.fn(), findByReference: vi.fn(async (): Promise<unknown> => null), fetchStatus: vi.fn(), cancel: vi.fn() };
   return { db: { state, prisma }, adapter: podAdapter };
 });
 
@@ -46,7 +46,7 @@ vi.mock("@/lib/server/prisma", () => ({ prisma: db.prisma }));
 vi.mock("@/lib/pod/providers", () => ({ podAdapter: () => adapter }));
 
 import * as fulfillmentModule from "@/lib/pod/fulfillment";
-import { artworkProblems, handlePaidOrder, submitFulfillment, syncOrderStatus } from "@/lib/pod/fulfillment";
+import { artworkProblems, cancelFulfillment, handlePaidOrder, submitFulfillment, syncOrderStatus } from "@/lib/pod/fulfillment";
 import { PodApiError } from "@/lib/pod/http";
 
 const item = { id: "item1", name: "Póster", quantity: 1, podIssues: [], podArtwork: [{ unit: 0, productRef: "wall_hanging_poster_x", area: "default", url: "https://res.cloudinary.com/x/image/upload/a.jpg", source: "customer" }] };
@@ -188,5 +188,39 @@ describe("print files", () => {
 
   it("has no way to set a print order's status by hand", () => {
     expect("markFulfillment" in fulfillmentModule).toBe(false);
+  });
+});
+
+describe("cancelling a print order", () => {
+  it("marks one never sent as cancelled without calling the print shop", async () => {
+    seed({ status: "NEEDS_ATTENTION" });
+    adapter.cancel.mockClear();
+    expect(await cancelFulfillment("f1")).toMatchObject({ ok: true, status: "CANCELLED" });
+    expect(adapter.cancel).not.toHaveBeenCalled();
+    // A cancelled print order is never sent afterwards.
+    expect(await submitFulfillment("f1")).toMatchObject({ ok: false });
+  });
+
+  it("cancels a sent one at the print shop", async () => {
+    seed({ status: "SUBMITTED" });
+    db.state.fulfillments.get("f1")!.providerOrderId = "g-1";
+    adapter.cancel.mockResolvedValueOnce({ providerOrderId: "g-1", providerStatus: "draft deleted", status: "CANCELLED" });
+    expect(await cancelFulfillment("f1")).toMatchObject({ ok: true, status: "CANCELLED" });
+    expect(adapter.cancel).toHaveBeenCalledWith("g-1", "draft");
+  });
+
+  it("reports the print shop's refusal and keeps the order as it was", async () => {
+    seed({ status: "IN_PRODUCTION" });
+    db.state.fulfillments.get("f1")!.providerOrderId = "g-1";
+    adapter.cancel.mockRejectedValueOnce(new PodApiError("GELATO", 409, "Gelato did not cancel the order (status: printed)", false));
+    expect(await cancelFulfillment("f1")).toMatchObject({ ok: false, status: "IN_PRODUCTION", message: expect.stringContaining("printed") });
+    expect(db.state.fulfillments.get("f1")!.status).toBe("IN_PRODUCTION");
+  });
+
+  it("refuses shipped orders and one being sent right now", async () => {
+    seed({ status: "SHIPPED" });
+    expect(await cancelFulfillment("f1")).toMatchObject({ ok: false, message: expect.stringContaining("shipped") });
+    seed({ status: "SUBMITTING" });
+    expect(await cancelFulfillment("f1")).toMatchObject({ ok: false, message: expect.stringContaining("being sent") });
   });
 });

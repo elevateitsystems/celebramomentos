@@ -28,9 +28,13 @@ export function webhookSecret() {
   return value && value.length >= 24 ? value : null;
 }
 
+// The address a shop sends its notifications to. With POD_WEBHOOK_SECRET it carries ?token=… (checked, and
+// such calls are never throttled); without it the plain address is used, which the handler accepts only as a
+// throttled hint (see lib/pod/webhooks.ts). Shops that are set up in their dashboard (Gelato, Prodigi) may use
+// the plain address.
 export function webhookUrl(provider: "prodigi" | "gelato" | "printful" | "printeers") {
   const secret = webhookSecret();
-  return secret ? `${appUrl()}/api/webhooks/${provider}?token=${encodeURIComponent(secret)}` : null;
+  return `${appUrl()}/api/webhooks/${provider}${secret ? `?token=${encodeURIComponent(secret)}` : ""}`;
 }
 
 export const prodigiConfig = (mode: PodMode) => ({

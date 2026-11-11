@@ -11,9 +11,9 @@
 //    unordered, so events are de-duplicated by webhook-id.
 // 2. The legacy "order updated" callback (https://api-docs.printeers.com/guides/legacy-webhooks), the
 //    one V1 was built with: an HTTP GET to the store's "API Callback URL" with order_reference,
-//    environment, store_code… in the query string. It carries NO signature, so the URL we register
-//    holds our shared secret (?token=POD_WEBHOOK_SECRET, compared in constant time) and the
-//    notification is only a hint: the order's state is always read back from the API.
+//    environment, store_code… in the query string. It carries NO signature: the notification is only a
+//    hint (the order's state is always read back from the API). A URL with ?token= must carry
+//    POD_WEBHOOK_SECRET; without a token it is accepted at most once a minute per order.
 // Neither ever touches payment state.
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
@@ -100,7 +100,10 @@ const ORDER_REFERENCE = /^[A-Za-z0-9_-]{1,60}$/;
 // Legacy order-updated callback (GET). Idempotent by nature: it only re-reads the order.
 export async function handlePrinteersCallback(request: Request) {
   const url = new URL(request.url);
-  if (!validWebhookToken(url.searchParams.get("token"), webhookSecret())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Same rule as the other shops (lib/pod/webhooks.ts): a token, when given, must be ours; a callback URL
+  // registered without one is only a throttled hint (the order is read back from the API anyway).
+  const token = url.searchParams.get("token");
+  if (token !== null && !validWebhookToken(token, webhookSecret())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const reference = url.searchParams.get("order_reference") || "";
   if (!ORDER_REFERENCE.test(reference)) return NextResponse.json({ error: "No order reference" }, { status: 400 });
   // "test" or "prod": a callback from the other environment is acknowledged but never mixed in.
@@ -108,9 +111,10 @@ export async function handlePrinteersCallback(request: Request) {
   const expected = podMode() === "live" ? "prod" : "test";
   if (environment && environment !== expected) return NextResponse.json({ received: true, ignored: "other environment" });
 
-  const fulfillment = await prisma.podFulfillment.findFirst({ where: { provider: "PRINTEERS", mode: modeName(), providerOrderId: reference }, select: { id: true } });
+  const fulfillment = await prisma.podFulfillment.findFirst({ where: { provider: "PRINTEERS", mode: modeName(), providerOrderId: reference }, select: { id: true, lastSyncedAt: true } });
   // Orders placed outside this site are acknowledged so Printeers stops retrying.
   if (!fulfillment) return NextResponse.json({ received: true, matched: false });
+  if (token === null && fulfillment.lastSyncedAt && Date.now() - fulfillment.lastSyncedAt.getTime() < 60_000) return NextResponse.json({ received: true, matched: true, throttled: true });
   const result = await syncFulfillment(fulfillment.id);
   // A failed read answers 503: Printeers retries about 5 minutes later.
   if (!result.ok) {

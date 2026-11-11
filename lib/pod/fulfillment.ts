@@ -17,12 +17,14 @@ import { prisma } from "@/lib/server/prisma";
 import { CARD_SIZES } from "@/lib/data";
 import type { CardDesignSide } from "@/lib/store";
 import { STORED_STATUS, printStage } from "@/lib/order-progress";
+import { podProviderLabel } from "@/lib/products";
 import { checkPhotoResolution, checkPrintFileSize, isCloudinaryUrl, printFileUrl, type PhotoFit, type PrintSpec } from "./artwork";
 import { mapOrderItem } from "./catalog";
 import { podAutoSubmit, podMode } from "./config";
 import { PodApiError, redact } from "./http";
 import { renderCompositeFile, renderPrintFile, uploadedFiles, type UploadedFile } from "./print-files";
 import { podAdapter } from "./providers";
+import { mergeTracking, readTracking, resolveItems, trackingDates, withStatusChange } from "./tracking";
 import type { PodFulfillmentStatus, PodIssue, PodMode, ProviderOrderState, Recipient, SubmissionLine } from "./types";
 
 const PAID_ORDER = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
@@ -51,7 +53,7 @@ function backoff(attempts: number) {
   return new Date(Date.now() + Math.min(5 * 60_000 * 2 ** Math.max(0, attempts - 1), 24 * 3_600_000));
 }
 
-function logPod(message: string, details: Record<string, unknown>) {
+export function logPod(message: string, details: Record<string, unknown>) {
   console.error(`[pod] ${message}`, redact(details));
 }
 
@@ -328,10 +330,17 @@ function linesOf(items: OrderItem[]): SubmissionLine[] {
 }
 
 async function saveState(fulfillmentId: string, state: ProviderOrderState, extra: Prisma.PodFulfillmentUpdateInput = {}) {
-  const current = await prisma.podFulfillment.findUniqueOrThrow({ where: { id: fulfillmentId } });
+  const current = await prisma.podFulfillment.findUniqueOrThrow({ where: { id: fulfillmentId }, include: { items: { select: { id: true, podProductRef: true } } } });
   // Never move backwards (e.g. a late "in production" push after "shipped").
   const rank: Record<string, number> = { SUBMITTED: 1, IN_PRODUCTION: 2, SHIPPED: 3, DELIVERED: 4 };
   const status = rank[current.status] && rank[state.status] && rank[state.status] < rank[current.status] ? current.status : state.status;
+  // Shipments are merged into what is stored (several shipments, events kept once each) and the status
+  // change, if any, is added to the history.
+  const stored = readTracking(current.tracking);
+  const merged = state.tracking ? mergeTracking(stored, resolveItems(state.tracking, current.items)) : stored;
+  const tracking = withStatusChange(merged, current.providerStatus, state.providerStatus, podProviderLabel(current.provider));
+  const dates = trackingDates(tracking);
+  const changed = JSON.stringify(tracking) !== JSON.stringify(stored);
   const updated = await prisma.podFulfillment.update({
     where: { id: fulfillmentId },
     data: {
@@ -343,8 +352,12 @@ async function saveState(fulfillmentId: string, state: ProviderOrderState, extra
       trackingNumber: state.trackingNumber ?? current.trackingNumber,
       trackingUrl: state.trackingUrl ?? current.trackingUrl,
       lastSyncedAt: new Date(),
-      ...(status === "SHIPPED" && !current.shippedAt ? { shippedAt: new Date() } : {}),
-      ...(status === "DELIVERED" && !current.deliveredAt ? { deliveredAt: new Date() } : {}),
+      ...(changed ? { tracking: tracking as unknown as Prisma.InputJsonValue } : {}),
+      // What the print shop says is wrong with the order (or that it is fine again).
+      ...(state.problem !== undefined ? { lastError: state.problem } : {}),
+      // The shop's own dispatch / delivery dates when it gives them; otherwise when we first saw the status.
+      ...((status === "SHIPPED" || status === "DELIVERED") && !current.shippedAt ? { shippedAt: dates.shippedAt ? new Date(dates.shippedAt) : new Date() } : {}),
+      ...(status === "DELIVERED" && !current.deliveredAt ? { deliveredAt: dates.deliveredAt ? new Date(dates.deliveredAt) : new Date() } : {}),
       ...(state.raw !== undefined ? { lastResponse: redact(state.raw) as Prisma.InputJsonValue } : {}),
     },
   });
@@ -412,6 +425,31 @@ export async function confirmDraft(fulfillmentId: string): Promise<SubmitResult>
   const state = await adapter.confirmDraft(fulfillment.providerOrderId);
   const saved = await saveState(fulfillmentId, state, { mode: "live" });
   return { ok: true, status: saved.status };
+}
+
+// Cancels a print order. One not sent yet is simply marked cancelled (it is never sent); one sent is
+// cancelled at the print shop first, which only works before production starts. Shipped orders and one being
+// sent right now are refused. Never touches the payment: refunds are done in Stripe / PayPal.
+export async function cancelFulfillment(fulfillmentId: string): Promise<SubmitResult> {
+  const fulfillment = await prisma.podFulfillment.findUnique({ where: { id: fulfillmentId } });
+  if (!fulfillment) return { ok: false, status: "FAILED", message: "Print order not found" };
+  if (fulfillment.status === "CANCELLED") return { ok: true, status: "CANCELLED" };
+  if (fulfillment.status === "SUBMITTING") return { ok: false, status: fulfillment.status, message: "It is being sent right now; try again in a minute" };
+  if (fulfillment.status === "SHIPPED" || fulfillment.status === "DELIVERED") return { ok: false, status: fulfillment.status, message: "It has already shipped and can no longer be cancelled" };
+  if (!fulfillment.providerOrderId) {
+    // Claimed atomically, so a send that starts at the same moment cannot slip through.
+    const claimed = await prisma.podFulfillment.updateMany({ where: { id: fulfillmentId, status: { in: ["NEEDS_ATTENTION", "READY", "FAILED"] }, providerOrderId: null }, data: { status: "CANCELLED", nextAttemptAt: null, lastError: "Cancelled before it was sent to the print shop" } });
+    return claimed.count === 1 ? { ok: true, status: "CANCELLED" } : { ok: false, status: fulfillment.status, message: "Its state changed meanwhile; refresh and try again" };
+  }
+  try {
+    const state = await podAdapter(fulfillment.provider).cancel(fulfillment.providerOrderId, fulfillment.mode === "live" ? "live" : "draft");
+    const saved = await saveState(fulfillmentId, { ...state, problem: null }, { nextAttemptAt: null });
+    return { ok: saved.status === "CANCELLED", status: saved.status, ...(saved.status === "CANCELLED" ? {} : { message: "The print shop did not cancel it" }) };
+  } catch (reason) {
+    const message = reason instanceof Error ? reason.message : "Unknown error";
+    logPod("cancel failed", { fulfillmentId, provider: fulfillment.provider, message });
+    return { ok: false, status: fulfillment.status, message };
+  }
 }
 
 // Reads the latest status and tracking from the shop.
@@ -528,9 +566,19 @@ export function handlePaidOrderInBackground(orderId: string) {
 // pages always show the latest status without anyone pressing a button (webhooks and the cron job
 // do the same in the background). Bounded in number and time; a failed read changes nothing
 // (syncFulfillment keeps the stored status and only records the error in the log).
+// Print orders whose tracking is still worth reading: not delivered yet, and shipped less than
+// TRACKING_WINDOW_DAYS ago (Prodigi and Printeers never report a delivery, so their shipped orders would
+// otherwise be read for ever).
+const TRACKING_WINDOW_DAYS = 45;
+const trackable = (): Prisma.PodFulfillmentWhereInput => ({
+  provider: { in: [...POD_PROVIDERS] },
+  providerOrderId: { not: null },
+  OR: [{ status: { in: ["SUBMITTED", "IN_PRODUCTION"] } }, { status: "SHIPPED", OR: [{ shippedAt: null }, { shippedAt: { gte: new Date(Date.now() - TRACKING_WINDOW_DAYS * 86_400_000) } }] }],
+});
+
 export async function syncStaleFulfillments({ maxAgeMs = 5 * 60_000, limit = 12, budgetMs = 6_000, orderIds }: { maxAgeMs?: number; limit?: number; budgetMs?: number; orderIds?: string[] } = {}) {
   const stale = await prisma.podFulfillment.findMany({
-    where: { ...(orderIds ? { orderId: { in: orderIds } } : {}), status: { in: ["SUBMITTED", "IN_PRODUCTION", "SHIPPED"] }, provider: { in: [...POD_PROVIDERS] }, providerOrderId: { not: null }, OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: new Date(Date.now() - maxAgeMs) } }] },
+    where: { ...(orderIds ? { orderId: { in: orderIds } } : {}), AND: [trackable(), { OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: new Date(Date.now() - maxAgeMs) } }] }] },
     orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
     take: limit,
     select: { id: true },
@@ -576,7 +624,7 @@ export async function runPodMaintenance({ budgetMs = 45_000 } = {}) {
     if (fulfillment.status === "FAILED") report.retried += 1; else if (result.ok) report.submitted += 1;
   }
 
-  const active = await prisma.podFulfillment.findMany({ where: { status: { in: ["SUBMITTED", "IN_PRODUCTION", "SHIPPED"] }, provider: { in: [...POD_PROVIDERS] }, providerOrderId: { not: null }, OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: new Date(Date.now() - 3 * 3_600_000) } }] }, take: 25, orderBy: { lastSyncedAt: "asc" } });
+  const active = await prisma.podFulfillment.findMany({ where: { AND: [trackable(), { OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: new Date(Date.now() - 3 * 3_600_000) } }] }] }, take: 40, orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } } });
   for (const fulfillment of active) { if (!left()) break; if ((await syncFulfillment(fulfillment.id)).ok) report.synced += 1; }
   return report;
 }
