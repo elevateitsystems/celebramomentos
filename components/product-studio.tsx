@@ -13,7 +13,7 @@ import { captureStudioPreview } from "@/lib/capture-preview";
 import { savePendingCartItem } from "@/lib/pending-cart";
 import { trackPixel } from "@/lib/meta-pixel";
 import { CROP_LIMITS, DEFAULT_CROP, cropRect, mmToPx, normalizeCrop, type ImageCrop } from "@/lib/crop";
-import { studioPhotoTarget } from "@/lib/pod/catalog";
+import { studioPhotoTarget, unavailableCombination } from "@/lib/pod/catalog";
 import { minimumPhotoSize, photoEnlargement, photoQuality, type PhotoQuality } from "@/lib/print-quality";
 import { MAX_PRODUCT_PHOTOS, podProviderFor, productPrintFile, requiredPhotoCount, type CatalogProduct, type PrintFile, type StudioProductKind } from "@/lib/products";
 import { RootState, defaultCardCustomization, saveCartItem, type CatalogSelection, type ProductSelection } from "@/lib/store";
@@ -94,8 +94,8 @@ function PrintFileNote({ printFile, photo, es }: { printFile: PrintFile | null; 
   const { width, height, transparentPng } = printFile;
   const orientation = width === height ? "" : width < height ? (es ? ", en vertical" : ", na vertical") : (es ? ", en horizontal" : ", na horizontal");
   const size = measured && measured.src === photo ? measured : null;
-  // Short side against short side, long against long: a rotated photo is not "too small".
-  const tooSmall = size && (Math.min(size.width, size.height) < Math.min(width, height) || Math.max(size.width, size.height) < Math.max(width, height));
+  // Smaller than the file it is cut into (as it is: photos are never rotated).
+  const tooSmall = size && photoEnlargement(size, printFile) > 1;
   const level = size ? photoQuality(photoEnlargement(size, printFile)) : "good";
   const minimum = minimumPhotoSize(printFile);
   return <div className="mt-2 space-y-1.5 text-[11px] leading-5">
@@ -342,6 +342,11 @@ function StudioShell({ eyebrow, title, body, controls, preview, es, studio, cata
     ? studioPhotoTarget({ kind: studio.selected.kind, provider: podProviderFor(studio.selected.kind, studio.selected.metadata?.provider), productName: studio.selected.name, variantName: studio.variant?.name ?? null, podSku: null, options: studio.options, photoCount: Math.max(1, studio.photoCount), cardSize: null, cardSku: null })
     : null;
   const check = givenAction ? photoCheck(givenAction.photos, photoSizes, givenAction.printFile || target, givenAction.zoom) : null;
+  // A size/option combination the print shop cannot make cannot be added (the server refuses it as well).
+  const unavailable = givenAction && studio.selected ? unavailableCombination({ kind: studio.selected.kind, provider: podProviderFor(studio.selected.kind, studio.selected.metadata?.provider), productName: studio.selected.name, variantName: studio.variant?.name ?? null, podSku: null, options: studio.options, photoCount: Math.max(1, studio.photoCount), cardSize: null, cardSku: null }) : null;
+  const unavailableHint = !unavailable ? null : unavailable.reason === "orientation"
+    ? (es ? `Este tamaño solo está disponible en ${unavailable.available.toLowerCase()}. Cambia la orientación o elige otro tamaño.` : `Este tamanho só está disponível na ${unavailable.available === "Vertical" ? "vertical" : "horizontal"}. Muda a orientação ou escolhe outro tamanho.`)
+    : (es ? "Este tamaño no está disponible ahora mismo. Elige otro tamaño." : "Este tamanho não está disponível neste momento. Escolhe outro tamanho.");
   // The confirmation belongs to these exact photos, print size and zoom; any change asks again.
   const qualityKey = givenAction && check ? [givenAction.photos.map((photo) => (photo ? `${photo.length}:${photo.slice(-40)}` : "")).join(","), (givenAction.printFile || target)?.width, (givenAction.printFile || target)?.height, givenAction.zoom ?? 1].join("|") : "";
   const [acceptedKey, setAcceptedKey] = useState("");
@@ -349,12 +354,13 @@ function StudioShell({ eyebrow, title, body, controls, preview, es, studio, cata
   const zoomed = Boolean(givenAction?.zoom && givenAction.zoom > 1);
   const whichPhoto = (index: number) => (givenAction && givenAction.photos.length > 1 ? (es ? `La foto ${index + 1}` : `A foto ${index + 1}`) : (es ? "Tu foto" : "A tua foto"));
   const action: StudioAction | undefined = !givenAction ? undefined
+    : unavailableHint ? { ...givenAction, disabled: true, hint: unavailableHint }
     : check?.level === "too_small" ? { ...givenAction, disabled: true, hint: givenAction.hint || (es
       ? `${whichPhoto(check.index)} (${check.size.width} × ${check.size.height} px) es demasiado pequeña para imprimirla. Sube una más grande (recomendado: al menos ${check.minimum.width} × ${check.minimum.height} px)${zoomed ? " o reduce el zoom" : ""}.`
       : `${whichPhoto(check.index)} (${check.size.width} × ${check.size.height} px) é demasiado pequena para imprimir. Carrega uma maior (recomendado: pelo menos ${check.minimum.width} × ${check.minimum.height} px)${zoomed ? " ou reduz o zoom" : ""}.`) }
     : check?.level === "low" ? { ...givenAction, disabled: givenAction.disabled || !accepted, hint: givenAction.hint || (accepted ? undefined : es ? "Confirma la calidad de tu foto para continuar." : "Confirma a qualidade da tua foto para continuar."), onClick: () => givenAction.onClick({ qualityAccepted: true }) }
     : givenAction;
-  const qualityConfirm = check?.level === "low" && !givenAction?.hint ? <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#f1d9a8] bg-[#fff8ea] p-3.5 text-xs leading-5 text-[#6b4a00]">
+  const qualityConfirm = check?.level === "low" && !givenAction?.hint && !unavailableHint ? <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#f1d9a8] bg-[#fff8ea] p-3.5 text-xs leading-5 text-[#6b4a00]">
     <input type="checkbox" checked={accepted} onChange={(event) => setAcceptedKey(event.target.checked ? qualityKey : "")} className="mt-0.5 h-4 w-4 shrink-0 accent-[#ee5264]" />
     <span><b>{es ? `${whichPhoto(check.index)} tiene poca resolución (${check.size.width} × ${check.size.height} px).` : `${whichPhoto(check.index)} tem pouca resolução (${check.size.width} × ${check.size.height} px).`}</b> {es ? `Entiendo que se imprimirá menos nítida que en la vista previa y quiero continuar. Para el mejor resultado, sube una foto de al menos ${check.minimum.width} × ${check.minimum.height} px${zoomed ? " o reduce el zoom" : ""}.` : `Compreendo que ficará menos nítida do que na pré-visualização e quero continuar. Para o melhor resultado, carrega uma foto de pelo menos ${check.minimum.width} × ${check.minimum.height} px${zoomed ? " ou reduz o zoom" : ""}.`}</span>
   </label> : null;

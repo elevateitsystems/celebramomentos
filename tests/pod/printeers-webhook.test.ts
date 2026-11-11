@@ -74,10 +74,12 @@ describe("legacy Printeers order-updated callback (unsigned GET)", () => {
   const callback = (query: string) => new Request(`https://shop.test/api/webhooks/printeers?${query}`);
   const token = "t".repeat(32);
 
-  it("needs the shared token in the URL", async () => {
-    expect((await handlePrinteersCallback(callback("order_reference=TESTCODE-1&environment=test"))).status).toBe(401);
+  it("refuses a wrong token; without a token it is only a hint (the order is re-read from the API)", async () => {
     expect((await handlePrinteersCallback(callback(`token=wrong&order_reference=TESTCODE-1&environment=test`))).status).toBe(401);
     expect(sync).not.toHaveBeenCalled();
+    const response = await handlePrinteersCallback(callback("order_reference=TESTCODE-1&environment=test"));
+    expect(await response.json()).toMatchObject({ received: true, matched: true });
+    expect(sync.mock.calls.map((item) => item[0])).toEqual(["f1"]);
   });
 
   it("re-reads the order it names, as many times as it is called (idempotent)", async () => {

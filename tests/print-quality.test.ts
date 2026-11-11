@@ -11,9 +11,18 @@ describe("photo size against its print file", () => {
     expect(photoEnlargement({ width: 427, height: 585 }, { width: 827, height: 1724 })).toBeGreaterThan(MAX_ENLARGEMENT);
   });
 
-  it("does not penalise a photo turned the other way, and counts the customer's zoom", () => {
-    expect(photoEnlargement({ width: 1724, height: 827 }, { width: 827, height: 1724 })).toBe(1);
+  it("measures a sideways photo as it is cut (never rotated), and counts the customer's zoom", () => {
+    // A landscape photo on a portrait case only uses its middle strip: 1724 px tall from 827 px.
+    expect(photoEnlargement({ width: 1724, height: 827 }, { width: 827, height: 1724 })).toBeCloseTo(2.085, 2);
     expect(photoEnlargement({ width: 827, height: 1724 }, { width: 827, height: 1724 }, 2)).toBe(2);
+  });
+
+  it("matches the server for the held Printeers order (1280 × 769 px landscape photo, 839 × 1736 px case)", () => {
+    const studio = photoEnlargement({ width: 1280, height: 769 }, { width: 839, height: 1736 });
+    const server = checkPhotoResolution({ ...caseSpec, width: 839, height: 1736, crop: { zoom: 1, x: 0.5, y: 0.5 } }, { width: 1280, height: 769 });
+    expect(studio).toBeCloseTo(2.257, 2);
+    expect(server?.message).toContain("enlarged 2.3×");
+    expect(photoQuality(photoEnlargement({ width: 1280, height: 769 }, { width: 839, height: 1736 }, 2.26))).toBe("too_small");
   });
 
   it("sorts photos into good, soft, low (orderable after confirming) and too small (not orderable)", () => {

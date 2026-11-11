@@ -29,6 +29,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selected, setSelected] = useState<Order | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [cancelProblem, setCancelProblem] = useState("");
   const [toast, setToast] = useState("");
 
   const load = async () => {
@@ -39,10 +40,16 @@ export default function AdminOrdersPage() {
   };
   useEffect(() => { void load().catch((reason) => { setToast(reason instanceof Error ? reason.message : "Unable to load orders"); setLoadFailed(true); }).finally(() => setLoaded(true)); }, []);
 
-  const remove = async () => {
+  const remove = async (force = false) => {
     if (!selected) return;
-    const response = await fetch(`/api/admin/orders?id=${selected.dbId}`, { method: "DELETE" });
-    if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || "Unable to delete order"); }
+    const response = await fetch(`/api/admin/orders?id=${selected.dbId}${force ? "&force=1" : ""}`, { method: "DELETE" });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      // A print order could not be cancelled at its shop: say so and let the admin decide.
+      if (body.cancelFailed) { setCancelProblem(body.error); return; }
+      throw new Error(body.error || "Unable to delete order");
+    }
+    setCancelProblem("");
     setConfirming(false);
     setSelected(null);
     await load();
@@ -70,9 +77,9 @@ export default function AdminOrdersPage() {
     </section>
 
     {selected && <div className="fixed inset-0 z-50">
-      <button className="absolute inset-0 bg-[#182443]/25" onClick={() => { setSelected(null); setConfirming(false); }} aria-label="Close" />
+      <button className="absolute inset-0 bg-[#182443]/25" onClick={() => { setSelected(null); setConfirming(false); setCancelProblem(""); }} aria-label="Close" />
       <aside className="absolute bottom-0 right-0 top-0 w-full max-w-[460px] overflow-y-auto bg-white p-6 shadow-2xl sm:p-8">
-        <button onClick={() => { setSelected(null); setConfirming(false); }} className="float-right text-xs font-black text-[#737b90]">Close</button>
+        <button onClick={() => { setSelected(null); setConfirming(false); setCancelProblem(""); }} className="float-right text-xs font-black text-[#737b90]">Close</button>
         <p className="pt-8 text-[10px] font-black tracking-widest text-[#ee5264]">ORDER DETAIL</p>
         <h2 className="mt-2 break-all text-2xl font-black">{selected.id}</h2>
         <p className="mt-2 text-sm text-[#737b90]">{selected.email}</p>
@@ -97,10 +104,11 @@ export default function AdminOrdersPage() {
           ? <button onClick={() => setConfirming(true)} className="mt-8 w-full rounded-full border border-[#f3c6c2] px-5 py-3.5 text-sm font-black text-[#c94758]">Delete this order</button>
           : <div role="alertdialog" aria-modal="true" aria-labelledby="delete-order-title" className="mt-8 rounded-2xl border border-[#f3c6c2] bg-[#fff0e8] p-4">
             <p id="delete-order-title" className="text-sm font-black text-[#c94758]">Delete order {selected.id}?</p>
-            <p className="mt-1 text-xs leading-5 text-[#59627b]">This permanently removes the order with its items, payment records and print orders from this site. The customer account and the products are kept. A print order already sent to a print shop is <b>not</b> cancelled there.</p>
+            <p className="mt-1 text-xs leading-5 text-[#59627b]">This permanently removes the order with its items, payment records and print orders from this site. The customer account and the products are kept. Print orders already sent are <b>cancelled at the print shop first</b> (only possible before production starts). Payments are not refunded automatically.</p>
+            {cancelProblem && <p role="alert" className="mt-2 rounded-lg bg-white p-2 text-xs font-bold text-[#c94758]">{cancelProblem}</p>}
             <div className="mt-3 flex gap-2">
-              <button onClick={() => setConfirming(false)} className="flex-1 rounded-full border border-[#dfd3cc] bg-white px-4 py-2.5 text-xs font-black">Keep order</button>
-              <LoadingButton onClick={remove} loadingLabel="Deleting…" errorMessage="Unable to delete the order. Try again." className="flex-1 rounded-full bg-[#c94758] px-4 py-2.5 text-xs font-black text-white disabled:opacity-60">Delete permanently</LoadingButton>
+              <button onClick={() => { setConfirming(false); setCancelProblem(""); }} className="flex-1 rounded-full border border-[#dfd3cc] bg-white px-4 py-2.5 text-xs font-black">Keep order</button>
+              <LoadingButton onClick={() => remove(Boolean(cancelProblem))} loadingLabel={cancelProblem ? "Deleting…" : "Cancelling and deleting…"} errorMessage="Unable to delete the order. Try again." className="flex-1 rounded-full bg-[#c94758] px-4 py-2.5 text-xs font-black text-white disabled:opacity-60">{cancelProblem ? "Delete anyway" : "Delete permanently"}</LoadingButton>
             </div>
           </div>}
       </aside>

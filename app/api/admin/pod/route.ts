@@ -5,8 +5,10 @@ import { requireAdmin } from "@/lib/server/auth";
 import { handleApiError, jsonError } from "@/lib/server/http";
 import { prisma } from "@/lib/server/prisma";
 import { podAutoSubmit, podMode, webhookSecret } from "@/lib/pod/config";
-import { attachDesignPages, attachPrintFile, confirmDraft, prepareFulfillments, readArtwork, readIssues, refreshReadiness, resetPrintFile, submitFulfillment, syncFulfillment, syncStaleFulfillments } from "@/lib/pod/fulfillment";
+import { attachDesignPages, attachPrintFile, cancelFulfillment, confirmDraft, prepareFulfillments, readArtwork, readIssues, refreshReadiness, resetPrintFile, submitFulfillment, syncFulfillment, syncStaleFulfillments } from "@/lib/pod/fulfillment";
 import { podAdapter } from "@/lib/pod/providers";
+import { itemShipping, latestEvent, readTracking } from "@/lib/pod/tracking";
+import { registerWebhook, webhookSetupState } from "@/lib/pod/webhooks";
 import { POD_PROVIDERS } from "@/lib/products";
 
 export const runtime = "nodejs";
@@ -20,7 +22,9 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("sync"), id: z.string().cuid() }),
   z.object({ action: z.literal("recheck"), id: z.string().cuid() }),
   z.object({ action: z.literal("confirm"), id: z.string().cuid() }),
+  z.object({ action: z.literal("cancel"), id: z.string().cuid() }),
   z.object({ action: z.literal("prepare"), orderId: z.string().cuid() }),
+  z.object({ action: z.literal("register_webhook"), provider: z.literal("PRINTFUL") }),
   z.object({ action: z.literal("attach"), itemId: z.string().cuid(), unit: z.number().int().min(0).max(50), area: z.string().trim().min(1).max(40), url: z.string().trim().url().max(2000).refine((value) => value.startsWith("https://"), "The print file must be an https:// URL") }),
   z.object({ action: z.literal("reset"), itemId: z.string().cuid(), unit: z.number().int().min(0).max(50), area: z.string().trim().min(1).max(40) }),
   z.object({ action: z.literal("design"), itemId: z.string().cuid(), pages: z.array(z.object({ side: z.enum(["front", "inside-left", "inside-right", "back"]), url: z.string().trim().url().max(2000).startsWith("https://") })).length(4) }),
@@ -69,11 +73,21 @@ export async function GET(request: NextRequest) {
         autoSubmit: podAutoSubmit(),
         webhooks: Boolean(webhookSecret()),
         cron: Boolean(process.env.CRON_SECRET && process.env.CRON_SECRET.trim().length >= 16),
+        webhookSetup: await webhookSetupState(),
         providers: Object.fromEntries(POD_PROVIDERS.map((name) => [name, podAdapter(name).configurationProblem(mode)])),
       },
       counts: Object.fromEntries(counts.map((row) => [row.status, row._count._all])),
       unprepared,
-      fulfillments: fulfillments.map((item) => ({ ...item, items: item.items.map(({ personalization, ...line }) => ({ ...line, podArtwork: readArtwork(line.podArtwork), podIssues: readIssues(line.podIssues), card: savedCard(personalization), ...savedPhotos(personalization) })) })),
+      fulfillments: fulfillments.map(({ lastResponse: _lastResponse, ...item }) => {
+        const tracking = readTracking(item.tracking);
+        const shipping = new Map(itemShipping(tracking, item.items.map((line) => line.id)).map((entry) => [entry.itemId, entry]));
+        return {
+          ...item,
+          tracking,
+          latestEvent: latestEvent(tracking),
+          items: item.items.map(({ personalization, ...line }) => ({ ...line, shipping: shipping.get(line.id) ?? null, podArtwork: readArtwork(line.podArtwork), podIssues: readIssues(line.podIssues), card: savedCard(personalization), ...savedPhotos(personalization) })),
+        };
+      }),
     });
   } catch (reason) {
     return handleApiError(reason);
@@ -91,12 +105,14 @@ export async function POST(request: NextRequest) {
       case "sync": result = await syncFulfillment(input.id); break;
       case "recheck": result = await refreshReadiness(input.id, { replan: true }); break;
       case "confirm": result = await confirmDraft(input.id); break;
+      case "cancel": result = await cancelFulfillment(input.id); break;
       case "prepare": result = await prepareFulfillments(input.orderId); break;
+      case "register_webhook": result = await registerWebhook(input.provider); break;
       case "attach": result = await attachPrintFile(input.itemId, { unit: input.unit, area: input.area, url: input.url }); break;
       case "reset": result = await resetPrintFile(input.itemId, { unit: input.unit, area: input.area }); break;
       case "design": result = await attachDesignPages(input.itemId, input.pages); break;
     }
-    const entityId = "id" in input ? input.id : "orderId" in input ? input.orderId : input.itemId;
+    const entityId = "id" in input ? input.id : "orderId" in input ? input.orderId : "itemId" in input ? input.itemId : input.provider;
     await prisma.auditLog.create({ data: { adminUserId: admin!.id.startsWith("local") ? null : admin!.id, action: `POD_${input.action.toUpperCase()}`, entity: "PodFulfillment", entityId, metadata: { action: input.action } } });
     const failed = result && typeof result === "object" && "ok" in result && (result as { ok: boolean }).ok === false;
     return NextResponse.json({ result }, { status: failed ? 409 : 200 });
