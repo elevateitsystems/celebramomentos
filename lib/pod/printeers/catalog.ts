@@ -1,4 +1,5 @@
-// Phone case catalog from Printeers (API v1). Server only.
+// Phone case catalog from Printeers. Server only. API v2 when the environment has a v2 secret key (see
+// the "API v2" section below), else API v1:
 //
 // V1 has no product groups: its only catalog call is GET /stock, a flat list of SKUs. A
 // "product group" is therefore derived from the stock attributes: case type + print side +
@@ -7,9 +8,10 @@
 // Product.metadata.printeers); the phone models are the group's SKUs. Nothing here is a
 // hardcoded SKU, model or price. The stock list is cached for a few minutes so the
 // storefront does not download it on every page view.
-import { podMode, printeersConfig } from "../config";
+import { podMode, printeersApiVersion, printeersConfig } from "../config";
 import type { PodMode } from "../types";
 import { printeersApi, type PrinteersStockItem } from "./api";
+import { printeersV2, type V2Product, type V2ProductSummary } from "./api-v2";
 
 const TTL_MS = 10 * 60_000;
 const cache = new Map<string, { at: number; value: Promise<unknown> }>();
@@ -33,10 +35,10 @@ export function linkedProductgroup(metadata: unknown, mode: PodMode = podMode())
   return typeof reference === "string" && reference ? reference : null;
 }
 
-// Usable when the current environment has a partner code and API key.
+// Usable when the environment uses v2 (enabled, with its key), or has a v1 partner code and API key.
 export const printeersCatalogReady = (mode: PodMode = podMode()) => {
   const config = printeersConfig(mode);
-  return Boolean(config.apiKey && config.partnerCode);
+  return printeersApiVersion(mode) === "v2" || Boolean(config.apiKey && config.partnerCode);
 };
 
 // "Apple iPhone 15 Pro Soft case (back printed, transparent)" → "Apple iPhone 15 Pro": the
@@ -98,6 +100,7 @@ export type PrinteersProductgroup = { reference: string; name: string; private: 
 
 // Groups with at least one orderable model. Prices are the lowest of the group's SKUs (EUR cents).
 export async function productgroups(mode: PodMode = podMode()): Promise<PrinteersProductgroup[]> {
+  if (printeersApiVersion(mode) === "v2") return v2Productgroups(mode);
   const groups = new Map<string, PrinteersProductgroup>();
   for (const { item, group } of await stockCases(mode)) {
     if (!orderable(item)) continue;
@@ -119,6 +122,7 @@ export type PhoneModel = { reference: string; name: string; available: boolean; 
 // under two SKUs (e.g. "Samsung Galaxy J3 (2016)" twice): the customer sees each phone once, preferring
 // a SKU in stock over one on backorder.
 export async function phoneModels(productgroupReference: string, mode: PodMode = podMode()): Promise<PhoneModel[]> {
+  if (printeersApiVersion(mode) === "v2") return v2PhoneModels(productgroupReference, mode);
   const byName = new Map<string, PhoneModel>();
   for (const { item, group } of await stockCases(mode)) {
     if (group !== productgroupReference || !orderable(item)) continue;
@@ -139,7 +143,7 @@ export type PhoneModelDetail = {
   // Mockup layers (bottom → photo through mask → top) for the live preview. In V1 every layer
   // image is the same square canvas: the mask is a full-canvas image and the print area sits
   // at (maskOffsetXPx, maskOffsetYPx) inside it (`maskCanvas`).
-  layers: { top: boolean; mask: boolean; bottom: boolean; mockup: boolean; maskWidthPx: number; maskHeightPx: number; maskOffsetXPx: number; maskOffsetYPx: number; ppmm: number; maskCanvas: true } | null;
+  layers: { top: boolean; mask: boolean; bottom: boolean; mockup: boolean; maskWidthPx: number; maskHeightPx: number; maskOffsetXPx: number; maskOffsetYPx: number; ppmm: number; maskCanvas: boolean } | null;
 };
 
 const layerImages = (item: PrinteersStockItem) => item.rendering_layers;
@@ -164,12 +168,17 @@ function detailOf(item: PrinteersStockItem): PhoneModelDetail {
   };
 }
 
-// A model of the group, or null when the SKU is not part of it or cannot be ordered (never trust the browser).
-export async function phoneModel(productgroupReference: string, sku: string, mode: PodMode = podMode()): Promise<{ detail: PhoneModelDetail; item: PrinteersStockItem } | null> {
+type LayerUrls = Partial<Record<"top" | "mask" | "bottom" | "mockup", string>>;
+
+// A model of the group, or null when the reference is not part of it or cannot be ordered (never trust the
+// browser). The reference is a v1 SKU or a v2 product reference, depending on the environment's API.
+export async function phoneModel(productgroupReference: string, sku: string, mode: PodMode = podMode()): Promise<{ detail: PhoneModelDetail; layers: LayerUrls } | null> {
   if (!/^[A-Za-z0-9_-]{3,80}$/.test(sku)) return null;
+  if (printeersApiVersion(mode) === "v2") return v2PhoneModel(productgroupReference, sku, mode);
   const found = (await stockCases(mode)).find(({ item }) => item.sku === sku);
   if (!found || found.group !== productgroupReference || !orderable(found.item)) return null;
-  return { item: found.item, detail: detailOf(found.item) };
+  const urls = found.item.rendering_layers || {};
+  return { detail: detailOf(found.item), layers: { top: urls.top_url, mask: urls.mask_url, bottom: urls.bottom_url, mockup: urls.mockup_url } };
 }
 
 // Mockup layer images are public files on Printeers' own file hosts.
@@ -178,7 +187,7 @@ const LAYER_HOST = /^files\.(?:test-)?printeers\.com$/;
 // URL of one mockup layer image, as given by Printeers for this SKU (https and a Printeers file host only).
 export async function layerUrl(productgroupReference: string, sku: string, layer: "top" | "mask" | "bottom" | "mockup", mode: PodMode = podMode()) {
   const found = await phoneModel(productgroupReference, sku, mode);
-  const url = found?.item.rendering_layers?.[`${layer}_url` as const];
+  const url = found?.layers[layer];
   if (typeof url !== "string") return null;
   try {
     const parsed = new URL(url);
@@ -186,4 +195,69 @@ export async function layerUrl(productgroupReference: string, sku: string, layer
   } catch {
     return null;
   }
+}
+
+// ── API v2 ──
+// v2 has real product groups ("Phone Soft cases (back printed, transparent)", Productgroup_…), so a phone
+// case product in admin is linked to one of them, and its models are the group's products (Product_…).
+// The list gives name, status and stock; a product's detail adds the print size, the mockup layers
+// (full-canvas mask, print area at maskOffsetXPx/Y: checked on production 2026-11-12) and backorders.
+const SELLABLE = new Set(["launched", "prelaunched", "announced"]);
+const PHONE_GROUP = /^phone\b.*\bcases?\b/i;
+
+async function v2Productgroups(mode: PodMode): Promise<PrinteersProductgroup[]> {
+  const groups = await cached(`${mode}:v2:groups`, () => printeersV2.productgroups({ mode }));
+  return groups.filter((group) => PHONE_GROUP.test(group.name))
+    .map((group) => ({ reference: group.reference, name: group.name, private: group.private, suggestedRetailPrice: group.suggestedRetailPrice ?? null, price: group.price ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+}
+
+const v2Products = (mode: PodMode, group: string) => cached(`${mode}:v2:products:${group}`, () => printeersV2.products({ mode }, group));
+const v2Product = (mode: PodMode, reference: string) => cached(`${mode}:v2:product:${reference}`, () => printeersV2.product({ mode }, reference));
+
+// In stock, or out of stock and open to backorders (only the detail says so; read for those few products).
+async function v2Availability(mode: PodMode, summary: V2ProductSummary) {
+  if (summary.availableQuantity > 0) return { available: true, backorder: false };
+  const product = await v2Product(mode, summary.reference).catch(() => null);
+  const backorder = Boolean(product?.availability?.canBackorder);
+  return { available: backorder, backorder };
+}
+
+async function v2PhoneModels(group: string, mode: PodMode): Promise<PhoneModel[]> {
+  const summaries = (await v2Products(mode, group)).filter((product) => SELLABLE.has(product.status));
+  const models = await Promise.all(summaries.map(async (product) => ({ reference: product.reference, name: phoneModelName(product.name), ...(await v2Availability(mode, product)) })));
+  const byName = new Map<string, PhoneModel>();
+  for (const model of models) {
+    if (!model.available) continue;
+    const kept = byName.get(model.name);
+    if (!kept || (kept.backorder && !model.backorder)) byName.set(model.name, model);
+  }
+  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+}
+
+export function v2Detail(product: V2Product): PhoneModelDetail {
+  const quantity = product.availability?.quantity ?? product.availableQuantity ?? 0;
+  const backorder = quantity <= 0 && Boolean(product.availability?.canBackorder);
+  const layers = product.layers;
+  const usable = layers && layers.ppmm > 0 && layers.maskWidthPx > 0 && layers.maskHeightPx > 0 && Number.isFinite(layers.maskOffsetXPx) && Number.isFinite(layers.maskOffsetYPx) && (layers.bottom || layers.mockup);
+  return {
+    reference: product.reference,
+    name: phoneModelName(product.name),
+    available: SELLABLE.has(product.status) && (quantity > 0 || backorder),
+    backorder,
+    printMm: product.print?.widthMm && product.print.heightMm ? { width: product.print.widthMm, height: product.print.heightMm } : null,
+    layers: usable ? {
+      top: Boolean(layers.top), mask: Boolean(layers.mask), bottom: Boolean(layers.bottom), mockup: Boolean(layers.mockup),
+      maskWidthPx: layers.maskWidthPx, maskHeightPx: layers.maskHeightPx, maskOffsetXPx: layers.maskOffsetXPx, maskOffsetYPx: layers.maskOffsetYPx, ppmm: layers.ppmm, maskCanvas: true,
+    } : null,
+  };
+}
+
+async function v2PhoneModel(group: string, reference: string, mode: PodMode) {
+  if (!/^Product_[A-Za-z0-9]+$/.test(reference)) return null;
+  const product = await v2Product(mode, reference).catch((reason) => { if (reason?.status === 404) return null; throw reason; });
+  if (!product || product.productgroupReference !== group) return null;
+  const detail = v2Detail(product);
+  if (!detail.available) return null;
+  return { detail, layers: { top: product.layers?.top, mask: product.layers?.mask, bottom: product.layers?.bottom, mockup: product.layers?.mockup } };
 }

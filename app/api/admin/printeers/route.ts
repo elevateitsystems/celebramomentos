@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { podMode } from "@/lib/pod/config";
+import { podMode, printeersApiVersion } from "@/lib/pod/config";
 import { PodApiError } from "@/lib/pod/http";
 import { printeersApi } from "@/lib/pod/printeers/api";
+import { printeersV2 } from "@/lib/pod/printeers/api-v2";
 import { printeersEnvironment, productgroups } from "@/lib/pod/printeers/catalog";
 import { podAdapter } from "@/lib/pod/providers";
 import { requireAdmin } from "@/lib/server/auth";
@@ -18,8 +19,9 @@ export async function GET() {
   const environment = printeersEnvironment(mode);
   const problem = podAdapter("PRINTEERS").configurationProblem(mode);
   try {
-    await printeersApi.validate({ mode });
-    return NextResponse.json({ environment, problem, connected: true, productgroups: await productgroups(mode) });
+    const api = printeersApiVersion(mode);
+    if (api === "v2") await printeersV2.validate({ mode }); else await printeersApi.validate({ mode });
+    return NextResponse.json({ environment, api, problem, connected: true, productgroups: await productgroups(mode) });
   } catch (reason) {
     const message = reason instanceof PodApiError ? reason.message : "Printeers could not be reached";
     return NextResponse.json({ environment, problem: problem || message, connected: false, productgroups: [] });

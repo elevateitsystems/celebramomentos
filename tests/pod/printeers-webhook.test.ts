@@ -15,7 +15,7 @@ vi.mock("@/lib/server/prisma", () => ({
     },
     podFulfillment: {
       findMany: async (args: unknown) => { findManyArgs = args; return fulfillments.filter((item) => ["SUBMITTED", "IN_PRODUCTION"].includes(item.status)).map(({ id }) => ({ id })); },
-      findFirst: async ({ where }: { where: { providerOrderId: string; mode: string } }) => fulfillments.find((item) => item.providerOrderId === where.providerOrderId && item.mode === where.mode) ?? null,
+      findFirst: async ({ where }: { where: { providerOrderId: { in: string[] }; mode: string } }) => fulfillments.find((item) => where.providerOrderId.in.includes(item.providerOrderId) && item.mode === where.mode) ?? null,
     },
   },
 }));
