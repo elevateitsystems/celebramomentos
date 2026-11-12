@@ -15,7 +15,7 @@ import type { PodProvider } from "@prisma/client";
 import { mmToPx, type ImageCrop } from "@/lib/crop";
 import { POSTER_DPI } from "@/lib/print-quality";
 import { gelatoFormatMm, type PrintSpec } from "./artwork";
-import { GELATO_CALENDAR_UIDS, GELATO_POSTER_HANGER_UIDS, GELATO_TOUGH_CASE_UIDS } from "./gelato-catalog";
+import { GELATO_CALENDAR_UIDS, GELATO_POSTER_HANGER_UIDS, GELATO_TOUGH_CASE_UIDS, gelatoCalendarPageMm } from "./gelato-catalog";
 import type { PodIssue } from "./types";
 
 export type ItemContext = {
@@ -162,8 +162,12 @@ function mapGelato(ctx: ItemContext): ItemMapping {
     const format = CALENDAR_FORMATS.find(([pattern]) => pattern.test(ctx.variantName || ""))?.[1];
     const uid = ctx.podSku || (format ? GELATO_CALENDAR_UIDS[format] : undefined);
     if (!uid) return { units: [], issues: [blocker("unmapped", `Calendar size "${ctx.variantName}" has no Gelato calendar`)] };
-    // Gelato prints calendars from one 14-page PDF; the month layout is drawn in the browser.
-    return { units: [{ productRef: uid, specs: [{ area: "default", kind: "admin", description: "Print-ready 14-page calendar PDF (cover + 12 months + back) at the calendar size" }] }], issues: [] };
+    // Gelato prints calendars from one 14-page PDF (cover + 12 months + back), made by the site from the
+    // customer's month photos. A calendar size whose page size is unknown needs a file from an admin.
+    const page = gelatoCalendarPageMm(uid);
+    if (!ctx.photoCount) return { units: [], issues: [blocker("missing_photos", "The calendar has no photos")] };
+    const description = "14-page calendar PDF (cover + 12 months + back) at the calendar size";
+    return { units: [{ productRef: uid, specs: [page ? { area: "default", kind: "calendar", widthMm: page.width, heightMm: page.height, description } : { area: "default", kind: "admin", description: `Print-ready ${description}` }] }], issues: [] };
   }
   if (ctx.kind === "PHONE_CASE") {
     const tough = /tough|rígida|rigida|resistente/i.test(`${ctx.productName} ${ctx.variantName || ""}`);
@@ -205,10 +209,12 @@ export function mapOrderItem(ctx: ItemContext): ItemMapping {
 // The size (px) a customer photo is checked against in the product studio, from the same mapping the server
 // uses to make the print file: the exact file for fill products (magnets), the poster's printed size at the
 // recommended dpi. Null when there is nothing meaningful to compare (mug wraps are padded, not cropped).
-export function studioPhotoTarget(ctx: ItemContext): { width: number; height: number } | null {
+export function studioPhotoTarget(ctx: ItemContext): { width: number; height: number; fit?: "contain" } | null {
   const spec = mapOrderItem(ctx).units[0]?.specs.find((item) => item.kind === "photo");
   if (!spec || spec.kind !== "photo") return null;
   if (spec.fit === "fill" && spec.width && spec.height) return { width: spec.width, height: spec.height };
+  // Mugs: the photo is fitted inside the wrap file, as the server's "pad" check measures it.
+  if (spec.fit === "pad" && spec.width && spec.height) return { width: spec.width, height: spec.height, fit: "contain" };
   if (spec.fit === "aspect" && spec.minDpiSize) return { width: Math.round((spec.minDpiSize.widthMm / 25.4) * POSTER_DPI), height: Math.round((spec.minDpiSize.heightMm / 25.4) * POSTER_DPI) };
   return null;
 }

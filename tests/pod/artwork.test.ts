@@ -28,7 +28,7 @@ describe("print file URLs", () => {
 describe("artwork validation", () => {
   it("accepts photos large enough and warns about strongly enlarged ones", () => {
     expect(checkPhotoResolution(photo({}), { width: 1200, height: 900 })).toBeNull();
-    expect(checkPhotoResolution(photo({ width: 2700, height: 1050, fit: "pad" }), { width: 640, height: 480 })).toMatchObject({ code: "low_resolution", severity: "warning" });
+    expect(checkPhotoResolution(photo({ width: 2700, height: 1050, fit: "pad" }), { width: 640, height: 480 })).toMatchObject({ code: "low_resolution", severity: "info" });
   });
 
   it("checks posters in dpi at their printed size", () => {

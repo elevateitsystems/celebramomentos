@@ -125,6 +125,7 @@ export function buildGelatoOrder(input: SubmissionInput) {
       itemReferenceId: line.itemId,
       productUid: line.productRef,
       quantity: line.quantity,
+      ...(line.pageCount ? { pageCount: line.pageCount } : {}),
       files: line.files.map((file) => ({ type: file.area, url: file.url })),
     })),
     shippingAddress: {

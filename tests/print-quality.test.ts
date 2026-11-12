@@ -43,16 +43,10 @@ describe("photo size against its print file", () => {
 });
 
 describe("print-file check on the server", () => {
-  it("holds clearly blurry photos (over 2×) the customer did not accept, for an admin", () => {
-    expect(checkPhotoResolution(caseSpec, { width: 427, height: 585 })).toMatchObject({ code: "low_resolution", severity: "warning", message: expect.stringContaining("likely to print blurry") });
-  });
-
-  it("sends a low-resolution photo automatically when the customer accepted the warning in the studio", () => {
-    expect(checkPhotoResolution(caseSpec, { width: 427, height: 585 }, { accepted: true })).toMatchObject({ code: "low_resolution", severity: "info", message: expect.stringContaining("chose to order it") });
-  });
-
-  it("still holds a photo far too small (over 4×), even if marked as accepted", () => {
-    expect(checkPhotoResolution(caseSpec, { width: 181, height: 238 }, { accepted: true })).toMatchObject({ code: "low_resolution", severity: "warning" });
+  it("never holds an order for a small photo: the admin gets a note on how it will print", () => {
+    expect(checkPhotoResolution(caseSpec, { width: 427, height: 585 })).toMatchObject({ code: "low_resolution", severity: "info", message: expect.stringContaining("visibly softer") });
+    expect(checkPhotoResolution(caseSpec, { width: 427, height: 585 }, { accepted: true })).toMatchObject({ severity: "info", message: expect.stringContaining("the customer saw the warning") });
+    expect(checkPhotoResolution(caseSpec, { width: 181, height: 238 })).toMatchObject({ severity: "info", message: expect.stringContaining("pixelated") });
   });
 
   it("only notes slightly soft photos (1.5× to 2×): the order is sent automatically", () => {
@@ -76,10 +70,9 @@ describe("posters are judged in dpi with the same limits", () => {
     expect(checkPhotoResolution(poster, { width: 800, height: 640 })).toMatchObject({ code: "low_resolution", severity: "info", message: expect.stringContaining("81 dpi") });
   });
 
-  it("holds 37–75 dpi unless the customer accepted the warning, and always holds anything lower", () => {
-    expect(checkPhotoResolution(poster, { width: 400, height: 320 })).toMatchObject({ severity: "warning" });
-    expect(checkPhotoResolution(poster, { width: 400, height: 320 }, { accepted: true })).toMatchObject({ severity: "info", message: expect.stringContaining("chose to order it") });
-    expect(checkPhotoResolution(poster, { width: 150, height: 120 }, { accepted: true })).toMatchObject({ severity: "warning" });
+  it("notes low-dpi posters for the admin but always sends them", () => {
+    expect(checkPhotoResolution(poster, { width: 400, height: 320 })).toMatchObject({ severity: "info", message: expect.stringContaining("visibly softer") });
+    expect(checkPhotoResolution(poster, { width: 150, height: 120 }, { accepted: true })).toMatchObject({ severity: "info", message: expect.stringContaining("pixelated") });
   });
 });
 

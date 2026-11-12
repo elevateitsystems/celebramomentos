@@ -103,6 +103,23 @@ export async function uploadRemoteImageToCloudinary(input: { url: string; folder
   return { publicId: body.public_id, secureUrl: body.secure_url, bytes: body.bytes || 0, version: body.version, assetId: body.asset_id, width: body.width, height: body.height, format: body.format };
 }
 
+// Uploads a generated file (e.g. a calendar PDF) as a Cloudinary "raw" asset, delivered as it is at
+// https://res.cloudinary.com/<cloud>/raw/upload/…/<publicId> (the public id keeps the file extension).
+export async function uploadFileToCloudinary(input: { bytes: Uint8Array; folder: string; publicId: string; contentType: string }): Promise<CloudinaryUploadResult & { format?: string }> {
+  const { apiKey } = config();
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signed = { folder: input.folder, overwrite: "true", public_id: input.publicId, timestamp };
+  const form = new FormData();
+  form.append("file", new Blob([input.bytes as unknown as BlobPart], { type: input.contentType }), input.publicId);
+  for (const [key, value] of Object.entries(signed)) form.append(key, String(value));
+  form.append("api_key", apiKey);
+  form.append("signature", signCloudinaryParams(signed));
+  const response = await fetch(cloudinaryUploadUrl().replace("/image/upload", "/raw/upload"), { method: "POST", body: form, signal: AbortSignal.timeout(60_000) });
+  const body = await response.json().catch(() => ({})) as { public_id?: string; secure_url?: string; bytes?: number; version?: number; asset_id?: string; error?: { message?: string } };
+  if (!response.ok || !body.public_id || !body.secure_url) throw new Error(body.error?.message || `Cloudinary upload failed (HTTP ${response.status})`);
+  return { publicId: body.public_id, secureUrl: body.secure_url, bytes: body.bytes || 0, version: body.version, assetId: body.asset_id };
+}
+
 export function verifyCloudinaryUpload(input: { publicId: string; version: number; signature: string; secureUrl: string }) {
   const { cloudName } = config();
   const expected = signCloudinaryParams({ public_id: input.publicId, version: input.version });

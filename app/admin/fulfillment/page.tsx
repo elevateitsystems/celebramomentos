@@ -9,7 +9,7 @@ import type { CardCustomization } from "@/lib/store";
 
 type Issue = { code: string; severity: "blocker" | "warning" | "info"; message: string };
 type Reference = { label: string; side?: string; url: string; width?: number; height?: number };
-type Slot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; kind?: "photo" | "pages" | "admin"; description?: string; width?: number; height?: number; format?: string; fit?: "fill" | "pad" | "aspect" | "original"; original?: string | null; verified?: { width: number; height: number } | null; references?: Reference[] };
+type Slot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; kind?: "photo" | "pages" | "admin" | "calendar"; description?: string; width?: number; height?: number; format?: string; fit?: "fill" | "pad" | "aspect" | "original"; original?: string | null; verified?: { width: number; height: number } | null; references?: Reference[]; pages?: number };
 type Item = { id: string; name: string; quantity: number; podProductRef: string | null; podArtwork: Slot[]; podIssues: Issue[]; card: CardCustomization | null; kind: string | null; photos: (string | null)[]; shipping: { state: "pending" | "shipped" | "delivered"; shipmentIds: string[] } | null };
 type TrackingEvent = { at: string | null; description: string; location: string | null };
 type Shipment = { id: string; carrier: string | null; service: string | null; trackingNumber: string | null; trackingUrl: string | null; status: string; shippedAt: string | null; deliveredAt: string | null; estimatedDelivery: { from: string | null; to: string | null } | null; location: string | null; items: { itemId: string | null; sku?: string | null; quantity: number | null }[]; events: TrackingEvent[] };
@@ -220,7 +220,7 @@ function Thumb({ url, label, detail }: { url: string; label: string; detail?: st
   </a>;
 }
 
-const SOURCE_LABEL: Record<string, string> = { design: "rendered from the customer's design", admin: "attached by admin", customer: "link to the customer's photo — not checked" };
+const SOURCE_LABEL: Record<string, string> = { design: "made from the customer's design", admin: "attached by admin", customer: "link to the customer's photo — not checked" };
 
 function requiredSize(slot: Slot) {
   if (slot.fit === "original") return "the customer's photo as uploaded";
@@ -266,7 +266,8 @@ function ArtworkSlot({ slot, item, editable, busy, act, onToast }: { slot: Slot;
   const size = requiredSize(slot);
   // Card and photo print files are made automatically from the customer's design; only products
   // with no automatic file (e.g. calendars) take a file from the admin. Older slots have no kind.
-  const manual = slot.kind ? slot.kind === "admin" : !slot.fit && !slot.references?.length;
+  // Calendars are made automatically too, but an admin may replace the PDF with their own.
+  const manual = slot.kind ? slot.kind === "admin" || slot.kind === "calendar" : !slot.fit && !slot.references?.length;
   const checked = slot.verified ? `${slot.verified.width} × ${slot.verified.height} px${slot.width && slot.fit !== "aspect" && slot.verified.width === slot.width && slot.verified.height === slot.height ? " ✓" : ""}` : slot.url ? "size not checked" : undefined;
   return <div className="mt-3 rounded-xl bg-[#fafbfc] p-3 text-[11px]">
     <p className="font-black">Print file{slot.unit ? ` ${slot.unit + 1}` : ""} · {slot.area}</p>
@@ -288,7 +289,7 @@ function ArtworkSlot({ slot, item, editable, busy, act, onToast }: { slot: Slot;
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
       <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="or paste an https:// link" className="min-w-[180px] flex-1 rounded-full border border-[#e4e7ee] px-3 py-1.5" aria-label="Print file link" />
       <button type="button" disabled={!url.trim() || Boolean(busy)} onClick={() => void attach(url.trim()).then(() => setUrl(""))} className="rounded-full border border-[#dfd3cc] px-3 py-1.5 font-black disabled:opacity-50">Use link</button>
-      {slot.source === "admin" && slot.original && <button type="button" disabled={Boolean(busy)} onClick={() => { if (window.confirm("Remove the attached file and render the print file again from the customer's design?")) void act(`reset-${label}`, { action: "reset", itemId: item.id, unit: slot.unit, area: slot.area }, "Print file rendered from the customer's design"); }} className="rounded-full border border-[#dfd3cc] px-3 py-1.5 font-black disabled:opacity-50">Use customer&apos;s design</button>}
+      {slot.source === "admin" && (slot.original || slot.kind === "calendar") && <button type="button" disabled={Boolean(busy)} onClick={() => { if (window.confirm("Remove the attached file and render the print file again from the customer's design?")) void act(`reset-${label}`, { action: "reset", itemId: item.id, unit: slot.unit, area: slot.area }, "Print file rendered from the customer's design"); }} className="rounded-full border border-[#dfd3cc] px-3 py-1.5 font-black disabled:opacity-50">Use customer&apos;s design</button>}
     </div>}
   </div>;
 }

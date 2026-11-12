@@ -36,6 +36,8 @@ export type SubmissionLine = {
   quantity: number;
   files: PrintFile[];
   name: string;
+  // Multi-page products (a calendar PDF has 14 pages).
+  pageCount?: number;
 };
 
 export type SubmissionInput = {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// A Printeers phone case ordered with a small photo (427 × 585 px, the reported case): it is held for an
-// admin unless the customer confirmed the quality warning in the studio, in which case it is sent.
+// A Printeers phone case ordered with a small photo (427 × 585 px, the reported case): it is sent
+// automatically at the exact print size, with a note for the admin; a small photo never holds an order.
 const CLOUD = "https://res.cloudinary.com/celebra/image/upload/";
 const PHOTO = `${CLOUD}v1/celebramomentos/customer_upload/photo.jpg`;
 const state = vi.hoisted(() => ({ photo: { width: 427, height: 585 } }));
@@ -31,22 +31,19 @@ const caseItem = (qualityAccepted?: boolean) => ({
 beforeEach(() => { state.photo = { width: 427, height: 585 }; });
 
 describe("Printeers phone case with a small photo", () => {
-  it("is held for an admin when the customer did not confirm the quality warning", async () => {
-    const plan = await planItem(caseItem(), []);
-    expect(plan.provider).toBe("PRINTEERS");
-    expect(plan.issues).toEqual([expect.objectContaining({ code: "low_resolution", severity: "warning" })]);
-  });
-
-  it("is sent automatically (only a note for the admin) when the customer confirmed it", async () => {
+  it("is sent automatically (a note for the admin), whether or not the customer saw the warning", async () => {
+    expect((await planItem(caseItem(), [])).issues).toEqual([expect.objectContaining({ code: "low_resolution", severity: "info" })]);
     const plan = await planItem(caseItem(true), []);
+    expect(plan.provider).toBe("PRINTEERS");
     expect(plan.issues).toEqual([expect.objectContaining({ code: "low_resolution", severity: "info" })]);
+    // The print file is still made at the exact print shape the shop needs.
     expect(plan.artwork[0]).toMatchObject({ source: "design", width: 827, height: 1724, verified: { width: 827, height: 1724 } });
   });
 
-  it("is still held when the photo is far too small, whatever the browser sent", async () => {
+  it("is sent even when the photo is far too small (the admin is told it may print pixelated)", async () => {
     state.photo = { width: 181, height: 238 };
     const plan = await planItem(caseItem(true), []);
-    expect(plan.issues).toEqual([expect.objectContaining({ code: "low_resolution", severity: "warning" })]);
+    expect(plan.issues).toEqual([expect.objectContaining({ code: "low_resolution", severity: "info", message: expect.stringContaining("pixelated") })]);
   });
 
   it("keeps the confirmation through the checkout schema (and only as a boolean)", () => {

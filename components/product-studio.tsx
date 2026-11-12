@@ -66,7 +66,7 @@ function usePhotoSizes(photos: (string | null)[]) {
 // The worst photo for its print file: "too_small" (cannot be ordered) or "low" (can be ordered once the
 // customer confirms they accept a less sharp print), with the size that prints sharp; null when every
 // photo is good enough or its size is not known yet.
-function photoCheck(photos: (string | null)[], sizes: Record<string, { width: number; height: number }>, printFile: PrintFile | null, zoom = 1): { level: Extract<PhotoQuality, "low" | "too_small">; index: number; size: { width: number; height: number }; minimum: { width: number; height: number } } | null {
+function photoCheck(photos: (string | null)[], sizes: Record<string, { width: number; height: number }>, printFile: (PrintFile & { fit?: "cover" | "contain" }) | null, zoom = 1): { level: Extract<PhotoQuality, "low" | "too_small">; index: number; size: { width: number; height: number }; minimum: { width: number; height: number } } | null {
   if (!printFile) return null;
   let worst: ReturnType<typeof photoCheck> = null;
   for (const [index, photo] of photos.entries()) {
@@ -205,6 +205,27 @@ function useStudioCatalog(kind: StudioProductKind) {
     trackPixel("ViewContent", { content_ids: [selected.id], content_name: selected.name, content_type: "product", currency: "EUR", value: Math.min(...prices) / 100 });
   }, [selected]);
 
+  // Sizes the print shop really makes (checked with the same mapping the server uses): a size it never makes
+  // is not offered at all, and one it makes in a single orientation switches the orientation by itself.
+  // Mugs and phone cases are checked against their own colour / model lists instead.
+  const checksSizes = Boolean(selected && selected.kind !== "MUG" && selected.kind !== "PHONE_CASE");
+  const combination = (variantName: string | null, options: Record<string, string>) => selected ? unavailableCombination({ kind: selected.kind, provider: podProviderFor(selected.kind, selected.metadata?.provider), productName: selected.name, variantName, podSku: null, options, photoCount: 1, cardSize: null, cardSku: null }) : null;
+  const variants = selected ? selected.variants.filter((item) => !checksSizes || combination(item.name, config.options)?.reason !== "size") : [];
+
+  useEffect(() => {
+    if (!selected || config.productId !== selected.id || !checksSizes) return;
+    const current = selected.variants.find((item) => item.id === config.variantId) || null;
+    // A size that cannot be made at all (e.g. one left in admin by mistake): move to the first one that can.
+    if (current && !variants.some((item) => item.id === current.id) && variants[0]) { setConfig((value) => ({ ...value, variantId: variants[0].id })); return; }
+    const problem = combination(current?.name ?? null, config.options);
+    if (problem?.reason !== "orientation") return;
+    const option = selected.options.find((item) => /orienta/i.test(item.key) || /orienta/i.test(item.name));
+    const choice = option?.config?.choices?.find((value) => value.toLowerCase() === problem.available.toLowerCase());
+    if (option && choice) setConfig((value) => ({ ...value, options: { ...value.options, [option.key]: choice } }));
+  // `combination` and `variants` are derived from the values listed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, config, checksSizes]);
+
   const ready = Boolean(selected && config.productId === selected.id);
   const variant = selected?.variants.find((item) => item.id === config.variantId) || null;
   const priceCents = selected ? variant?.priceCents ?? (selected.variants.length ? null : selected.basePriceCents) : null;
@@ -234,6 +255,15 @@ function useStudioCatalog(kind: StudioProductKind) {
     missingOption,
     optionValue,
     hasOption,
+    // The sizes offered: only those the print shop makes.
+    variants,
+    // Size that exists in one orientation only: shown next to the orientation choice.
+    orientationNote: (() => {
+      const key = selected?.options.find((item) => /orienta/i.test(item.key) || /orienta/i.test(item.name))?.key;
+      if (!checksSizes || !variant || !key) return null;
+      const onlyIn = (orientation: string) => combination(variant.name, { ...config.options, [key]: orientation === "Vertical" ? "Horizontal" : "Vertical" })?.reason === "orientation";
+      return onlyIn("Vertical") ? "Vertical" : onlyIn("Horizontal") ? "Horizontal" : null;
+    })(),
     photoCount: selected ? requiredPhotoCount(selected, variant) : 1,
     printFile: selected ? productPrintFile(selected.metadata) : null,
     image: selected?.images[0]?.asset.url || null,
@@ -269,10 +299,10 @@ function CatalogControls({ studio, es, sizeLabel, variantName, hideOption }: { s
         {catalog.products.length > 1 && <a href="#catalog" className="mt-1.5 inline-block text-[11px] font-black text-[#182443] underline underline-offset-2 hover:text-[#ee5264]">{es ? "Ver otros productos" : "Ver outros produtos"}</a>}
       </div>
     </div>
-    {selected.variants.length > 0 && <fieldset>
+    {studio.variants.length > 0 && <fieldset>
       <legend className="text-sm font-black">{sizeLabel || (es ? "Tamaño" : "Tamanho")}</legend>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {selected.variants.map((variant) => <button key={variant.id} type="button" onClick={() => studio.setVariant(variant.id)} aria-pressed={studio.variant?.id === variant.id} className={`focus-ring rounded-xl border p-3 text-left transition ${studio.variant?.id === variant.id ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}><span className="block text-sm font-black text-[#182443]">{variantName ? variantName(variant) : variant.name}</span><span className="mt-1 block text-xs font-black text-[#ee5264]">{formatCents(variant.priceCents)}</span></button>)}
+        {studio.variants.map((variant) => <button key={variant.id} type="button" onClick={() => studio.setVariant(variant.id)} aria-pressed={studio.variant?.id === variant.id} className={`focus-ring rounded-xl border p-3 text-left transition ${studio.variant?.id === variant.id ? "border-[#ee5264] bg-[#fff0e8]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}><span className="block text-sm font-black text-[#182443]">{variantName ? variantName(variant) : variant.name}</span><span className="mt-1 block text-xs font-black text-[#ee5264]">{formatCents(variant.priceCents)}</span></button>)}
       </div>
     </fieldset>}
     {selected.options.filter((option) => !hideOption?.(option)).map((option) => {
@@ -285,8 +315,10 @@ function CatalogControls({ studio, es, sizeLabel, variantName, hideOption }: { s
         const list = (items: string[]) => items.map((choice) => <option key={choice} value={choice}>{choice}</option>);
         return <label key={option.id} className="block text-sm font-black">{legend}<select value={value} onChange={(event) => studio.setOption(option.key, event.target.value)} className="focus-ring mt-2 w-full rounded-xl border border-[#dfd3cc] bg-white p-3 text-sm font-bold text-[#182443]"><option value="" disabled={option.required}>{option.required ? (es ? "Elige una opción…" : "Escolhe uma opção…") : (es ? "Sin elegir" : "Sem escolha")}</option>{groups ? groups.map(([label, items]) => <optgroup key={label} label={label}>{list(items)}</optgroup>) : list(choices)}</select></label>;
       }
+      const onlyOne = /orienta/i.test(option.key) || /orienta/i.test(option.name) ? studio.orientationNote : null;
       return <fieldset key={option.id}>
         <legend className="text-sm font-black">{legend}</legend>
+        {onlyOne && <p className="mt-1 text-[11px] font-bold text-[#8a5a00]">{es ? `Este tamaño solo se fabrica en ${onlyOne.toLowerCase()}.` : `Este tamanho só é fabricado na ${onlyOne.toLowerCase()}.`}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           {choices.map((choice) => <button key={choice} type="button" onClick={() => studio.setOption(option.key, value === choice && !option.required ? "" : choice)} aria-pressed={value === choice} className={`focus-ring rounded-xl border px-3 py-2 text-xs font-black transition ${value === choice ? "border-[#ee5264] bg-[#fff0e8] text-[#ee5264]" : "border-[#dfd3cc] hover:border-[#ee5264]"}`}>{choice}</button>)}
         </div>
@@ -295,7 +327,7 @@ function CatalogControls({ studio, es, sizeLabel, variantName, hideOption }: { s
   </div>;
 }
 
-type StudioAction = { label: string; busy: boolean; disabled?: boolean; hint?: string; onClick: (more?: Partial<CatalogSelection>) => unknown; authPrompt: boolean; onCloseAuth: () => void; returnTo: string; photos: (string | null)[]; printFile: PrintFile | null; zoom?: number };
+type StudioAction = { label: string; busy: boolean; disabled?: boolean; hint?: string; onClick: (more?: Partial<CatalogSelection>) => unknown; authPrompt: boolean; onCloseAuth: () => void; returnTo: string; photos: (string | null)[]; printFile: PrintFile | null; zoom?: number; options: Record<string, string> };
 
 // Add-to-cart action for the selected product.
 function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioCart>, es: boolean, photos: (string | null)[], studioOptions: Record<string, string>, returnTo: string, extra: { selection?: Partial<CatalogSelection>; hint?: string; printFile?: PrintFile | null; zoom?: number } = {}): StudioAction | undefined {
@@ -322,6 +354,9 @@ function catalogAction(studio: StudioCatalog, cart: ReturnType<typeof useStudioC
     photos,
     printFile: extra.printFile !== undefined ? extra.printFile : studio.printFile,
     zoom: extra.zoom,
+    // Every option the order will carry (the studio's own, e.g. the mug colour, and the admin's), as
+    // toSelection sends them: the size and quality checks must see the same product the server makes.
+    options: Object.fromEntries(Object.entries({ ...studioOptions, ...studio.options }).filter(([, value]) => value)),
   };
 }
 
@@ -339,31 +374,26 @@ function StudioShell({ eyebrow, title, body, controls, preview, es, studio, cata
   // Products without a recommended file set in admin (posters, magnets) use the size the print shop's
   // mapping gives for the chosen size and orientation: the same one the server checks.
   const target = givenAction && !givenAction.printFile && studio.selected
-    ? studioPhotoTarget({ kind: studio.selected.kind, provider: podProviderFor(studio.selected.kind, studio.selected.metadata?.provider), productName: studio.selected.name, variantName: studio.variant?.name ?? null, podSku: null, options: studio.options, photoCount: Math.max(1, studio.photoCount), cardSize: null, cardSku: null })
+    ? studioPhotoTarget({ kind: studio.selected.kind, provider: podProviderFor(studio.selected.kind, studio.selected.metadata?.provider), productName: studio.selected.name, variantName: studio.variant?.name ?? null, podSku: null, options: givenAction.options, photoCount: Math.max(1, studio.photoCount), cardSize: null, cardSku: null })
     : null;
   const check = givenAction ? photoCheck(givenAction.photos, photoSizes, givenAction.printFile || target, givenAction.zoom) : null;
   // A size/option combination the print shop cannot make cannot be added (the server refuses it as well).
-  const unavailable = givenAction && studio.selected ? unavailableCombination({ kind: studio.selected.kind, provider: podProviderFor(studio.selected.kind, studio.selected.metadata?.provider), productName: studio.selected.name, variantName: studio.variant?.name ?? null, podSku: null, options: studio.options, photoCount: Math.max(1, studio.photoCount), cardSize: null, cardSku: null }) : null;
+  const unavailable = givenAction && studio.selected ? unavailableCombination({ kind: studio.selected.kind, provider: podProviderFor(studio.selected.kind, studio.selected.metadata?.provider), productName: studio.selected.name, variantName: studio.variant?.name ?? null, podSku: null, options: givenAction.options, photoCount: Math.max(1, studio.photoCount), cardSize: null, cardSku: null }) : null;
   const unavailableHint = !unavailable ? null : unavailable.reason === "orientation"
     ? (es ? `Este tamaño solo está disponible en ${unavailable.available.toLowerCase()}. Cambia la orientación o elige otro tamaño.` : `Este tamanho só está disponível na ${unavailable.available === "Vertical" ? "vertical" : "horizontal"}. Muda a orientação ou escolhe outro tamanho.`)
     : (es ? "Este tamaño no está disponible ahora mismo. Elige otro tamaño." : "Este tamanho não está disponível neste momento. Escolhe outro tamanho.");
-  // The confirmation belongs to these exact photos, print size and zoom; any change asks again.
-  const qualityKey = givenAction && check ? [givenAction.photos.map((photo) => (photo ? `${photo.length}:${photo.slice(-40)}` : "")).join(","), (givenAction.printFile || target)?.width, (givenAction.printFile || target)?.height, givenAction.zoom ?? 1].join("|") : "";
-  const [acceptedKey, setAcceptedKey] = useState("");
-  const accepted = Boolean(qualityKey) && acceptedKey === qualityKey;
   const zoomed = Boolean(givenAction?.zoom && givenAction.zoom > 1);
   const whichPhoto = (index: number) => (givenAction && givenAction.photos.length > 1 ? (es ? `La foto ${index + 1}` : `A foto ${index + 1}`) : (es ? "Tu foto" : "A tua foto"));
+  // A small photo never stops the order: the print file is always made at the exact size the print shop
+  // needs (lib/pod/fulfillment.ts). The customer is only told it may print less sharp, and the order is
+  // sent automatically with a note for the admin.
   const action: StudioAction | undefined = !givenAction ? undefined
     : unavailableHint ? { ...givenAction, disabled: true, hint: unavailableHint }
-    : check?.level === "too_small" ? { ...givenAction, disabled: true, hint: givenAction.hint || (es
-      ? `${whichPhoto(check.index)} (${check.size.width} × ${check.size.height} px) es demasiado pequeña para imprimirla. Sube una más grande (recomendado: al menos ${check.minimum.width} × ${check.minimum.height} px)${zoomed ? " o reduce el zoom" : ""}.`
-      : `${whichPhoto(check.index)} (${check.size.width} × ${check.size.height} px) é demasiado pequena para imprimir. Carrega uma maior (recomendado: pelo menos ${check.minimum.width} × ${check.minimum.height} px)${zoomed ? " ou reduz o zoom" : ""}.`) }
-    : check?.level === "low" ? { ...givenAction, disabled: givenAction.disabled || !accepted, hint: givenAction.hint || (accepted ? undefined : es ? "Confirma la calidad de tu foto para continuar." : "Confirma a qualidade da tua foto para continuar."), onClick: () => givenAction.onClick({ qualityAccepted: true }) }
+    : check ? { ...givenAction, onClick: () => givenAction.onClick({ qualityAccepted: true }) }
     : givenAction;
-  const qualityConfirm = check?.level === "low" && !givenAction?.hint && !unavailableHint ? <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#f1d9a8] bg-[#fff8ea] p-3.5 text-xs leading-5 text-[#6b4a00]">
-    <input type="checkbox" checked={accepted} onChange={(event) => setAcceptedKey(event.target.checked ? qualityKey : "")} className="mt-0.5 h-4 w-4 shrink-0 accent-[#ee5264]" />
-    <span><b>{es ? `${whichPhoto(check.index)} tiene poca resolución (${check.size.width} × ${check.size.height} px).` : `${whichPhoto(check.index)} tem pouca resolução (${check.size.width} × ${check.size.height} px).`}</b> {es ? `Entiendo que se imprimirá menos nítida que en la vista previa y quiero continuar. Para el mejor resultado, sube una foto de al menos ${check.minimum.width} × ${check.minimum.height} px${zoomed ? " o reduce el zoom" : ""}.` : `Compreendo que ficará menos nítida do que na pré-visualização e quero continuar. Para o melhor resultado, carrega uma foto de pelo menos ${check.minimum.width} × ${check.minimum.height} px${zoomed ? " ou reduz o zoom" : ""}.`}</span>
-  </label> : null;
+  const qualityConfirm = check && !givenAction?.hint && !unavailableHint ? <p role="status" className={`mb-4 rounded-2xl border p-3.5 text-xs leading-5 ${check.level === "too_small" ? "border-[#f3c6c2] bg-[#fff0e8] text-[#a23a49]" : "border-[#f1d9a8] bg-[#fff8ea] text-[#6b4a00]"}`}>
+    <b>{es ? `${whichPhoto(check.index)} tiene poca resolución (${check.size.width} × ${check.size.height} px)` : `${whichPhoto(check.index)} tem pouca resolução (${check.size.width} × ${check.size.height} px)`}{check.level === "too_small" ? (es ? " y puede imprimirse pixelada." : " e pode ficar pixelizada.") : (es ? ": se imprimirá algo menos nítida que en la vista previa." : ": ficará um pouco menos nítida do que na pré-visualização.")}</b> {es ? `Puedes continuar igualmente. Para el mejor resultado, sube una foto de al menos ${check.minimum.width} × ${check.minimum.height} px${zoomed ? " o reduce el zoom" : ""}.` : `Podes continuar na mesma. Para o melhor resultado, carrega uma foto de pelo menos ${check.minimum.width} × ${check.minimum.height} px${zoomed ? " ou reduz o zoom" : ""}.`}
+  </p> : null;
   return <><SiteHeader /><main className="bg-[#fffaf5] py-12 md:py-20"><div className="container"><PageIntro eyebrow={eyebrow} title={title} body={body} /><div className="mt-10 grid gap-7 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><section className="order-2 rounded-[24px] border border-[#eadfd8] bg-white p-5 sm:p-7 lg:order-1"><div className="flex items-center justify-between border-b border-[#eadfd8] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ee5264]">{es ? "TUS OPCIONES" : "AS TUAS OPÇÕES"}</p><h2 className="mt-1 text-lg font-black">{es ? "Hazlo a tu manera" : "Faz à tua maneira"}</h2></div><span className="rounded-full bg-[#fff0e8] px-3 py-1.5 text-xs font-black text-[#ee5264]">{catalogPriceChip(studio, es)}</span></div><CatalogControls studio={studio} es={es} sizeLabel={sizeLabel} variantName={variantName} hideOption={hideOption} />{studio.selected && controls}<div className="mt-7 border-t border-[#eadfd8] pt-5">{action ? <>{qualityConfirm}<LoadingButton onClick={() => action.onClick()} loading={action.busy} disabled={action.disabled} loadingLabel={action.label} errorMessage={es ? "No se pudo añadir el producto a la cesta. Inténtalo de nuevo." : "Não foi possível adicionar o produto ao carrinho. Tenta novamente."} className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#d83d54] disabled:cursor-not-allowed disabled:opacity-60">{action.label} <Icon name="arrow" size={16} /></LoadingButton>{action.hint && <p className="mt-3 text-center text-[11px] font-bold text-[#9297a4]">{action.hint}</p>}</> : <button type="button" disabled className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full bg-[#ee5264] px-5 py-3.5 text-sm font-black text-white opacity-50">{es ? "Añadir a la cesta" : "Adicionar ao carrinho"}</button>}</div></section><section className="order-1 rounded-[26px] bg-[#f5ece5] p-4 sm:p-8 lg:sticky lg:top-28 lg:order-2"><div className="mb-5 flex items-center justify-between"><span className="text-[10px] uppercase tracking-[.18em] text-[#7b7180]">{es ? "VISTA PREVIA" : "PRÉ-VISUALIZAÇÃO"}</span><span className="flex items-center gap-1.5 text-[11px] font-bold text-[#59627b]"><Icon name="check" size={13} /> {es ? "Se actualiza al instante" : "Atualiza de imediato"}</span></div><div data-studio-preview>{preview}</div></section></div><div className="mt-8 text-center"><Link href="/#categories" className="text-xs font-black text-[#737b90] underline underline-offset-4 hover:text-[#ee5264]">← {es ? "Volver a todos los productos" : "Voltar a todos os produtos"}</Link></div></div></main>{studio.catalog.products.length > 1 && <PublishedProducts catalog={studio.catalog} title={catalogTitle} es={es} selectedId={studio.selected?.id} onSelect={(product) => studio.select(product)} />}<SiteFooter />{action?.authPrompt && <AuthRequiredModal returnTo={action.returnTo} onClose={action.onCloseAuth} isPortuguese={!es} />}</>;
 }
 
