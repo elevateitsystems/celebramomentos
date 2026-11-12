@@ -80,5 +80,17 @@ export const printeersConfig = (mode: PodMode) => {
     brandReference: env(live ? "PRINTEERS_BRAND_REFERENCE" : "PRINTEERS_TEST_BRAND_REFERENCE"),
     // Signing secret ("whsec_…", Standard Webhooks) of the Printeers webhook endpoint (Dashboard → Settings).
     webhookSecret: env(live ? "PRINTEERS_WEBHOOK_SECRET" : "PRINTEERS_TEST_WEBHOOK_SECRET"),
+    // API v2: one secret key ("Secret_Key_…", sent as X-Printeers-Secret-Key) per environment. Used only when
+    // PRINTEERS_API_VERSION=v2 (see printeersApiVersion); otherwise the v1 pair.
+    secretKey: env(live ? "PRINTEERS_API_KEY" : "PRINTEERS_TEST_API_KEY"),
+    // The store orders are placed in (Store_…); looked up from the key when not set.
+    storeReference: env(live ? "PRINTEERS_STORE_REFERENCE" : "PRINTEERS_TEST_STORE_REFERENCE"),
+    v2BaseUrl: (env(live ? "PRINTEERS_V2_BASE_URL" : "PRINTEERS_TEST_V2_BASE_URL") || (live ? "https://api.printeers.com/v2" : "https://api.test-printeers.com/v2")).replace(/\/+$/, ""),
   };
 };
+
+// Which Printeers API an environment uses. v1 unless API v2 is switched on explicitly
+// (PRINTEERS_API_VERSION=v2) AND that environment has its v2 secret key: a v2 key alone never switches
+// anything, so test mode keeps using v1 and its test server until v2 is deliberately enabled.
+export const printeersV2Enabled = () => (env("PRINTEERS_API_VERSION") || "").toLowerCase() === "v2";
+export const printeersApiVersion = (mode: PodMode): "v1" | "v2" => (printeersV2Enabled() && printeersConfig(mode).secretKey ? "v2" : "v1");

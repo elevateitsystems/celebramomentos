@@ -19,7 +19,8 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
-import { podMode, printeersConfig, webhookSecret } from "../config";
+import { podMode, printeersApiVersion, printeersConfig, webhookSecret } from "../config";
+import { printeersV2 } from "./api-v2";
 import { syncFulfillment } from "../fulfillment";
 import { validWebhookToken } from "../webhooks";
 
@@ -63,6 +64,21 @@ async function refreshOpenOrders() {
   return { ok, count: open.length };
 }
 
+// Our print orders a v2 event is about: its order, or the orders in its shipment (read from the API).
+async function eventOrders(payload: unknown) {
+  const subject = payload && typeof payload === "object" ? (payload as { subject?: Record<string, { reference?: unknown }> }).subject : null;
+  const orderRef = typeof subject?.order?.reference === "string" ? subject.order.reference : null;
+  const shipmentRef = typeof subject?.shipment?.reference === "string" ? subject.shipment.reference : null;
+  const references = orderRef ? [orderRef] : [];
+  if (shipmentRef && /^Shipment_[A-Za-z0-9]+$/.test(shipmentRef)) {
+    const shipment = await printeersV2.shipment({ mode: modeName() }, shipmentRef);
+    references.push(...(shipment.orders || []).map((entry) => entry.orderReference));
+  }
+  if (!references.length) return [];
+  const found = await prisma.podFulfillment.findMany({ where: { provider: "PRINTEERS", mode: modeName(), providerOrderId: { in: references } }, select: { id: true } });
+  return found.map((item) => item.id);
+}
+
 // Signed webhook (POST).
 export async function handlePrinteersWebhook(request: Request) {
   const body = await request.text();
@@ -84,6 +100,15 @@ export async function handlePrinteersWebhook(request: Request) {
   }
 
   try {
+    // v2 events name the order or shipment (subject.order.reference / subject.shipment.reference): only that
+    // order is read again. Anything else (or a v1 environment) refreshes the open Printeers orders.
+    const targeted = printeersApiVersion(podMode()) === "v2" ? await eventOrders(payload) : [];
+    if (targeted.length) {
+      let ok = true;
+      for (const id of targeted) if (!(await syncFulfillment(id)).ok) ok = false;
+      if (!ok) throw new Error("Status could not be refreshed");
+      return NextResponse.json({ received: true, refreshed: targeted.length });
+    }
     const { ok, count } = await refreshOpenOrders();
     if (!ok) throw new Error("Status could not be refreshed");
     return NextResponse.json({ received: true, refreshed: count });
@@ -111,7 +136,10 @@ export async function handlePrinteersCallback(request: Request) {
   const expected = podMode() === "live" ? "prod" : "test";
   if (environment && environment !== expected) return NextResponse.json({ received: true, ignored: "other environment" });
 
-  const fulfillment = await prisma.podFulfillment.findFirst({ where: { provider: "PRINTEERS", mode: modeName(), providerOrderId: reference }, select: { id: true, lastSyncedAt: true } });
+  // order_reference is the v1 code ("STORECODE-12"); order_reference_v2 the v2 one (Order_…).
+  const v2Reference = url.searchParams.get("order_reference_v2");
+  const references = [reference, ...(v2Reference && ORDER_REFERENCE.test(v2Reference) ? [v2Reference] : [])];
+  const fulfillment = await prisma.podFulfillment.findFirst({ where: { provider: "PRINTEERS", mode: modeName(), providerOrderId: { in: references } }, select: { id: true, lastSyncedAt: true } });
   // Orders placed outside this site are acknowledged so Printeers stops retrying.
   if (!fulfillment) return NextResponse.json({ received: true, matched: false });
   if (token === null && fulfillment.lastSyncedAt && Date.now() - fulfillment.lastSyncedAt.getTime() < 60_000) return NextResponse.json({ received: true, matched: true, throttled: true });
