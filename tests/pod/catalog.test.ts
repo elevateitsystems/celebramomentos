@@ -1,8 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { gelatoPhoneModel, gelatoPosterFormat, mapOrderItem, mugColorKey, type ItemContext } from "@/lib/pod/catalog";
+import { gelatoPhoneModel, gelatoPosterFormat, mapOrderItem, mugColorKey, studioPhotoTarget, unavailableCombination, type ItemContext } from "@/lib/pod/catalog";
+import { photoEnlargement } from "@/lib/print-quality";
 import { GELATO_POSTER_HANGER_UIDS, GELATO_TOUGH_CASE_UIDS } from "@/lib/pod/gelato-catalog";
 
 const ctx = (overrides: Partial<ItemContext>): ItemContext => ({ kind: "WALL_ART", provider: "GELATO", productName: "Póster", variantName: null, podSku: null, options: {}, photoCount: 1, cardSize: null, cardSku: null, ...overrides });
+
+describe("what the studio checks (same rules as the server)", () => {
+  it("a mug is makeable once the studio's colour is included; without any colour it is not", () => {
+    const mug = (options: Record<string, string>) => ctx({ kind: "MUG", provider: "PRINTFUL", variantName: "11 oz (325 mL)", options });
+    expect(unavailableCombination(mug({ color: "Negro" }))).toBeNull();
+    expect(unavailableCombination(mug({}))).toEqual({ reason: "size" });
+  });
+
+  it("a mug photo is measured fitted inside the wrap file, like the server's pad check", () => {
+    const target = studioPhotoTarget(ctx({ kind: "MUG", provider: "PRINTFUL", variantName: "11 oz (325 mL)", options: { color: "Negro" } }));
+    expect(target).toEqual({ width: 2700, height: 1050, fit: "contain" });
+    expect(photoEnlargement({ width: 400, height: 300 }, target!)).toBeCloseTo(3.5, 3); // low: asks the customer to confirm
+    expect(photoEnlargement({ width: 800, height: 600 }, target!)).toBeCloseTo(1.75, 3); // soft: sent with a note
+    expect(photoEnlargement({ width: 800, height: 600 }, { width: 2700, height: 1050 })).toBeCloseTo(3.375, 3); // cover rule (posters, magnets)
+  });
+});
 
 describe("Prodigi mapping", () => {
   it("sends a magnet pack as one magnet per photo with the verified SKU and 850 × 566 px files", () => {
@@ -83,12 +100,14 @@ describe("Gelato mapping", () => {
     expect(mapOrderItem(ctx({ variantName: "A1 (59.4 x 84.1 cm)", options: { orientacion: "Vertical" } })).issues).toEqual([]);
   });
 
-  it("maps the three calendar sizes and asks for the 14-page PDF", () => {
-    for (const size of ["A4 (21 x 29.7 cm)", "A3 (29.7 x 42 cm)", "14.8 x 40 cm"]) {
-      const result = mapOrderItem(ctx({ kind: "CALENDAR", variantName: size }));
+  it("maps the three calendar sizes to a 14-page PDF made by the site at Gelato's page size", () => {
+    const pages: Record<string, [number, number]> = { "A4 (21 x 29.7 cm)": [210, 297], "A3 (29.7 x 42 cm)": [297, 420], "14.8 x 40 cm": [148, 400] };
+    for (const [size, [width, height]] of Object.entries(pages)) {
+      const result = mapOrderItem(ctx({ kind: "CALENDAR", variantName: size, photoCount: 3 }));
       expect(result.units[0].productRef).toMatch(/^wall_calendar_unified_/);
-      expect(result.units[0].specs[0].kind).toBe("admin");
+      expect(result.units[0].specs[0]).toMatchObject({ kind: "calendar", widthMm: width, heightMm: height });
     }
+    expect(mapOrderItem(ctx({ kind: "CALENDAR", variantName: "A4 (21 x 29.7 cm)", photoCount: 0 })).issues[0].code).toBe("missing_photos");
   });
 
   it("maps tough cases only for models Gelato makes", () => {

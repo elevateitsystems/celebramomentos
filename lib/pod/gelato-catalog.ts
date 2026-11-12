@@ -467,3 +467,23 @@ export const GELATO_TOUGH_CASE_UIDS: Record<string, string> = {
   "iphone-xs": "phonecase_apple_iphone-xs_tough_white_glossy",
   "iphone-xsmax": "phonecase_apple_iphone-xsmax_tough_white_glossy"
 };
+
+// Page (trim) size in mm of each calendar format, as Gelato's product API reports it (checked 2026-11-12;
+// all are 14 pages on 7 sheets).
+export const GELATO_CALENDAR_PAGE_MM: Record<string, { width: number; height: number }> = {
+  "a4-lt": { width: 210, height: 297 },
+  "lt-a4": { width: 203.2, height: 304.8 },
+  "a3-11x16-5-inch": { width: 297, height: 420 },
+  "11x16-5-inch-a3": { width: 279.41, height: 419.1 },
+  "a2-16-5x22-inch": { width: 420, height: 594 },
+  "16-5x22-inch-a2": { width: 419.1, height: 558.8 },
+  "a5-5-5x8-5-inch": { width: 148, height: 210 },
+  "5-5x8-5-inch-a5": { width: 139.7, height: 215.9 },
+  "148x400-mm-5-5x16-5-inch": { width: 148, height: 400 },
+};
+
+// The page size of a calendar product uid ("wall_calendar_unified_pf_<format>_pt_…"), or null.
+export function gelatoCalendarPageMm(productUid: string) {
+  const format = productUid.match(/_pf_(.+?)_pt_/)?.[1];
+  return format ? GELATO_CALENDAR_PAGE_MM[format] ?? null : null;
+}

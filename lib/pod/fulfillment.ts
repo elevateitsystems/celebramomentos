@@ -22,7 +22,8 @@ import { checkPhotoResolution, checkPrintFileSize, isCloudinaryUrl, printFileUrl
 import { mapOrderItem } from "./catalog";
 import { podAutoSubmit, podMode } from "./config";
 import { PodApiError, redact } from "./http";
-import { renderCompositeFile, renderPrintFile, uploadedFiles, type UploadedFile } from "./print-files";
+import { pdfDeliverable, renderCalendarFile, renderCompositeFile, renderPrintFile, uploadedFiles, type UploadedFile } from "./print-files";
+import { boxPixels, calendarLayout, monthName, type CalendarLanguage } from "./calendar-pdf";
 import { podAdapter } from "./providers";
 import { mergeTracking, readTracking, resolveItems, trackingDates, withStatusChange } from "./tracking";
 import type { PodFulfillmentStatus, PodIssue, PodMode, ProviderOrderState, Recipient, SubmissionLine } from "./types";
@@ -40,9 +41,10 @@ export const POD_ENABLED_SINCE = new Date("2026-11-01T00:00:00Z");
 // - width / height / format: what the shop requires; verified: the file's real pixel size.
 // - original: the customer's original upload; references: the customer's card pages.
 export type DesignReference = { label: string; side?: string; url: string; width?: number; height?: number };
-// kind: how the file is made — "photo" / "pages" automatically by the site, "admin" attached by hand
-// (only products with no automatic file, e.g. calendars). Missing on slots saved before it existed.
-export type ArtworkSlot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; kind?: "photo" | "pages" | "admin"; description?: string; width?: number; height?: number; format?: "jpg" | "png"; fit?: PhotoFit; original?: string | null; verified?: { width: number; height: number } | null; references?: DesignReference[] };
+// kind: how the file is made — "photo" / "pages" / "calendar" automatically by the site, "admin" attached by
+// hand (only products with no automatic file). Missing on slots saved before it existed.
+// signature: what a generated file was made from (calendar: year, language, size, photos), to reuse it.
+export type ArtworkSlot = { unit: number; productRef: string | null; area: string; url: string | null; source: "design" | "customer" | "admin" | null; kind?: "photo" | "pages" | "admin" | "calendar"; description?: string; width?: number; height?: number; format?: "jpg" | "png" | "pdf"; fit?: PhotoFit; original?: string | null; verified?: { width: number; height: number } | null; references?: DesignReference[]; signature?: string; pages?: number };
 
 const asObject = (value: unknown) => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const asString = (value: unknown) => (typeof value === "string" ? value : null);
@@ -107,7 +109,7 @@ export async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedPr
     for (const spec of unit.specs as PrintSpec[]) {
       const before = previous.find((slot) => slot.unit === unitIndex && slot.area === spec.area);
       const attached = before?.source === "admin" && before.url ? before : null;
-      const required = spec.kind === "photo" ? (spec.width ? { width: spec.width, height: spec.height } : {}) : spec.width && spec.height ? { width: spec.width, height: spec.height } : {};
+      const required = spec.kind === "photo" ? (spec.width ? { width: spec.width, height: spec.height } : {}) : spec.kind !== "calendar" && spec.width && spec.height ? { width: spec.width, height: spec.height } : {};
       if (spec.kind === "pages") {
         // Greeting cards: the print file is composed automatically from the 4 pages the customer's
         // browser rendered at checkout (the customer's real design), in the SKU's page order and at its
@@ -139,6 +141,49 @@ export async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedPr
         // Never sent unless it is exactly the size the print shop requires.
         const problem = checkPrintFileSize(required, verified, `${prefix}Card print file`);
         if (problem) issues.push(problem);
+        continue;
+      }
+      if (spec.kind === "calendar") {
+        // Wall calendars: the 14-page PDF is made from the customer's month photos (only uploads from this
+        // site). It is made once and reused while the photos, year, language and size stay the same. A file
+        // an admin attached instead is kept.
+        if (attached) {
+          artwork.push({ kind: "calendar", unit: unitIndex, productRef: unit.productRef, area: spec.area, url: attached.url, source: "admin", description: spec.description, format: "pdf", verified: null });
+          const reachable = await pdfDeliverable(attached.url!);
+          if (!reachable.ok) issues.push({ code: "print_file_unreachable", severity: "blocker", message: `${prefix}The print shop could not download the attached calendar file: ${reachable.reason}` });
+          continue;
+        }
+        const monthPhotos = Array.from({ length: 12 }, (_, month) => { const url = photos[month]; return url && isCloudinaryUrl(url) && files.has(url) ? url : null; });
+        // The studio shows next year's calendar (CalendarStudio); the order's date stands for the day it was designed.
+        const year = item.createdAt.getFullYear() + 1;
+        const language = await calendarLanguage(item.orderId);
+        const signature = [year, language, `${spec.widthMm}x${spec.heightMm}`, ...monthPhotos.map((url) => url || "-")].join("|");
+        const pageMm = { width: spec.widthMm, height: spec.heightMm };
+        const base = { kind: "calendar" as const, unit: unitIndex, productRef: unit.productRef, area: spec.area, description: spec.description, format: "pdf" as const };
+        if (!monthPhotos.some(Boolean)) {
+          artwork.push({ ...base, url: null, source: null });
+          issues.push({ code: "missing_photos", severity: "blocker", message: `${prefix}The calendar has no photo that was uploaded to this site` });
+          continue;
+        }
+        const reusable = before?.kind === "calendar" && before.source === "design" && before.url && before.signature === signature ? before.url : null;
+        let failure: string | null = null;
+        const url = reusable ?? (await renderCalendarFile({ orderId: item.orderId, itemId: item.id, unit: unitIndex, area: spec.area, photos: monthPhotos, year, language, pageMm }).catch((reason) => { failure = reason instanceof Error ? reason.message : "unknown error"; return null; }))?.url ?? null;
+        if (!url) {
+          logPod("calendar print file not made", { itemId: item.id, failure });
+          artwork.push({ ...base, url: null, source: null });
+          issues.push({ code: "print_file_render_failed", severity: "blocker", message: `${prefix}The calendar PDF could not be made yet (${failure}); it is retried automatically` });
+          continue;
+        }
+        artwork.push({ ...base, url, source: "design", signature, pages: 14, verified: null });
+        // Never send a link the print shop cannot open.
+        const reachable = await pdfDeliverable(url);
+        if (!reachable.ok) issues.push({ code: "print_file_unreachable", severity: "blocker", message: `${prefix}The calendar PDF was made, but the print shop could not download it: ${reachable.reason}` });
+        // Notes for the admin (the calendar is still sent): empty months and photos below 150 dpi.
+        const empty = monthPhotos.map((photo, month) => (photo ? null : monthName(language, month))).filter(Boolean);
+        if (empty.length) issues.push({ code: "calendar_months_without_photo", severity: "info", message: `${prefix}${12 - empty.length} of 12 months have a photo; ${empty.join(", ")} get a page with the month name instead` });
+        const box = boxPixels(calendarLayout(pageMm).month);
+        const low = monthPhotos.map((photo, month) => { const size = sizeOf(photo); return size && Math.max(box.width / size.width, box.height / size.height) > 2 ? monthName(language, month) : null; }).filter(Boolean);
+        if (low.length) issues.push({ code: "low_resolution", severity: "info", message: `${prefix}Photos below 150 dpi on the calendar page: ${low.join(", ")}` });
         continue;
       }
       if (spec.kind === "admin") {
@@ -191,6 +236,12 @@ export async function planItem(item: OrderItem, previous: ArtworkSlot[], fixedPr
   artwork.sort((a, b) => a.unit - b.unit);
   const refs = Array.from(new Set(mapping.units.map((unit) => unit.productRef).filter(Boolean)));
   return { item, provider, productRef: refs.join(", ") || null, artwork, issues };
+}
+
+// Calendar language: Portuguese for orders shipped to Portugal, Spanish otherwise.
+async function calendarLanguage(orderId: string): Promise<CalendarLanguage> {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { shippingAddress: true } }).catch(() => null);
+  return asString(asObject(order?.shippingAddress).country)?.toUpperCase() === "PT" ? "pt" : "es";
 }
 
 const PAGE_LABEL: Record<CardDesignSide, string> = { front: "Front", "inside-left": "Inside left", "inside-right": "Inside right", back: "Back" };
@@ -324,6 +375,7 @@ function linesOf(items: OrderItem[]): SubmissionLine[] {
         quantity: item.quantity,
         name: item.name.slice(0, 120),
         files: unitSlots.filter((slot) => slot.url).map((slot) => ({ area: slot.area, url: slot.url!, source: slot.source || "customer" })),
+        ...(unitSlots.some((slot) => slot.kind === "calendar") ? { pageCount: unitSlots.find((slot) => slot.pages)?.pages ?? 14 } : {}),
       };
     });
   });
@@ -613,6 +665,13 @@ export async function runPodMaintenance({ budgetMs = 45_000 } = {}) {
   // automatically) are planned again so their file is composed and they are sent.
   const unrendered = await prisma.podFulfillment.findMany({ where: { status: "NEEDS_ATTENTION", updatedAt: { lt: new Date(Date.now() - 5 * 60_000) }, OR: [
     { items: { some: { podIssues: { array_contains: [{ code: "print_file_render_failed" }] } } } },
+    // A calendar PDF the print shop could not download (e.g. Cloudinary blocking PDF delivery until the
+    // setting is turned on) is checked again, so it goes out once the link works.
+    { items: { some: { podIssues: { array_contains: [{ code: "print_file_unreachable" }] } } } },
+    // Orders held for a small photo under the old rules: a small photo no longer holds an order.
+    { items: { some: { podIssues: { array_contains: [{ code: "low_resolution", severity: "warning" }] } } } },
+    // Calendar orders placed before calendar PDFs were made automatically: planned again so the PDF is made.
+    { provider: "GELATO", items: { some: { podIssues: { array_contains: [{ code: "print_file_required" }] } } } },
     { provider: "PRODIGI", items: { some: { podIssues: { array_contains: [{ code: "print_file_required" }] } } } },
   ] }, select: { id: true }, take: 10 });
   for (const fulfillment of unrendered) { if (!left()) break; await refreshReadiness(fulfillment.id, { replan: true }); report.rerendered += 1; }

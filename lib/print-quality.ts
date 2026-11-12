@@ -3,11 +3,11 @@
 // admin see the same rule.
 //
 // - up to 1.5×: fine;
-// - 1.5× to 2×: prints slightly soft — the customer is told, the order is sent automatically;
-// - 2× to 4×: prints visibly softer — the customer is warned and can only order it after confirming
-//   they accept it; the order is then sent automatically (a note is left for the admin);
-// - over 4×: far too small (it would print pixelated) — it cannot be ordered, the customer is asked
-//   for a larger photo. An order that still has one (placed before these rules) is held for an admin.
+// - 1.5× to 2×: prints slightly soft;
+// - 2× to 4×: prints visibly softer;
+// - over 4×: may print pixelated.
+// None of these stops an order: the print file is always made at the exact size the print shop accepts,
+// the customer sees a notice in the studio (and can upload a bigger photo), and the admin gets a note.
 export const SOFT_ENLARGEMENT = 1.5;
 export const MAX_ENLARGEMENT = 2;
 export const HARD_ENLARGEMENT = 4;
@@ -25,9 +25,12 @@ export function photoQuality(enlargement: number): PhotoQuality {
 // How much the photo is enlarged when the print is cut from it, as the server makes the print file: the
 // photo is never rotated, so a landscape photo on a portrait print only uses its middle strip. `zoom` (the
 // customer's crop zoom) uses even fewer of the photo's pixels.
-export function photoEnlargement(photo: { width: number; height: number }, print: { width: number; height: number }, zoom = 1) {
+// fit "contain": the whole photo is fitted inside the print file on a white canvas (mug wrap), so only the
+// side that reaches the file's edge counts — the same rule as the server's "pad" print files.
+export function photoEnlargement(photo: { width: number; height: number }, print: { width: number; height: number; fit?: "cover" | "contain" }, zoom = 1) {
   if (!photo.width || !photo.height || !print.width || !print.height) return 0;
-  return Math.max(print.width / photo.width, print.height / photo.height) * Math.max(1, zoom);
+  const scale = print.fit === "contain" ? Math.min(print.width / photo.width, print.height / photo.height) : Math.max(print.width / photo.width, print.height / photo.height);
+  return scale * Math.max(1, zoom);
 }
 
 // Smallest photo (same orientation as the print) that prints sharp, i.e. within MAX_ENLARGEMENT.

@@ -18,7 +18,10 @@ export type PrintSpec =
   // checkout are composed in `pages` order (the product template's order, left to right) into one
   // file of exactly width × height px. Each page gets an equal slot; nothing is stretched.
   | { area: string; kind: "pages"; pages: string[]; width: number; height: number; format: "jpg" | "png"; description: string }
-  // No automatic file exists (e.g. a 14-page calendar): an admin attaches it.
+  // A wall calendar: one 14-page PDF (cover, 12 months, back) made by the site from the customer's month
+  // photos (lib/pod/calendar-pdf.ts), every page widthMm × heightMm.
+  | { area: string; kind: "calendar"; widthMm: number; heightMm: number; description: string }
+  // No automatic file exists: an admin attaches it.
   // width/height: the file's required pixel size, when the shop gives one.
   | { area: string; kind: "admin"; description: string; width?: number; height?: number };
 
@@ -82,6 +85,14 @@ export function compositeFileUrl(pageUrls: string[], spec: Extract<PrintSpec, { 
 // Resolution check of a customer photo against its print spec. Returns a warning
 // (the order is held for an admin) when the photo would print visibly soft.
 // `accepted`: the customer was shown the quality warning in the studio and chose to order anyway.
+// A small photo never holds an order: the print file is always made at the exact size the print shop
+// requires (it is enlarged to it), so the shop accepts it. The admin gets a note saying how soft it may print.
+function qualityNote(scale: number, accepted: boolean) {
+  if (scale <= MAX_ENLARGEMENT) return "";
+  const level = scale > HARD_ENLARGEMENT ? " — likely to print pixelated" : " — will print visibly softer";
+  return `${level}${accepted ? " (the customer saw the warning and ordered it)" : ""}`;
+}
+
 export function checkPhotoResolution(spec: Extract<PrintSpec, { kind: "photo" }>, source: { width: number; height: number } | null, { accepted = false }: { accepted?: boolean } = {}): PodIssue | null {
   if (!source || !source.width || !source.height || spec.fit === "original") return null;
   if (spec.fit === "aspect" && spec.minDpiSize) {
@@ -94,20 +105,14 @@ export function checkPhotoResolution(spec: Extract<PrintSpec, { kind: "photo" }>
     // once the customer accepted the warning, anything lower is held for an admin.
     const scale = POSTER_DPI / dpi;
     if (scale <= SOFT_ENLARGEMENT) return null;
-    const sent = scale <= MAX_ENLARGEMENT || (accepted && scale <= HARD_ENLARGEMENT);
-    const note = scale <= MAX_ENLARGEMENT ? "" : sent ? " — the customer saw the quality warning and chose to order it" : " — likely to print blurry";
-    return { code: "low_resolution", severity: sent ? "info" : "warning", message: `Photo gives about ${Math.round(dpi)} dpi at ${spec.minDpiSize.widthMm} × ${spec.minDpiSize.heightMm} mm (${POSTER_DPI} dpi recommended)${note}` };
+    return { code: "low_resolution", severity: "info", message: `Photo gives about ${Math.round(dpi)} dpi at ${spec.minDpiSize.widthMm} × ${spec.minDpiSize.heightMm} mm (${POSTER_DPI} dpi recommended)${qualityNote(scale, accepted)}` };
   }
   // fill crops to cover, pad fits inside: the upscale factor needed to reach the print size.
   // A zoomed-in crop uses fewer of the photo's pixels, so it is measured on the crop itself.
   const framed = spec.fit === "fill" && spec.crop ? cropRect(source, spec.width / spec.height, spec.crop) : null;
   const scale = framed ? spec.width / framed.width : spec.fit === "fill" ? Math.max(spec.width / source.width, spec.height / source.height) : Math.min(spec.width / source.width, spec.height / source.height);
   if (scale <= SOFT_ENLARGEMENT) return null;
-  // Slightly soft prints go out automatically (noted for the admin), and so do softer ones the customer
-  // accepted in the studio (up to HARD_ENLARGEMENT); anything else is held for an admin.
-  const sent = scale <= MAX_ENLARGEMENT || (accepted && scale <= HARD_ENLARGEMENT);
-  const note = scale <= MAX_ENLARGEMENT ? "" : sent ? " — the customer saw the quality warning and chose to order it" : " — likely to print blurry";
-  return { code: "low_resolution", severity: sent ? "info" : "warning", message: `Photo is ${source.width} × ${source.height} px; the print file is ${spec.width} × ${spec.height} px (enlarged ${scale.toFixed(1)}×)${note}` };
+  return { code: "low_resolution", severity: "info", message: `Photo is ${source.width} × ${source.height} px; the print file is ${spec.width} × ${spec.height} px (enlarged ${scale.toFixed(1)}×)${qualityNote(scale, accepted)}` };
 }
 
 // ISO 216 sizes in mm, for formats named only "A0"…"A4".
