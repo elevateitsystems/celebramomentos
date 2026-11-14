@@ -94,7 +94,11 @@ export function productPhotoCount(product: Pick<CatalogProduct, "metadata">) {
   return Number.isInteger(count) && count >= 1 ? Math.min(count, MAX_PRODUCT_PHOTOS) : 1;
 }
 
-export function requiredPhotoCount(product: Pick<CatalogProduct, "metadata">, variant: { photoCount: number | null } | null) {
+// A wall calendar has one page per month: all 12 photos are required, whatever size is chosen.
+export const CALENDAR_PHOTOS = 12;
+
+export function requiredPhotoCount(product: Pick<CatalogProduct, "metadata"> & { kind?: string }, variant: { photoCount: number | null } | null) {
+  if (product.kind === "CALENDAR") return CALENDAR_PHOTOS;
   const count = Number(variant?.photoCount);
   return Number.isInteger(count) && count >= 1 ? Math.min(count, MAX_PRODUCT_PHOTOS) : productPhotoCount(product);
 }

@@ -162,7 +162,6 @@ function Detail({ item, mode, busy, onClose, act, onToast }: { item: Fulfillment
         {["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status) && button("recheck", "Check again", { action: "recheck", id: item.id }, "Checked again", "border border-[#dfd3cc] text-[#182443]")}
         {item.providerOrderId && !["CANCELLED"].includes(item.status) && button("sync", "Refresh status & tracking", { action: "sync", id: item.id }, "Status and tracking refreshed from the print shop", "border border-[#dfd3cc] text-[#182443]")}
         {["NEEDS_ATTENTION", "READY", "FAILED", "SUBMITTED", "IN_PRODUCTION"].includes(item.status) && button("cancel", "Cancel print order", { action: "cancel", id: item.id }, "Print order cancelled", "border border-[#f3c6c2] text-[#c94758]", item.providerOrderId ? `Cancel this order at ${podProviderLabel(item.provider)}? It only works before production starts. The customer's payment is not refunded automatically.` : "Cancel this print order? It will never be sent to the print shop.")}
-        {item.mode === "draft" && item.status === "SUBMITTED" && (item.provider === "GELATO" || item.provider === "PRINTFUL") && button("confirm", "Confirm for production", { action: "confirm", id: item.id }, "Draft confirmed for production", "bg-[#24714b] text-white", "Confirm this draft? The print shop will produce and charge it.")}
       </div>
 
       <Shipments tracking={item.tracking} items={item.items} />
@@ -173,7 +172,7 @@ function Detail({ item, mode, busy, onClose, act, onToast }: { item: Fulfillment
         <p className="mt-0.5 break-all text-[11px] text-[#9297a4]">Shop product: {line.podProductRef || "not mapped"}{line.shipping && item.tracking.shipments.length > 0 && <> · <span className="font-black text-[#182443]">{line.shipping.state === "delivered" ? "Delivered" : line.shipping.state === "shipped" ? "Shipped" : "Not shipped yet"}</span></>}</p>
         {line.podIssues.map((issue, index) => <p key={index} className={`mt-2 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${issue.severity === "blocker" ? "bg-[#fff0e8] text-[#c94758]" : issue.severity === "warning" ? "bg-[#fff6e0] text-[#8a5a00]" : "bg-[#f3f4f6] text-[#59627b]"}`}>{issue.severity === "blocker" ? "Blocks sending: " : issue.severity === "warning" ? "Held — check: " : "Note (sent automatically): "}{issue.message}</p>)}
         {line.podArtwork.length > 0 && !line.podArtwork.some((slot) => slot.original || slot.references?.length) && <CustomerPhotos item={line} />}
-        {line.podArtwork.map((slot, index) => <ArtworkSlot key={index} slot={slot} item={line} editable={["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status)} busy={busy} act={act} onToast={onToast} />)}
+        {line.podArtwork.filter((slot) => slot.kind !== "calendar").map((slot, index) => <ArtworkSlot key={index} slot={slot} item={line} editable={["NEEDS_ATTENTION", "READY", "FAILED"].includes(item.status)} busy={busy} act={act} onToast={onToast} />)}
       </div>)}
 
       <p className="mt-6 rounded-xl bg-[#fafbfc] p-3 text-[11px] text-[#737b90]">The status and tracking come from the print shop automatically (its notifications, a scheduled check, and a refresh whenever this page is opened). They cannot be changed by hand.</p>
@@ -265,9 +264,8 @@ function ArtworkSlot({ slot, item, editable, busy, act, onToast }: { slot: Slot;
   };
   const size = requiredSize(slot);
   // Card and photo print files are made automatically from the customer's design; only products
-  // with no automatic file (e.g. calendars) take a file from the admin. Older slots have no kind.
-  // Calendars are made automatically too, but an admin may replace the PDF with their own.
-  const manual = slot.kind ? slot.kind === "admin" || slot.kind === "calendar" : !slot.fit && !slot.references?.length;
+  // with no automatic file take a file from the admin. Older slots have no kind.
+  const manual = slot.kind ? slot.kind === "admin" : !slot.fit && !slot.references?.length;
   const checked = slot.verified ? `${slot.verified.width} × ${slot.verified.height} px${slot.width && slot.fit !== "aspect" && slot.verified.width === slot.width && slot.verified.height === slot.height ? " ✓" : ""}` : slot.url ? "size not checked" : undefined;
   return <div className="mt-3 rounded-xl bg-[#fafbfc] p-3 text-[11px]">
     <p className="font-black">Print file{slot.unit ? ` ${slot.unit + 1}` : ""} · {slot.area}</p>
@@ -289,7 +287,7 @@ function ArtworkSlot({ slot, item, editable, busy, act, onToast }: { slot: Slot;
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
       <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="or paste an https:// link" className="min-w-[180px] flex-1 rounded-full border border-[#e4e7ee] px-3 py-1.5" aria-label="Print file link" />
       <button type="button" disabled={!url.trim() || Boolean(busy)} onClick={() => void attach(url.trim()).then(() => setUrl(""))} className="rounded-full border border-[#dfd3cc] px-3 py-1.5 font-black disabled:opacity-50">Use link</button>
-      {slot.source === "admin" && (slot.original || slot.kind === "calendar") && <button type="button" disabled={Boolean(busy)} onClick={() => { if (window.confirm("Remove the attached file and render the print file again from the customer's design?")) void act(`reset-${label}`, { action: "reset", itemId: item.id, unit: slot.unit, area: slot.area }, "Print file rendered from the customer's design"); }} className="rounded-full border border-[#dfd3cc] px-3 py-1.5 font-black disabled:opacity-50">Use customer&apos;s design</button>}
+      {slot.source === "admin" && slot.original && <button type="button" disabled={Boolean(busy)} onClick={() => { if (window.confirm("Remove the attached file and render the print file again from the customer's design?")) void act(`reset-${label}`, { action: "reset", itemId: item.id, unit: slot.unit, area: slot.area }, "Print file rendered from the customer's design"); }} className="rounded-full border border-[#dfd3cc] px-3 py-1.5 font-black disabled:opacity-50">Use customer&apos;s design</button>}
     </div>}
   </div>;
 }

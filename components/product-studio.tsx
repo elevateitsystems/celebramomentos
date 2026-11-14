@@ -15,7 +15,7 @@ import { trackPixel } from "@/lib/meta-pixel";
 import { CROP_LIMITS, DEFAULT_CROP, cropRect, mmToPx, normalizeCrop, type ImageCrop } from "@/lib/crop";
 import { studioPhotoTarget, unavailableCombination } from "@/lib/pod/catalog";
 import { minimumPhotoSize, photoEnlargement, photoQuality, type PhotoQuality } from "@/lib/print-quality";
-import { MAX_PRODUCT_PHOTOS, podProviderFor, productPrintFile, requiredPhotoCount, type CatalogProduct, type PrintFile, type StudioProductKind } from "@/lib/products";
+import { CALENDAR_PHOTOS, MAX_PRODUCT_PHOTOS, podProviderFor, productPrintFile, requiredPhotoCount, type CatalogProduct, type PrintFile, type StudioProductKind } from "@/lib/products";
 import { RootState, defaultCardCustomization, saveCartItem, type CatalogSelection, type ProductSelection } from "@/lib/store";
 import { PosterHanger, hangerColorFrom, orientationFrom } from "@/components/poster-hanger";
 import { PublishedProducts, catalogImage, useCatalogProducts } from "@/components/published-products";
@@ -409,11 +409,12 @@ function useCatalogEdit(editing: ProductSelection | undefined, studio: StudioCat
 }
 
 // One photo slot per required photo, with a picker for the slot being edited.
-function PhotoSlots({ photos, count, active, onActive, onPhoto, es, slotLabel, sample, aspect = "aspect-square", printFile = null }: { photos: (string | null)[]; count: number; active: number; onActive: (index: number) => void; onPhoto: (value: string) => void; es: boolean; slotLabel: (index: number) => string; sample?: (index: number) => string; aspect?: string; printFile?: PrintFile | null }) {
+function PhotoSlots({ photos, count, required = false, active, onActive, onPhoto, es, slotLabel, sample, aspect = "aspect-square", printFile = null }: { photos: (string | null)[]; count: number; required?: boolean; active: number; onActive: (index: number) => void; onPhoto: (value: string) => void; es: boolean; slotLabel: (index: number) => string; sample?: (index: number) => string; aspect?: string; printFile?: PrintFile | null }) {
   return <div>
-    <p className="text-sm font-black">{count === 1 ? (es ? "Tu fotografía" : "A tua fotografia") : (es ? `Tus fotografías (${photos.slice(0, count).filter(Boolean).length}/${count})` : `As tuas fotografias (${photos.slice(0, count).filter(Boolean).length}/${count})`)}</p>
+    <p className="text-sm font-black">{count === 1 ? (es ? "Tu fotografía" : "A tua fotografia") : (es ? `Tus fotografías (${photos.slice(0, count).filter(Boolean).length}/${count})` : `As tuas fotografias (${photos.slice(0, count).filter(Boolean).length}/${count})`)}{required && <span className="ml-1 text-[#ee5264]" aria-hidden="true">*</span>}</p>
+    {required && count > 1 && (() => { const missing = count - photos.slice(0, count).filter(Boolean).length; return <p role="status" className={`mt-1 text-[11px] font-bold ${missing ? "text-[#c94758]" : "text-[#24714b]"}`}>{missing ? (es ? `Obligatorio: sube las ${count} fotografías (faltan ${missing}).` : `Obrigatório: carrega as ${count} fotografias (faltam ${missing}).`) : (es ? "¡Todas las fotografías están subidas!" : "Todas as fotografias estão carregadas!")}</p>; })()}
     {count > 1 && <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-      {Array.from({ length: count }).map((_, index) => <button key={index} type="button" onClick={() => onActive(index)} aria-pressed={active === index} aria-label={slotLabel(index)} className={`focus-ring relative overflow-hidden rounded-lg border-2 bg-[#f4eee9] ${aspect} ${active === index ? "border-[#ee5264]" : "border-transparent"}`}>
+      {Array.from({ length: count }).map((_, index) => <button key={index} type="button" onClick={() => onActive(index)} aria-pressed={active === index} aria-label={slotLabel(index)} className={`focus-ring relative overflow-hidden rounded-lg border-2 bg-[#f4eee9] ${aspect} ${active === index ? "border-[#ee5264]" : required && !photos[index] ? "border-dashed border-[#e7a59c]" : "border-transparent"}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {(photos[index] || sample) && <img src={photos[index] || sample?.(index)} alt="" className={`h-full w-full object-cover ${photos[index] ? "" : "opacity-40"}`} />}
         <span className="absolute inset-x-0 bottom-0 bg-[#182443]/75 py-0.5 text-center text-[8px] font-black text-white">{slotLabel(index)}</span>
@@ -446,7 +447,7 @@ export function CalendarStudio() {
   const variantName = studio.variant?.name || "";
   const shape = /40/.test(variantName) ? "w-[46%]" : /A4/i.test(variantName) ? "w-[82%]" : "w-full";
   const controls = <div className="mt-6 space-y-6">
-    <PhotoSlots photos={photos} count={12} active={month} onActive={setMonth} onPhoto={(value) => setPhotos((current) => current.map((photo, index) => (index === month ? value : photo)))} es={es} slotLabel={(index) => monthNames[index].slice(0, 3)} aspect="aspect-[4/3]" printFile={studio.printFile} />
+    <PhotoSlots photos={photos} count={CALENDAR_PHOTOS} required active={month} onActive={setMonth} onPhoto={(value) => setPhotos((current) => current.map((photo, index) => (index === month ? value : photo)))} es={es} slotLabel={(index) => monthNames[index].slice(0, 3)} aspect="aspect-[4/3]" printFile={studio.printFile} />
     <p className="text-[11px] leading-5 text-[#9297a4]">{es ? "Elige un mes y sube su fotografía: cada mes del calendario lleva su propia foto." : "Escolhe um mês e carrega a fotografia: cada mês do calendário leva a sua própria foto."}</p>
   </div>;
   const preview = <div className="mx-auto max-w-[560px]"><div className={`mx-auto overflow-hidden rounded-[16px] bg-white shadow-2xl shadow-[#8a564c]/15 transition-all ${shape}`}><div className="flex h-5 items-center justify-center gap-3 bg-[#182443]">{Array.from({ length: 13 }).map((_, index) => <span key={index} className="h-2.5 w-1 rounded-full bg-white/70" />)}</div>
@@ -493,7 +494,7 @@ export function MagnetsStudio() {
   useEffect(() => { setActive((current) => Math.min(current, count - 1)); }, [count]);
   const sample = (index: number) => MAGNET_SAMPLE_PHOTOS[index % MAGNET_SAMPLE_PHOTOS.length];
   const controls = <div className="mt-6 space-y-6">
-    <PhotoSlots photos={photos} count={count} active={active} onActive={setActive} onPhoto={(value) => setPhotos((current) => current.map((photo, index) => (index === active ? value : photo)))} es={es} slotLabel={(index) => `${index + 1}`} sample={sample} aspect="aspect-[3/2]" printFile={studio.printFile} />
+    <PhotoSlots photos={photos} count={count} required active={active} onActive={setActive} onPhoto={(value) => setPhotos((current) => current.map((photo, index) => (index === active ? value : photo)))} es={es} slotLabel={(index) => `${index + 1}`} sample={sample} aspect="aspect-[3/2]" printFile={studio.printFile} />
     {count > 1 && <p className="text-[11px] leading-5 text-[#9297a4]">{es ? "Cada imán lleva su propia fotografía. Las fotos atenuadas son ejemplos." : "Cada íman leva a sua própria fotografia. As fotografias esbatidas são exemplos."}</p>}
   </div>;
   const columns = count <= 1 ? "grid-cols-1 max-w-[360px]" : count <= 4 ? "grid-cols-2 max-w-[520px]" : count <= 9 ? "grid-cols-3" : "grid-cols-4";

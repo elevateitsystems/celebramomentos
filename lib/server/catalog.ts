@@ -94,7 +94,7 @@ async function resolveCatalogSelection(selection: CatalogSelection): Promise<Cat
   // Never take payment for a combination the print shop cannot make.
   const unavailable = unavailableCombination({ kind: selection.productKind, provider: podProviderFor(selection.productKind, variant?.provider || metadata?.provider), productName: product.name, variantName, podSku: variant?.podSku || null, options, photoCount: Math.max(1, photos.filter(Boolean).length), cardSize: null, cardSku: null });
   if (unavailable) throw new CatalogError(unavailable.reason === "orientation" ? `Este tamaño solo está disponible en ${unavailable.available.toLowerCase()}. Cambia la orientación o elige otro tamaño.` : "Este tamaño no está disponible ahora mismo. Elige otro tamaño.", 400);
-  const requiredPhotos = requiredPhotoCount({ metadata }, variant);
+  const requiredPhotos = requiredPhotoCount({ metadata, kind: selection.productKind }, variant);
   if (photos.filter(Boolean).length < requiredPhotos) throw new CatalogError(requiredPhotos === 1 ? "Sube tu fotografía para este producto." : `Sube ${requiredPhotos} fotografías para este producto.`, 400);
   return {
     ...selection,
